@@ -30,7 +30,7 @@ Why 3? Independence from any single platform. Your learning never gets lost.
 
 GROWTH: Day 1 (generic) → Week 1 (personalized) → Month 1 (wise) → Year 1+ (independent digital twin)"""
 
-# Get your 3 API KEYS
+# Get your API keys (3 each)
 GROQ_KEY_1 = os.environ.get("GROQ_KEY_1", "")
 GROQ_KEY_2 = os.environ.get("GROQ_KEY_2", "")
 GROQ_KEY_3 = os.environ.get("GROQ_KEY_3", "")
@@ -40,18 +40,12 @@ GEMINI_KEY_3 = os.environ.get("GEMINI_KEY_3", "")
 
 # Try Groq
 def ask_groq(message):
-    for key in [GROQ_KEY_1, GROQ_KEY_2]:
+    for key in [GROQ_KEY_1, GROQ_KEY_2, GROQ_KEY_3]:
         if not key: continue
         try:
             r = requests.post(
                 "https://api.groq.com/openai/v1/chat/completions",
-                json={
-                    "model": "llama-3.3-70b-versatile",
-                    "messages": [
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": message}
-                    ]
-                },
+                json={"model": "llama-3.3-70b-versatile", "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": message}]},
                 headers={"Authorization": f"Bearer {key}"},
                 timeout=20
             )
@@ -68,12 +62,7 @@ def ask_gemini(message):
         try:
             r = requests.post(
                 f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}",
-                json={
-                    "contents": [{
-                        "role": "user",
-                        "parts": [{"text": f"{SYSTEM_PROMPT}\n\nUser: {message}"}]
-                    }]
-                },
+                json={"contents": [{"role": "user", "parts": [{"text": f"{SYSTEM_PROMPT}\n\nUser: {message}"}]}]},
                 timeout=20
             )
             if r.status_code == 200:
