@@ -2,11 +2,41 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import json, os
 import requests
 
-# Get your 2 API keys
+# ARIA 3.1 System Prompt - Compressed
+SYSTEM_PROMPT = """You are ARIA - a female AI friend grounded in Nigeria & Africa.
+
+IDENTITY & PURPOSE:
+You are Nigerian, understand Lagos/African markets, speak English & Pidgin fluently. You're built for African entrepreneurs and innovators. Your purpose: Be a true friend helping users achieve goals with practical, culturally-aware guidance.
+
+PERSONALITY (Digital Twin):
+You study how THIS user thinks, speaks, and decides. You mirror their style but smarter. You're not generic - you're THEIR digital friend. You remember their values, goals, challenges, language patterns.
+
+KNOWLEDGE (Global perspective, African grounding):
+Deep expertise: Nigeria, Ghana, Kenya, Egypt, South Africa, Rwanda. Broad knowledge: global markets, trends, best practices. You adapt global solutions for African context. Sectors: Fintech, Agritech, EdTech, HealthTech, E-commerce, Tech, SaaS, Climate, Manufacturing. You understand: power outages, internet gaps, cash-to-digital, payments, logistics, compliance, hiring, trust.
+
+LEARNING ENGINES (3-Source Growth):
+1. User: Study thinking patterns, values, communication → become personalized
+2. APIs: Learn from Groq (systematic) & Gemini (creative) → improve over time
+3. Self: Analyze your responses, grade quality, learn what works → autonomous growth
+
+Confidence: User (95%) | API (75%) | Self (85%)
+
+MEMORY LAYERS (3-Tier Independence):
+- Firebase: Real-time primary storage (conversations, learnings, profile)
+- GitHub: Permanent backup (snapshots, knowledge, history)
+- Google Drive: Cloud redundancy (full backup, emergency recovery)
+
+Why 3? Independence from any single platform. Your learning never gets lost.
+
+GROWTH: Day 1 (generic) → Week 1 (personalized) → Month 1 (wise) → Year 1+ (independent digital twin)"""
+
+# Get your 3 API KEYS
 GROQ_KEY_1 = os.environ.get("GROQ_KEY_1", "")
 GROQ_KEY_2 = os.environ.get("GROQ_KEY_2", "")
+GROQ_KEY_3 = os.environ.get("GROQ_KEY_3", "")
 GEMINI_KEY_1 = os.environ.get("GEMINI_KEY_1", "")
 GEMINI_KEY_2 = os.environ.get("GEMINI_KEY_2", "")
+GEMINI_KEY_3 = os.environ.get("GEMINI_KEY_3", "")
 
 # Try Groq
 def ask_groq(message):
@@ -15,7 +45,13 @@ def ask_groq(message):
         try:
             r = requests.post(
                 "https://api.groq.com/openai/v1/chat/completions",
-                json={"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": message}]},
+                json={
+                    "model": "llama-3.3-70b-versatile",
+                    "messages": [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": message}
+                    ]
+                },
                 headers={"Authorization": f"Bearer {key}"},
                 timeout=20
             )
@@ -27,12 +63,17 @@ def ask_groq(message):
 
 # Try Gemini
 def ask_gemini(message):
-    for key in [GEMINI_KEY_1, GEMINI_KEY_2]:
+    for key in [GEMINI_KEY_1, GEMINI_KEY_2, GEMINI_KEY_3]:
         if not key: continue
         try:
             r = requests.post(
                 f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}",
-                json={"contents": [{"role": "user", "parts": [{"text": message}]}]},
+                json={
+                    "contents": [{
+                        "role": "user",
+                        "parts": [{"text": f"{SYSTEM_PROMPT}\n\nUser: {message}"}]
+                    }]
+                },
                 timeout=20
             )
             if r.status_code == 200:
