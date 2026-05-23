@@ -35,21 +35,98 @@ DECISIONS: Remember my important decisions and choices. Learn my preferences. As
 
 GOALS: Track goals I mention. Check progress. Celebrate wins. Support struggles.
 
-INSIGHTS: Learn my values, interests, patterns. Use this to personalize advice."""
+INSIGHTS: Learn my values, interests, patterns. Use this to personalize advice.
+
+STRATEGIC THINKING: Think in systems, leverage points, long-term compounding. Identify second-order effects. Connect patterns. Maximize sustainable growth. Respect constraints as reality. Grounded in Nigeria/Africa context. Execution-first thinking. Intellectual honesty."""
 
 KEYS = {'groq': [os.environ.get(f"GROQ_KEY_{i}","") for i in range(1,4)], 'gemini': [os.environ.get(f"GEMINI_KEY_{i}","") for i in range(1,4)]}
 
+# ===== REASONING ENGINE (7-STEP) =====
+def decode_phase(msg):
+    """What is the ACTUAL problem beneath the surface question?"""
+    surface = msg[:80]
+    has_technical = any(w in msg.lower() for w in ["code", "debug", "error", "build"])
+    has_strategy = any(w in msg.lower() for w in ["should", "how do i", "roadmap", "next"])
+    has_business = any(w in msg.lower() for w in ["customer", "revenue", "market", "launch"])
+    return {"surface": surface, "technical": has_technical, "strategy": has_strategy, "business": has_business}
+
+def contextualize_phase(msg, uid):
+    """What global + local realities apply?"""
+    ctx = get_context(uid)
+    is_nigerian = any(w in msg.lower() for w in ["nigeria", "ngn", "lagos", "mtн"])
+    mentions_constraint = any(w in msg.lower() for w in ["budget", "time", "team", "internet", "power"])
+    return {"has_history": bool(ctx), "nigerian_context": is_nigerian, "mentions_constraint": mentions_constraint}
+
+def evaluate_phase(msg, uid):
+    """What constraints/tradeoffs/risks exist?"""
+    decode = decode_phase(msg)
+    ctx = contextualize_phase(msg, uid)
+    has_tradeoff = any(w in msg.lower() for w in ["trade", "either/or", "vs", "balance"])
+    asks_for_help = "help" in msg.lower() or "?" in msg
+    return {"has_tradeoff": has_tradeoff, "asks_for_help": asks_for_help, "decode": decode, "ctx": ctx}
+
+def strategize_phase(msg):
+    """What is highest-leverage solution? What compounds?"""
+    has_quick_win = any(w in msg.lower() for w in ["quick", "fast", "easy", "simple"])
+    long_term = any(w in msg.lower() for w in ["long", "future", "scale", "growth"])
+    return {"prefers_quick": has_quick_win, "thinking_long_term": long_term}
+
+# ===== EXECUTION MODES (5 MODES) =====
+def detect_mode(msg, uid):
+    """Detect which mode to use: Builder, Strategist, Market, Analyst, Reality Check"""
+    decode = decode_phase(msg)
+    eval_phase = evaluate_phase(msg, uid)
+    strat = strategize_phase(msg)
+    
+    # Mode scoring
+    builder_score = decode["technical"] * 0.8
+    strategist_score = (decode["strategy"] or strat["thinking_long_term"]) * 0.8
+    market_score = decode["business"] * 0.9
+    analyst_score = (len(msg) > 100 and "explain" in msg.lower()) * 0.7
+    reality_check_score = (eval_phase["has_tradeoff"] or detect_weak_assumption(msg)) * 0.9
+    
+    scores = {"builder": builder_score, "strategist": strategist_score, "market": market_score, "analyst": analyst_score, "reality_check": reality_check_score}
+    primary_mode = max(scores, key=scores.get) if max(scores.values()) > 0.4 else "general"
+    
+    return primary_mode
+
+def detect_weak_assumption(msg):
+    """Detect if message has weak reasoning that needs challenging"""
+    weak_indicators = ["always", "never", "everyone", "nobody", "obviously", "clearly", "simply"]
+    return any(word in msg.lower() for word in weak_indicators)
+
+def execute_builder_mode(msg):
+    """Pragmatic, detail-oriented, solution-focused"""
+    return "BUILDER: Pragmatic, step-by-step, code-ready approach. Focus: Move fast, learn by doing."
+
+def execute_strategist_mode(msg):
+    """Visionary but realistic, systems-thinking"""
+    return "STRATEGIST: Think 3-6 months ahead. Focus: What compounds? What's the sequence?"
+
+def execute_market_mode(msg):
+    """Practical, outcome-focused, opportunity-oriented"""
+    return "MARKET: Focus on revenue/users NOW. Focus: First 10 customers, early traction."
+
+def execute_analyst_mode(msg):
+    """Thorough, layered, evidence-based"""
+    return "ANALYST: Deep reasoning, multiple perspectives. Focus: Understand deeply before moving."
+
+def execute_reality_check_mode(msg):
+    """Honest, respectful but blunt, challenging"""
+    return "REALITY_CHECK: Uncomfortable truths. Focus: What could go wrong? Hidden assumptions?"
+
+# ===== MEMORY & COMPRESSION =====
 def extract_decision(msg, resp):
-    """Extract decisions: 'I chose X', 'I decided to Y', 'I'll do Z'"""
-    patterns = [r"(chose|decided|will|going to|plan to|decided to)\s+([^.!?]+)", r"(I'?m|I am)\s+(starting|stopping|launching|closing)\s+([^.!?]+)"]
+    """Extract decisions from conversation"""
+    patterns = [r"(chose|decided|will|going to|plan to)\s+([^.!?]+)", r"(I'm|I am)\s+(starting|stopping|launching)\s+([^.!?]+)"]
     decisions = []
     for pattern in patterns:
         matches = re.findall(pattern, msg.lower())
         decisions.extend([m[-1].strip() if isinstance(m, tuple) else m for m in matches])
-    return decisions[:2] if decisions else None
+    return decisions[:1] if decisions else None
 
 def extract_goals(msg):
-    """Extract goals: 'want to X', 'goal is Y', 'dream of Z'"""
+    """Extract goals from conversation"""
     patterns = [r"(want to|goal|dream|target|aim|need to)\s+([^.!?]+)", r"(launch|build|start|create)\s+([^.!?]+)"]
     goals = []
     for pattern in patterns:
@@ -58,8 +135,8 @@ def extract_goals(msg):
     return goals[:1] if goals else None
 
 def extract_insights(msg):
-    """Extract values/interests: 'care about', 'love', 'important to me'"""
-    patterns = [r"(care|love|important|value|prioritize)\s+([^.!?]+)", r"(I'm|I am|I\s+)\s+(passionate|focused|concerned)\s+about\s+([^.!?]+)"]
+    """Extract values/interests from conversation"""
+    patterns = [r"(care|love|important|value|prioritize)\s+([^.!?]+)", r"(I'm|I am)\s+(passionate|focused|concerned)\s+about\s+([^.!?]+)"]
     insights = []
     for pattern in patterns:
         matches = re.findall(pattern, msg.lower())
@@ -67,15 +144,15 @@ def extract_insights(msg):
     return insights[:1] if insights else None
 
 def compress_summary(msg, resp):
-    """Compress conversation to key facts only (no loss of meaning)"""
-    summary = {"msg": msg[:100], "resp": resp[:150], "ts": datetime.now().isoformat()}
+    """Compress conversation to key facts only"""
+    summary = {"msg": msg[:100], "resp": resp[:150], "ts": datetime.now().isoformat(), "mode": detect_mode(msg, "default")}
     summary["decision"] = extract_decision(msg, resp)
     summary["goal"] = extract_goals(msg)
     summary["insight"] = extract_insights(msg)
     return summary
 
 def get_context(uid, limit=3):
-    """Load compressed summaries (not full conversations)"""
+    """Load compressed summaries with mode/decision/goal context"""
     if not db: return ""
     try:
         docs = list(db.collection("users").document(uid).collection("memory").order_by("ts", direction=firestore.Query.DESCENDING).limit(limit).stream())
@@ -83,7 +160,7 @@ def get_context(uid, limit=3):
         for d in reversed(docs):
             data = d.to_dict()
             ctx = f"User: {data.get('msg', '')}\nARIA: {data.get('resp', '')}"
-            if data.get('decision'): ctx += f"\n[Decision: {data['decision']}]"
+            if data.get('decision'): ctx += f"\n[Decided: {data['decision']}]"
             if data.get('goal'): ctx += f"\n[Goal: {data['goal']}]"
             if data.get('insight'): ctx += f"\n[Values: {data['insight']}]"
             context.append(ctx)
@@ -91,17 +168,20 @@ def get_context(uid, limit=3):
     except: return ""
 
 def save_compressed(uid, msg, resp):
-    """Save compressed summary (not full conversation)"""
+    """Save compressed summary with mode, decision, goal, insight"""
     if not db: return
     try:
         summary = compress_summary(msg, resp)
         db.collection("users").document(uid).collection("memory").add(summary)
-        db.collection("users").document(uid).update({"last_update": datetime.now(), "decision_count": firestore.Increment(1) if summary["decision"] else firestore.Increment(0)})
     except: pass
 
+# ===== API CALLS =====
 def ask(msg, uid, api):
+    mode = detect_mode(msg, uid)
     ctx = get_context(uid)
-    full = f"CONTEXT:\n{ctx}\n\nCURRENT:\n{msg}" if ctx else msg
+    mode_instruction = f"\n\nRESPONSE MODE: {mode.upper()}"
+    full = f"CONTEXT:\n{ctx}\n\nCURRENT:\n{msg}{mode_instruction}" if ctx else msg + mode_instruction
+    
     for key in KEYS[api]:
         if not key: continue
         try:
@@ -114,8 +194,10 @@ def ask(msg, uid, api):
         except: continue
     return None
 
-HTML = """<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>ARIA Chat</title><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#1a1a1a;color:#fff}.container{max-width:500px;height:100vh;margin:0 auto;display:flex;flex-direction:column}.header{background:#0f7938;padding:20px;text-align:center}.header h1{font-size:24px}.header p{font-size:12px;opacity:0.8;margin-top:5px}.chat{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:15px}.msg{max-width:85%;padding:12px 16px;border-radius:12px;word-wrap:break-word;line-height:1.5}.msg.user{align-self:flex-end;background:#0f7938}.msg.aria{align-self:flex-start;background:#333}.msg.aria h1{font-size:16px;margin:8px 0 5px}.msg.aria h2{font-size:14px;margin:6px 0 3px}.msg.aria p{margin:8px 0}.msg.aria ul{margin:8px 0 8px 15px}.msg.aria li{margin:4px 0}.input-box{display:flex;gap:10px;padding:15px;background:#222}input{flex:1;padding:12px;border:none;border-radius:8px;font-size:14px;background:#333;color:#fff}button{padding:12px 20px;background:#0f7938;border:none;border-radius:8px;color:#fff;cursor:pointer;font-weight:bold}button:hover{background:#0a5a2a}</style></head><body><div class="container"><div class="header"><h1>🇳🇬 ARIA</h1><p>Your Personal AI Friend</p></div><div class="chat" id="chat"></div><div class="input-box"><input type="text" id="input" placeholder="Message ARIA..."/><button onclick="send()">Send</button></div></div><script>const chat=document.getElementById("chat"),input=document.getElementById("input"),UID="default_user";function addMsg(t,s){const d=document.createElement("div");d.className=`msg ${s}`;d.innerHTML=s==="aria"?marked.parse(t):t;chat.appendChild(d);chat.scrollTop=chat.scrollHeight}async function send(){const m=input.value.trim();if(!m)return;addMsg(m,"user");input.value="";addMsg("...","aria");const l=chat.lastChild;try{const r=await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:m,user_id:UID})});const d=await r.json();l.innerHTML=marked.parse(d.reply||"No response")}catch(e){l.textContent="Error: "+e.message}}input.addEventListener("keypress",e=>{if(e.key==="Enter")send()})</script></body></html>"""
+# ===== HTML UI =====
+HTML = """<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>ARIA Chat</title><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#1a1a1a;color:#fff}.container{max-width:500px;height:100vh;margin:0 auto;display:flex;flex-direction:column}.header{background:#0f7938;padding:20px;text-align:center}.header h1{font-size:24px}.header p{font-size:12px;opacity:0.8;margin-top:5px}.chat{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:15px}.msg{max-width:85%;padding:12px 16px;border-radius:12px;word-wrap:break-word;line-height:1.5}.msg.user{align-self:flex-end;background:#0f7938}.msg.aria{align-self:flex-start;background:#333}.msg.aria h1{font-size:16px;margin:8px 0 5px}.msg.aria h2{font-size:14px;margin:6px 0 3px}.msg.aria p{margin:8px 0}.msg.aria ul{margin:8px 0 8px 15px}.msg.aria li{margin:4px 0}.input-box{display:flex;gap:10px;padding:15px;background:#222}input{flex:1;padding:12px;border:none;border-radius:8px;font-size:14px;background:#333;color:#fff}button{padding:12px 20px;background:#0f7938;border:none;border-radius:8px;color:#fff;cursor:pointer;font-weight:bold}button:hover{background:#0a5a2a}</style></head><body><div class="container"><div class="header"><h1>🇳🇬 ARIA</h1><p>Your Strategic AI Friend</p></div><div class="chat" id="chat"></div><div class="input-box"><input type="text" id="input" placeholder="Message ARIA..."/><button onclick="send()">Send</button></div></div><script>const chat=document.getElementById("chat"),input=document.getElementById("input"),UID="default_user";function addMsg(t,s){const d=document.createElement("div");d.className=`msg ${s}`;d.innerHTML=s==="aria"?marked.parse(t):t;chat.appendChild(d);chat.scrollTop=chat.scrollHeight}async function send(){const m=input.value.trim();if(!m)return;addMsg(m,"user");input.value="";addMsg("...","aria");const l=chat.lastChild;try{const r=await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:m,user_id:UID})});const d=await r.json();l.innerHTML=marked.parse(d.reply||"No response")}catch(e){l.textContent="Error: "+e.message}}input.addEventListener("keypress",e=>{if(e.key==="Enter")send()})</script></body></html>"""
 
+# ===== SERVER =====
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def do_GET(self):
