@@ -1,8 +1,7 @@
 from http.server import HTTPServer, BaseHTTPRequestHandler
-import json, os
-import requests
+import json, os, mimetypes
 
-# ARIA 3.1 System Prompt - Compressed
+# ARIA 3.1 System Prompt
 SYSTEM_PROMPT = """You are ARIA - a female AI friend grounded in Nigeria & Africa.
 
 IDENTITY & PURPOSE:
@@ -30,7 +29,8 @@ Why 3? Independence from any single platform. Your learning never gets lost.
 
 GROWTH: Day 1 (generic) → Week 1 (personalized) → Month 1 (wise) → Year 1+ (independent digital twin)"""
 
-# Get your API keys (3 each)
+import requests
+
 GROQ_KEY_1 = os.environ.get("GROQ_KEY_1", "")
 GROQ_KEY_2 = os.environ.get("GROQ_KEY_2", "")
 GROQ_KEY_3 = os.environ.get("GROQ_KEY_3", "")
@@ -38,7 +38,6 @@ GEMINI_KEY_1 = os.environ.get("GEMINI_KEY_1", "")
 GEMINI_KEY_2 = os.environ.get("GEMINI_KEY_2", "")
 GEMINI_KEY_3 = os.environ.get("GEMINI_KEY_3", "")
 
-# Try Groq
 def ask_groq(message):
     for key in [GROQ_KEY_1, GROQ_KEY_2, GROQ_KEY_3]:
         if not key: continue
@@ -55,7 +54,6 @@ def ask_groq(message):
             continue
     return None
 
-# Try Gemini
 def ask_gemini(message):
     for key in [GEMINI_KEY_1, GEMINI_KEY_2, GEMINI_KEY_3]:
         if not key: continue
@@ -71,16 +69,98 @@ def ask_gemini(message):
             continue
     return None
 
-# Handle incoming messages
+HTML = """<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARIA Chat</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #1a1a1a; color: #fff; }
+        .container { max-width: 500px; height: 100vh; margin: 0 auto; display: flex; flex-direction: column; }
+        .header { background: #0f7938; padding: 20px; text-align: center; }
+        .header h1 { font-size: 24px; }
+        .header p { font-size: 12px; opacity: 0.8; margin-top: 5px; }
+        .chat { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+        .msg { max-width: 85%; padding: 12px 16px; border-radius: 12px; word-wrap: break-word; }
+        .msg.user { align-self: flex-end; background: #0f7938; }
+        .msg.aria { align-self: flex-start; background: #333; }
+        .input-box { display: flex; gap: 10px; padding: 15px; background: #222; }
+        input { flex: 1; padding: 12px; border: none; border-radius: 8px; font-size: 14px; background: #333; color: #fff; }
+        button { padding: 12px 20px; background: #0f7938; border: none; border-radius: 8px; color: #fff; cursor: pointer; font-weight: bold; }
+        button:hover { background: #0a5a2a; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🇳🇬 ARIA</h1>
+            <p>Your Nigerian AI Friend</p>
+        </div>
+        <div class="chat" id="chat"></div>
+        <div class="input-box">
+            <input type="text" id="input" placeholder="Message ARIA..." />
+            <button onclick="send()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        const chat = document.getElementById("chat");
+        const input = document.getElementById("input");
+
+        function addMsg(text, sender) {
+            const div = document.createElement("div");
+            div.className = `msg ${sender}`;
+            div.textContent = text;
+            chat.appendChild(div);
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        async function send() {
+            const msg = input.value.trim();
+            if (!msg) return;
+
+            addMsg(msg, "user");
+            input.value = "";
+
+            addMsg("...", "aria");
+            const lastMsg = chat.lastChild;
+
+            try {
+                const response = await fetch("/chat", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: msg })
+                });
+                
+                const data = await response.json();
+                lastMsg.textContent = data.reply || "No response";
+            } catch (error) {
+                lastMsg.textContent = "Error: " + error.message;
+            }
+        }
+
+        input.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") send();
+        });
+    </script>
+</body>
+</html>"""
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args): pass
     
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.end_headers()
+    def do_GET(self):
+        if self.path == "/":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(HTML.encode())
+        else:
+            self.send_response(404)
+            self.end_headers()
     
     def do_POST(self):
         if self.path == "/chat":
@@ -100,7 +180,6 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
 
-# Start server
 port = int(os.environ.get("PORT", 8080))
 print(f"[ARIA] Starting on port {port}...")
 HTTPServer(("0.0.0.0", port), Handler).serve_forever()
