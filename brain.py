@@ -75,21 +75,29 @@ def ask_gemini(message):
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args): pass
     
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+    
     def do_POST(self):
         if self.path == "/chat":
             try:
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                
                 body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
                 message = body.get("message", "").strip()
                 
-                # Try Groq first, then Gemini
                 reply = ask_groq(message) or ask_gemini(message) or "APIs offline"
-                
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
                 self.wfile.write(json.dumps({"reply": reply}).encode())
             except:
                 self.send_response(500)
+                self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
 
 # Start server
