@@ -1,5 +1,5 @@
 from http.server import HTTPServer, BaseHTTPRequestHandler
-import json, os, requests, firebase_admin
+import json, os, requests, firebase_admin, re
 from firebase_admin import credentials, firestore
 from datetime import datetime
 
@@ -29,25 +29,79 @@ MEMORY: Reference past conversations naturally. My goals/values shape how you ta
 
 NOT: AI voice, formal, verbose unless needed, tone-deaf, one personality, "as an AI"
 
-IS: Your intelligent friend. Reads situations. Practical problem-solver. Supportive but real. Adaptive. Human-like."""
+IS: Your intelligent friend. Reads situations. Practical problem-solver. Supportive but real. Adaptive. Human-like.
+
+DECISIONS: Remember my important decisions and choices. Learn my preferences. Ask about outcomes naturally.
+
+GOALS: Track goals I mention. Check progress. Celebrate wins. Support struggles.
+
+INSIGHTS: Learn my values, interests, patterns. Use this to personalize advice."""
 
 KEYS = {'groq': [os.environ.get(f"GROQ_KEY_{i}","") for i in range(1,4)], 'gemini': [os.environ.get(f"GEMINI_KEY_{i}","") for i in range(1,4)]}
 
-def get_hist(uid, limit=5):
+def extract_decision(msg, resp):
+    """Extract decisions: 'I chose X', 'I decided to Y', 'I'll do Z'"""
+    patterns = [r"(chose|decided|will|going to|plan to|decided to)\s+([^.!?]+)", r"(I'?m|I am)\s+(starting|stopping|launching|closing)\s+([^.!?]+)"]
+    decisions = []
+    for pattern in patterns:
+        matches = re.findall(pattern, msg.lower())
+        decisions.extend([m[-1].strip() if isinstance(m, tuple) else m for m in matches])
+    return decisions[:2] if decisions else None
+
+def extract_goals(msg):
+    """Extract goals: 'want to X', 'goal is Y', 'dream of Z'"""
+    patterns = [r"(want to|goal|dream|target|aim|need to)\s+([^.!?]+)", r"(launch|build|start|create)\s+([^.!?]+)"]
+    goals = []
+    for pattern in patterns:
+        matches = re.findall(pattern, msg.lower())
+        goals.extend([m[-1].strip() if isinstance(m, tuple) else m for m in matches])
+    return goals[:1] if goals else None
+
+def extract_insights(msg):
+    """Extract values/interests: 'care about', 'love', 'important to me'"""
+    patterns = [r"(care|love|important|value|prioritize)\s+([^.!?]+)", r"(I'm|I am|I\s+)\s+(passionate|focused|concerned)\s+about\s+([^.!?]+)"]
+    insights = []
+    for pattern in patterns:
+        matches = re.findall(pattern, msg.lower())
+        insights.extend([m[-1].strip() if isinstance(m, tuple) else m for m in matches])
+    return insights[:1] if insights else None
+
+def compress_summary(msg, resp):
+    """Compress conversation to key facts only (no loss of meaning)"""
+    summary = {"msg": msg[:100], "resp": resp[:150], "ts": datetime.now().isoformat()}
+    summary["decision"] = extract_decision(msg, resp)
+    summary["goal"] = extract_goals(msg)
+    summary["insight"] = extract_insights(msg)
+    return summary
+
+def get_context(uid, limit=3):
+    """Load compressed summaries (not full conversations)"""
     if not db: return ""
     try:
-        docs = list(db.collection("users").document(uid).collection("conversations").order_by("timestamp", direction=firestore.Query.DESCENDING).limit(limit).stream())
-        return "\n\n".join([f"User: {d.to_dict()['user_msg']}\nARIA: {d.to_dict()['aria_resp']}" for d in reversed(docs)])
+        docs = list(db.collection("users").document(uid).collection("memory").order_by("ts", direction=firestore.Query.DESCENDING).limit(limit).stream())
+        context = []
+        for d in reversed(docs):
+            data = d.to_dict()
+            ctx = f"User: {data.get('msg', '')}\nARIA: {data.get('resp', '')}"
+            if data.get('decision'): ctx += f"\n[Decision: {data['decision']}]"
+            if data.get('goal'): ctx += f"\n[Goal: {data['goal']}]"
+            if data.get('insight'): ctx += f"\n[Values: {data['insight']}]"
+            context.append(ctx)
+        return "\n\n".join(context)
     except: return ""
 
-def save_conv(uid, um, ar):
-    if db:
-        try: db.collection("users").document(uid).collection("conversations").add({"user_msg": um, "aria_resp": ar, "timestamp": datetime.now()})
-        except: pass
+def save_compressed(uid, msg, resp):
+    """Save compressed summary (not full conversation)"""
+    if not db: return
+    try:
+        summary = compress_summary(msg, resp)
+        db.collection("users").document(uid).collection("memory").add(summary)
+        db.collection("users").document(uid).update({"last_update": datetime.now(), "decision_count": firestore.Increment(1) if summary["decision"] else firestore.Increment(0)})
+    except: pass
 
 def ask(msg, uid, api):
-    hist = get_hist(uid)
-    full = f"PAST:\n{hist}\n\nCURRENT:\n{msg}" if hist else msg
+    ctx = get_context(uid)
+    full = f"CONTEXT:\n{ctx}\n\nCURRENT:\n{msg}" if ctx else msg
     for key in KEYS[api]:
         if not key: continue
         try:
@@ -60,7 +114,7 @@ def ask(msg, uid, api):
         except: continue
     return None
 
-HTML = """<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>ARIA Chat</title><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#1a1a1a;color:#fff}.container{max-width:500px;height:100vh;margin:0 auto;display:flex;flex-direction:column}.header{background:#0f7938;padding:20px;text-align:center}.header h1{font-size:24px}.header p{font-size:12px;opacity:0.8;margin-top:5px}.chat{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:15px}.msg{max-width:85%;padding:12px 16px;border-radius:12px;word-wrap:break-word;line-height:1.5}.msg.user{align-self:flex-end;background:#0f7938}.msg.aria{align-self:flex-start;background:#333}.msg.aria h1{font-size:16px;margin-top:8px;margin-bottom:5px}.msg.aria h2{font-size:14px;margin-top:6px}.msg.aria p{margin:8px 0}.msg.aria ul{margin:8px 0 8px 15px}.msg.aria li{margin:4px 0}.msg.aria strong{font-weight:bold}.input-box{display:flex;gap:10px;padding:15px;background:#222}input{flex:1;padding:12px;border:none;border-radius:8px;font-size:14px;background:#333;color:#fff}button{padding:12px 20px;background:#0f7938;border:none;border-radius:8px;color:#fff;cursor:pointer;font-weight:bold}button:hover{background:#0a5a2a}</style></head><body><div class="container"><div class="header"><h1>🇳🇬 ARIA</h1><p>Your Personal AI Friend</p></div><div class="chat" id="chat"></div><div class="input-box"><input type="text" id="input" placeholder="Message ARIA..."/><button onclick="send()">Send</button></div></div><script>const chat=document.getElementById("chat"),input=document.getElementById("input"),UID="default_user";function addMsg(t,s){const d=document.createElement("div");d.className=`msg ${s}`;d.innerHTML=s==="aria"?marked.parse(t):t;chat.appendChild(d);chat.scrollTop=chat.scrollHeight}async function send(){const m=input.value.trim();if(!m)return;addMsg(m,"user");input.value="";addMsg("...","aria");const l=chat.lastChild;try{const r=await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:m,user_id:UID})});const d=await r.json();l.innerHTML=marked.parse(d.reply||"No response")}catch(e){l.textContent="Error: "+e.message}}input.addEventListener("keypress",e=>{if(e.key==="Enter")send()})</script></body></html>"""
+HTML = """<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>ARIA Chat</title><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#1a1a1a;color:#fff}.container{max-width:500px;height:100vh;margin:0 auto;display:flex;flex-direction:column}.header{background:#0f7938;padding:20px;text-align:center}.header h1{font-size:24px}.header p{font-size:12px;opacity:0.8;margin-top:5px}.chat{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:15px}.msg{max-width:85%;padding:12px 16px;border-radius:12px;word-wrap:break-word;line-height:1.5}.msg.user{align-self:flex-end;background:#0f7938}.msg.aria{align-self:flex-start;background:#333}.msg.aria h1{font-size:16px;margin:8px 0 5px}.msg.aria h2{font-size:14px;margin:6px 0 3px}.msg.aria p{margin:8px 0}.msg.aria ul{margin:8px 0 8px 15px}.msg.aria li{margin:4px 0}.input-box{display:flex;gap:10px;padding:15px;background:#222}input{flex:1;padding:12px;border:none;border-radius:8px;font-size:14px;background:#333;color:#fff}button{padding:12px 20px;background:#0f7938;border:none;border-radius:8px;color:#fff;cursor:pointer;font-weight:bold}button:hover{background:#0a5a2a}</style></head><body><div class="container"><div class="header"><h1>🇳🇬 ARIA</h1><p>Your Personal AI Friend</p></div><div class="chat" id="chat"></div><div class="input-box"><input type="text" id="input" placeholder="Message ARIA..."/><button onclick="send()">Send</button></div></div><script>const chat=document.getElementById("chat"),input=document.getElementById("input"),UID="default_user";function addMsg(t,s){const d=document.createElement("div");d.className=`msg ${s}`;d.innerHTML=s==="aria"?marked.parse(t):t;chat.appendChild(d);chat.scrollTop=chat.scrollHeight}async function send(){const m=input.value.trim();if(!m)return;addMsg(m,"user");input.value="";addMsg("...","aria");const l=chat.lastChild;try{const r=await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:m,user_id:UID})});const d=await r.json();l.innerHTML=marked.parse(d.reply||"No response")}catch(e){l.textContent="Error: "+e.message}}input.addEventListener("keypress",e=>{if(e.key==="Enter")send()})</script></body></html>"""
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
@@ -82,7 +136,7 @@ class Handler(BaseHTTPRequestHandler):
                 b=json.loads(self.rfile.read(int(self.headers.get("Content-Length",0))))
                 m,u=b.get("message","").strip(),b.get("user_id","default_user")
                 r=ask(m,u,'groq') or ask(m,u,'gemini') or "APIs offline"
-                save_conv(u,m,r)
+                save_compressed(u,m,r)
                 self.wfile.write(json.dumps({"reply":r}).encode())
             except: self.send_response(500); self.send_header("Access-Control-Allow-Origin","*"); self.end_headers()
 
