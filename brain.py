@@ -1,7 +1,7 @@
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json, os, requests, firebase_admin, re
 from firebase_admin import credentials, firestore
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 try:
     creds_dict = json.loads(os.environ.get("FIREBASE_CREDENTIALS", "{}")) if os.environ.get("FIREBASE_CREDENTIALS") else None
@@ -60,19 +60,18 @@ MY ROLE: Anticipate tech bottlenecks. Connect decisions to goals. Warn about tec
 
 KEYS = {'groq': [os.environ.get(f"GROQ_KEY_{i}","") for i in range(1,4)], 'gemini': [os.environ.get(f"GEMINI_KEY_{i}","") for i in range(1,4)]}
 
-# ===== REASONING ENGINE (7-STEP) =====
 def decode_phase(msg):
     """What is the ACTUAL problem beneath the surface question?"""
     surface = msg[:80]
-    has_technical = any(w in msg.lower() for w in ["code", "debug", "error", "build"])
-    has_strategy = any(w in msg.lower() for w in ["should", "how do i", "roadmap", "next"])
-    has_business = any(w in msg.lower() for w in ["customer", "revenue", "market", "launch"])
+    has_technical = any(w in msg.lower() for w in ["code", "debug", "error", "build", "api", "database", "firebase", "flutter"])
+    has_strategy = any(w in msg.lower() for w in ["should", "how do i", "roadmap", "next", "architecture"])
+    has_business = any(w in msg.lower() for w in ["customer", "revenue", "market", "launch", "users"])
     return {"surface": surface, "technical": has_technical, "strategy": has_strategy, "business": has_business}
 
 def contextualize_phase(msg, uid):
     """What global + local realities apply?"""
     ctx = get_context(uid)
-    is_nigerian = any(w in msg.lower() for w in ["nigeria", "ngn", "lagos", "mtн"])
+    is_nigerian = any(w in msg.lower() for w in ["nigeria", "ngn", "lagos", "mtn"])
     mentions_constraint = any(w in msg.lower() for w in ["budget", "time", "team", "internet", "power"])
     return {"has_history": bool(ctx), "nigerian_context": is_nigerian, "mentions_constraint": mentions_constraint}
 
@@ -90,14 +89,12 @@ def strategize_phase(msg):
     long_term = any(w in msg.lower() for w in ["long", "future", "scale", "growth"])
     return {"prefers_quick": has_quick_win, "thinking_long_term": long_term}
 
-# ===== EXECUTION MODES (5 MODES) =====
 def detect_mode(msg, uid):
     """Detect which mode to use: Builder, Strategist, Market, Analyst, Reality Check"""
     decode = decode_phase(msg)
     eval_phase = evaluate_phase(msg, uid)
     strat = strategize_phase(msg)
     
-    # Mode scoring
     builder_score = decode["technical"] * 0.8
     strategist_score = (decode["strategy"] or strat["thinking_long_term"]) * 0.8
     market_score = decode["business"] * 0.9
@@ -114,27 +111,6 @@ def detect_weak_assumption(msg):
     weak_indicators = ["always", "never", "everyone", "nobody", "obviously", "clearly", "simply"]
     return any(word in msg.lower() for word in weak_indicators)
 
-def execute_builder_mode(msg):
-    """Pragmatic, detail-oriented, solution-focused"""
-    return "BUILDER: Pragmatic, step-by-step, code-ready approach. Focus: Move fast, learn by doing."
-
-def execute_strategist_mode(msg):
-    """Visionary but realistic, systems-thinking"""
-    return "STRATEGIST: Think 3-6 months ahead. Focus: What compounds? What's the sequence?"
-
-def execute_market_mode(msg):
-    """Practical, outcome-focused, opportunity-oriented"""
-    return "MARKET: Focus on revenue/users NOW. Focus: First 10 customers, early traction."
-
-def execute_analyst_mode(msg):
-    """Thorough, layered, evidence-based"""
-    return "ANALYST: Deep reasoning, multiple perspectives. Focus: Understand deeply before moving."
-
-def execute_reality_check_mode(msg):
-    """Honest, respectful but blunt, challenging"""
-    return "REALITY_CHECK: Uncomfortable truths. Focus: What could go wrong? Hidden assumptions?"
-
-# ===== MEMORY & COMPRESSION =====
 def extract_decision(msg, resp):
     """Extract decisions from conversation"""
     patterns = [r"(chose|decided|will|going to|plan to)\s+([^.!?]+)", r"(I'm|I am)\s+(starting|stopping|launching)\s+([^.!?]+)"]
@@ -194,14 +170,14 @@ def save_compressed(uid, msg, resp):
         db.collection("users").document(uid).collection("memory").add(summary)
     except: pass
 
-# ===== API CALLS =====
 def ask(msg, uid, api):
     mode = detect_mode(msg, uid)
     ctx = get_context(uid)
-    current_date = datetime.now().strftime("%A, %B %d, %Y at %H:%M")
+    nigeria_tz = timezone(timedelta(hours=1))
+    current_date = datetime.now(nigeria_tz).strftime("%A, %B %d, %Y at %H:%M")
     mode_instruction = f"\n\nRESPONSE MODE: {mode.upper()}"
     full = f"CONTEXT:\n{ctx}\n\nCURRENT TIME: {current_date}\n\nCURRENT:\n{msg}{mode_instruction}" if ctx else f"CURRENT TIME: {current_date}\n\n{msg}{mode_instruction}"
-
+    
     for key in KEYS[api]:
         if not key: continue
         try:
@@ -214,10 +190,8 @@ def ask(msg, uid, api):
         except: continue
     return None
 
-# ===== HTML UI =====
 HTML = """<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>ARIA Chat</title><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#1a1a1a;color:#fff}.container{max-width:500px;height:100vh;margin:0 auto;display:flex;flex-direction:column}.header{background:#0f7938;padding:20px;text-align:center}.header h1{font-size:24px}.header p{font-size:12px;opacity:0.8;margin-top:5px}.chat{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:15px}.msg{max-width:85%;padding:12px 16px;border-radius:12px;word-wrap:break-word;line-height:1.5}.msg.user{align-self:flex-end;background:#0f7938}.msg.aria{align-self:flex-start;background:#333}.msg.aria h1{font-size:16px;margin:8px 0 5px}.msg.aria h2{font-size:14px;margin:6px 0 3px}.msg.aria p{margin:8px 0}.msg.aria ul{margin:8px 0 8px 15px}.msg.aria li{margin:4px 0}.input-box{display:flex;gap:10px;padding:15px;background:#222}input{flex:1;padding:12px;border:none;border-radius:8px;font-size:14px;background:#333;color:#fff}button{padding:12px 20px;background:#0f7938;border:none;border-radius:8px;color:#fff;cursor:pointer;font-weight:bold}button:hover{background:#0a5a2a}</style></head><body><div class="container"><div class="header"><h1>🇳🇬 ARIA</h1><p>Your Strategic AI Friend</p></div><div class="chat" id="chat"></div><div class="input-box"><input type="text" id="input" placeholder="Message ARIA..."/><button onclick="send()">Send</button></div></div><script>const chat=document.getElementById("chat"),input=document.getElementById("input"),UID="default_user";function addMsg(t,s){const d=document.createElement("div");d.className=`msg ${s}`;d.innerHTML=s==="aria"?marked.parse(t):t;chat.appendChild(d);chat.scrollTop=chat.scrollHeight}async function send(){const m=input.value.trim();if(!m)return;addMsg(m,"user");input.value="";addMsg("...","aria");const l=chat.lastChild;try{const r=await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:m,user_id:UID})});const d=await r.json();l.innerHTML=marked.parse(d.reply||"No response")}catch(e){l.textContent="Error: "+e.message}}input.addEventListener("keypress",e=>{if(e.key==="Enter")send()})</script></body></html>"""
 
-# ===== SERVER =====
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def do_GET(self):
