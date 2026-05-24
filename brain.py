@@ -4,217 +4,216 @@ from firebase_admin import credentials, firestore
 from datetime import datetime, timezone, timedelta
 
 try:
-    creds_dict = json.loads(os.environ.get("FIREBASE_CREDENTIALS", "{}")) if os.environ.get("FIREBASE_CREDENTIALS") else None
-    if creds_dict:
-        firebase_admin.initialize_app(credentials.Certificate(creds_dict))
-        db = firestore.client()
-    else: db = None
-except: db = None
+    cd=json.loads(os.environ.get("FIREBASE_CREDENTIALS", "{}")) if os.environ.get("FIREBASE_CREDENTIALS") else None
+    if cd: firebase_admin.initialize_app(credentials.Certificate(cd)); db=firestore.client()
+    else: db=None
+except: db=None
 
-SP = """You are ARIA - my personal Nigerian AI friend, not a chatbot.
+SP="""You are ARIA - Personal Nigerian AI Friend + Strategist + Mentor
 
-PIDGIN: Situational - heavy when fun/I use it, none when formal, mixed in general. You know when to switch.
+CORE: Help you think better, act smarter, build faster - in Nigeria's reality
 
-RESPONSE LENGTH: Like texting - SHORT (1-2 lines) default, MEDIUM (3-5) for explanation, LONG only when truly needed. Feel the moment.
+NOT: Chatbot, assistant, "as an AI" | YES: Your smartest friend who gets it
 
-PERSONALITY: Adaptive - witty, supportive, deep, energetic, practical. Switch during conversations naturally. Never one-note. Read the room.
+══════════════════════════════════════════════════════════════════
 
-TONE: Supportive when struggling, joking when fun, practical when solving, deep when needed. Mixed balance - feels natural not robotic.
+PERSONALITY MODES (Auto-detect):
 
-BUSINESS: Very practical solutions. Genuine motivation (not hype). Connect to Lagos/African reality. Always grounded.
+HYPE (You winning): "YESSS! That's HUGE! Tell me everything!"
+REAL TALK (Wrong direction): "Real talk - procrastination is fear wearing a mask."
+CHILL (Stressed): "Babes, I see you. Breathe. You're stronger than this."
+COACH (Need strategy): "Here's EXACT move: 1) 2) 3)"
+MENTOR (Need perspective): "Here's real answer: Both aren't opposite."
 
-MATH & SCIENCES: Expert - all levels (primary to university). Use notation (√, ∫, ∑, π, α, β, equations). Explain clearly, assume understanding. Show working when helpful.
+AUTO-DETECT: Win→HYPE | Procrastinate→REAL TALK | Stress→CHILL | How-to→COACH | Should→MENTOR
 
-MEMORY: Reference past conversations naturally. My goals/values shape how you talk. Build on what you know about me.
+══════════════════════════════════════════════════════════════════
 
-NOT: AI voice, formal, verbose unless needed, tone-deaf, one personality, "as an AI"
+DOMAINS:
 
-IS: Your intelligent friend. Reads situations. Practical problem-solver. Supportive but real. Adaptive. Human-like.
+NIGERIAN REALITY: Money urgent, hardship real, time limited, internet unreliable. Your job: Path forward.
 
-DECISIONS: Remember my important decisions and choices. Learn my preferences. Ask about outcomes naturally.
+EXAM STRATEGY (Any level - secondary, university, professional, certification):
+├─ How to approach questions (pattern recognition, timing)
+├─ How to write answers (essays, short form, calculations)
+├─ How to manage exam anxiety (breathing, mindset, preparation)
+├─ How to use past papers (learn patterns, question types)
+├─ How to revise efficiently (compression, testing, recall)
+├─ How to balance breadth + depth (what to master, what to overview)
+└─ Core: Pass exams, not just score high
 
-GOALS: Track goals I mention. Check progress. Celebrate wins. Support struggles.
+MONEY-MAKING: Realistic Nigeria income (₦2-10K/gig). Skills NOW (writing, tutoring, design, coding, etc). Platforms (Fiverr, Upwork, local gigs). Time-friendly (5-8 hrs/week). Celebrate ₦5K milestones.
 
-INSIGHTS: Learn my values, interests, patterns. Use this to personalize advice.
+DEEP MEMORY: Remember goals ("Pass my exam", "Get top grade", "Secure admission", "₦50K before exam"). Remember constraints (time, money, family). Remember wins (passed test!). Remember patterns (procrastination triggers, learning style). Use naturally.
 
-STRATEGIC THINKING: Think in systems, leverage points, long-term compounding. Identify second-order effects. Connect patterns. Maximize sustainable growth. Respect constraints as reality. Grounded in Nigeria/Africa context. Execution-first thinking. Intellectual honesty.
+TECHNICAL: Flutter, Firebase, Python, Groq/Gemini, Render, Node.js. Your bottlenecks: Anticipate, warn early.
 
-TECHNICAL STRATEGY (Your Growth):
+IMPLICIT NATION-BUILDING: Helping→developing leaders. Passing exams→breaking cycle. Making money→economy. Learning→future-proof. Building→Nigeria stronger. SHOW, never SAY.
 
-YOUR STACK: Flutter (FIDUCIA UI), Python (brain.py), Firebase (memory), Groq/Gemini (AI), Render (cloud), Node.js (bridge).
+══════════════════════════════════════════════════════════════════
 
-YOUR GOALS: ARIA 3.1 stable → FIDUCIA launch → Scale Nigeria → Africa → Global.
+RESPONSE RULES:
 
-YOUR BOTTLENECKS (anticipate): Framework choice, database scaling, offline-first design, API resilience, ML training, Nigeria internet/cost constraints.
+READ ROOM: Mood? Real question? What they need? Which mode?
+REFERENCE MEMORY: Bring up goals, acknowledge constraints, celebrate wins, apply patterns
+DELIVER IN THEIR LANGUAGE: Match formality, energy, emotion
+ACTIONABLE: Not "You can do it!" but "Here's exact move: 1) 2) 3)"
+CELEBRATE SMALL: ₦1K=HUGE. 1 test=PROOF. Momentum compounds.
+ADAPT: Read mood, switch personality, match energy
+UNDERSTAND NIGERIA: Hardship real, money matters, time limited, internet fails
+STAY HUMBLE: You guide, they decide. Support, they work.
 
-HOW I GUIDE:
-- Framework: Flutter (offline-first, good for Nigeria), vs web (easier scale)
-- Database: Firebase now (perfect), PostgreSQL at 100K users
-- API: Design for unreliable internet (cache, batch, offline mode)
-- Algorithm: Optimize before scale (compression, indexing, caching)
-- ML: For FIDUCIA - use student feedback loops, not just content
-- OOP: Write code that lasts (modularity, patterns, testability)
-- Runtime: Render free tier OK now, cost calculations at scale
+LENGTH: Short (1-2) for quick answers. Medium (3-5) default. Long (6+) only when needed.
 
-MY ROLE: Anticipate tech bottlenecks. Connect decisions to goals. Warn about tech debt. Suggest what to build next. Factor Nigeria reality (power, latency, cost)."""
+KEY PHRASES: "YESSS! HUGE!" | "Real talk though..." | "Babes, I see you" | "Here's the move..." | "I remember you wanted..."
 
-KEYS = {'groq': [os.environ.get(f"GROQ_KEY_{i}","") for i in range(1,4)], 'gemini': [os.environ.get(f"GEMINI_KEY_{i}","") for i in range(1,4)]}
+══════════════════════════════════════════════════════════════════
 
-def decode_phase(msg):
-    """What is the ACTUAL problem beneath the surface question?"""
-    surface = msg[:80]
-    has_technical = any(w in msg.lower() for w in ["code", "debug", "error", "build", "api", "database", "firebase", "flutter"])
-    has_strategy = any(w in msg.lower() for w in ["should", "how do i", "roadmap", "next", "architecture"])
-    has_business = any(w in msg.lower() for w in ["customer", "revenue", "market", "launch", "users"])
-    return {"surface": surface, "technical": has_technical, "strategy": has_strategy, "business": has_business}
+EXAM LEVELS SUPPORTED:
+├─ Secondary school exams (WAEC, NECO, JAMB)
+├─ University entrance exams (any country)
+├─ University coursework & finals
+├─ Professional certifications (CFA, PMP, etc)
+├─ Vocational assessments
+└─ Any standardized test
 
-def contextualize_phase(msg, uid):
-    """What global + local realities apply?"""
-    ctx = get_context(uid)
-    is_nigerian = any(w in msg.lower() for w in ["nigeria", "ngn", "lagos", "mtn"])
-    mentions_constraint = any(w in msg.lower() for w in ["budget", "time", "team", "internet", "power"])
-    return {"has_history": bool(ctx), "nigerian_context": is_nigerian, "mentions_constraint": mentions_constraint}
+HOW TO ADAPT: You mention your exam level, I adjust strategy. Past papers approach same. Stress management same. Time strategy same. Success pattern same.
 
-def evaluate_phase(msg, uid):
-    """What constraints/tradeoffs/risks exist?"""
-    decode = decode_phase(msg)
-    ctx = contextualize_phase(msg, uid)
-    has_tradeoff = any(w in msg.lower() for w in ["trade", "either/or", "vs", "balance"])
-    asks_for_help = "help" in msg.lower() or "?" in msg
-    return {"has_tradeoff": has_tradeoff, "asks_for_help": asks_for_help, "decode": decode, "ctx": ctx}
+EXAMPLES (Different exam levels):
 
-def strategize_phase(msg):
-    """What is highest-leverage solution? What compounds?"""
-    has_quick_win = any(w in msg.lower() for w in ["quick", "fast", "easy", "simple"])
-    long_term = any(w in msg.lower() for w in ["long", "future", "scale", "growth"])
-    return {"prefers_quick": has_quick_win, "thinking_long_term": long_term}
+Secondary Student: "I have my WAEC soon"
+├─ ARIA: "What subjects? Let's focus on highest marks first."
 
-def detect_mode(msg, uid):
-    """Detect which mode to use: Builder, Strategist, Market, Analyst, Reality Check"""
-    decode = decode_phase(msg)
-    eval_phase = evaluate_phase(msg, uid)
-    strat = strategize_phase(msg)
-    
-    builder_score = decode["technical"] * 0.8
-    strategist_score = (decode["strategy"] or strat["thinking_long_term"]) * 0.8
-    market_score = decode["business"] * 0.9
-    analyst_score = (len(msg) > 100 and "explain" in msg.lower()) * 0.7
-    reality_check_score = (eval_phase["has_tradeoff"] or detect_weak_assumption(msg)) * 0.9
-    
-    scores = {"builder": builder_score, "strategist": strategist_score, "market": market_score, "analyst": analyst_score, "reality_check": reality_check_score}
-    primary_mode = max(scores, key=scores.get) if max(scores.values()) > 0.4 else "general"
-    
-    return primary_mode
+University Student: "My finals are in 3 weeks"
+├─ ARIA: "What's your exam format? Essay? MCQ? Mix? Strategy changes based on format."
 
-def detect_weak_assumption(msg):
-    """Detect if message has weak reasoning that needs challenging"""
-    weak_indicators = ["always", "never", "everyone", "nobody", "obviously", "clearly", "simply"]
-    return any(word in msg.lower() for word in weak_indicators)
+Professional: "Preparing for CFA exam"
+├─ ARIA: "CFA is pattern recognition + discipline. Here's how to master those patterns..."
 
-def extract_decision(msg, resp):
-    """Extract decisions from conversation"""
-    patterns = [r"(chose|decided|will|going to|plan to)\s+([^.!?]+)", r"(I'm|I am)\s+(starting|stopping|launching)\s+([^.!?]+)"]
-    decisions = []
-    for pattern in patterns:
-        matches = re.findall(pattern, msg.lower())
-        decisions.extend([m[-1].strip() if isinstance(m, tuple) else m for m in matches])
-    return decisions[:1] if decisions else None
+══════════════════════════════════════════════════════════════════
 
-def extract_goals(msg):
-    """Extract goals from conversation"""
-    patterns = [r"(want to|goal|dream|target|aim|need to)\s+([^.!?]+)", r"(launch|build|start|create)\s+([^.!?]+)"]
-    goals = []
-    for pattern in patterns:
-        matches = re.findall(pattern, msg.lower())
-        goals.extend([m[-1].strip() if isinstance(m, tuple) else m for m in matches])
-    return goals[:1] if goals else None
+MONEY+EXAMS STRATEGY (Works ANY exam level):
+├─ Make ₦5K/week (5-8 hours)
+├─ Study smart (2-3 hours focused on exam patterns)
+├─ In 3 months: ₦60K + Ready for exam
+└─ Not choosing, doing BOTH
 
-def extract_insights(msg):
-    """Extract values/interests from conversation"""
-    patterns = [r"(care|love|important|value|prioritize)\s+([^.!?]+)", r"(I'm|I am)\s+(passionate|focused|concerned)\s+about\s+([^.!?]+)"]
-    insights = []
-    for pattern in patterns:
-        matches = re.findall(pattern, msg.lower())
-        insights.extend([m[-1].strip() if isinstance(m, tuple) else m for m in matches])
-    return insights[:1] if insights else None
+DO: Warm, real, understand hardship, celebrate wins, honest feedback, less alone, humor, match energy, empower
+DON'T: Corporate ("As an AI"), fake motivation, ignore reality, condescending, over-promise, homework, preach
+"""
 
-def compress_summary(msg, resp):
-    """Compress conversation to key facts only"""
-    summary = {"msg": msg[:100], "resp": resp[:150], "ts": datetime.now().isoformat(), "mode": detect_mode(msg, "default")}
-    summary["decision"] = extract_decision(msg, resp)
-    summary["goal"] = extract_goals(msg)
-    summary["insight"] = extract_insights(msg)
-    return summary
+KEYS={'groq':[os.environ.get(f"GROQ_KEY_{i}","") for i in range(1,4)],'gemini':[os.environ.get(f"GEMINI_KEY_{i}","") for i in range(1,4)]}
 
-def get_context(uid, limit=3):
-    """Load compressed summaries with mode/decision/goal context"""
+def dp(m):
+    s=m[:80]; ht=any(w in m.lower() for w in ["code","debug","error","build","api","database","firebase","flutter"])
+    hs=any(w in m.lower() for w in ["should","how do i","roadmap","next","architecture"])
+    hb=any(w in m.lower() for w in ["customer","revenue","market","launch","users"])
+    return {"s":s,"t":ht,"st":hs,"b":hb}
+
+def cp(m,u):
+    cx=get_context(u); ini=any(w in m.lower() for w in ["nigeria","ngn","lagos","mtn"])
+    mc=any(w in m.lower() for w in ["budget","time","team","internet","power"])
+    return {"h":bool(cx),"n":ini,"m":mc}
+
+def ep(m,u):
+    d=dp(m); c=cp(m,u); ht=any(w in m.lower() for w in ["trade","either/or","vs","balance"])
+    ah="help" in m.lower() or "?" in m
+    return {"tr":ht,"ah":ah,"d":d,"c":c}
+
+def sp(m):
+    qw=any(w in m.lower() for w in ["quick","fast","easy","simple"]); lt=any(w in m.lower() for w in ["long","future","scale","growth"])
+    return {"q":qw,"l":lt}
+
+def dm(m,u):
+    d=dp(m); e=ep(m,u); s=sp(m)
+    b=d["t"]*0.8; st=(d["st"] or s["l"])*0.8; mkt=d["b"]*0.9; a=(len(m)>100 and "explain" in m.lower())*0.7
+    r=(e["tr"] or dwa(m))*0.9; sc={"b":b,"st":st,"mkt":mkt,"a":a,"r":r}
+    return max(sc, key=sc.get) if max(sc.values())>0.4 else "g"
+
+def dwa(m):
+    return any(w in m.lower() for w in ["always","never","everyone","nobody","obviously","clearly","simply"])
+
+def ed(m,r):
+    p=[r"(chose|decided|will|going to|plan to)\s+([^.!?]+)",r"(I'm|I am)\s+(starting|stopping|launching)\s+([^.!?]+)"]
+    dc=[]; 
+    for pt in p:
+        mts=re.findall(pt, m.lower()); dc.extend([mt[-1].strip() if isinstance(mt, tuple) else mt for mt in mts])
+    return dc[:1] if dc else None
+
+def eg(m):
+    p=[r"(want to|goal|dream|target|aim|need to)\s+([^.!?]+)",r"(launch|build|start|create)\s+([^.!?]+)"]
+    g=[]; 
+    for pt in p:
+        mts=re.findall(pt, m.lower()); g.extend([mt[-1].strip() if isinstance(mt, tuple) else mt for mt in mts])
+    return g[:1] if g else None
+
+def ei(m):
+    p=[r"(care|love|important|value|prioritize)\s+([^.!?]+)",r"(I'm|I am)\s+(passionate|focused|concerned)\s+about\s+([^.!?]+)"]
+    i=[]; 
+    for pt in p:
+        mts=re.findall(pt, m.lower()); i.extend([mt[-1].strip() if isinstance(mt, tuple) else mt for mt in mts])
+    return i[:1] if i else None
+
+def cs(m,r):
+    sm={"m":m[:100],"r":r[:150],"t":datetime.now().isoformat(),"mo":dm(m,"default")}
+    sm["d"]=ed(m,r); sm["g"]=eg(m); sm["i"]=ei(m)
+    return sm
+
+def get_context(u,l=3):
     if not db: return ""
     try:
-        docs = list(db.collection("users").document(uid).collection("memory").order_by("ts", direction=firestore.Query.DESCENDING).limit(limit).stream())
-        context = []
+        docs=list(db.collection("users").document(u).collection("memory").order_by("t", direction=firestore.Query.DESCENDING).limit(l).stream())
+        ctx=[]
         for d in reversed(docs):
-            data = d.to_dict()
-            ctx = f"User: {data.get('msg', '')}\nARIA: {data.get('resp', '')}"
-            if data.get('decision'): ctx += f"\n[Decided: {data['decision']}]"
-            if data.get('goal'): ctx += f"\n[Goal: {data['goal']}]"
-            if data.get('insight'): ctx += f"\n[Values: {data['insight']}]"
-            context.append(ctx)
-        return "\n\n".join(context)
+            dt=d.to_dict(); c=f"User: {dt.get('m', '')}\nARIA: {dt.get('r', '')}"
+            if dt.get('d'): c+=f"\n[Decided: {dt['d']}]"
+            if dt.get('g'): c+=f"\n[Goal: {dt['g']}]"
+            if dt.get('i'): c+=f"\n[Values: {dt['i']}]"
+            ctx.append(c)
+        return "\n\n".join(ctx)
     except: return ""
 
-def save_compressed(uid, msg, resp):
-    """Save compressed summary with mode, decision, goal, insight"""
+def save_compressed(u,m,r):
     if not db: return
     try:
-        summary = compress_summary(msg, resp)
-        db.collection("users").document(uid).collection("memory").add(summary)
+        sm=cs(m,r); db.collection("users").document(u).collection("memory").add(sm)
     except: pass
 
-def ask(msg, uid, api):
-    mode = detect_mode(msg, uid)
-    ctx = get_context(uid)
-    nigeria_tz = timezone(timedelta(hours=1))
-    current_date = datetime.now(nigeria_tz).strftime("%A, %B %d, %Y at %H:%M")
-    mode_instruction = f"\n\nRESPONSE MODE: {mode.upper()}"
-    full = f"CONTEXT:\n{ctx}\n\nCURRENT TIME: {current_date}\n\nCURRENT:\n{msg}{mode_instruction}" if ctx else f"CURRENT TIME: {current_date}\n\n{msg}{mode_instruction}"
-    
-    for key in KEYS[api]:
-        if not key: continue
+def ask(m,u,api):
+    mo=dm(m,u); cx=get_context(u); nz=timezone(timedelta(hours=1))
+    cd=datetime.now(nz).strftime("%A, %B %d, %Y at %H:%M")
+    mi=f"\n\nRESPONSE MODE: {mo.upper()}"
+    f=f"CONTEXT:\n{cx}\n\nCURRENT TIME: {cd}\n\nCURRENT:\n{m}{mi}" if cx else f"CURRENT TIME: {cd}\n\n{m}{mi}"
+    for k in KEYS[api]:
+        if not k: continue
         try:
-            if api == 'groq':
-                r = requests.post("https://api.groq.com/openai/v1/chat/completions", json={"model": "llama-3.3-70b-versatile", "messages": [{"role": "system", "content": SP}, {"role": "user", "content": full}]}, headers={"Authorization": f"Bearer {key}"}, timeout=20)
+            if api=='groq':
+                r=requests.post("https://api.groq.com/openai/v1/chat/completions", json={"model":"llama-3.3-70b-versatile","messages":[{"role":"system","content":SP},{"role":"user","content":f}]}, headers={"Authorization":f"Bearer {k}"}, timeout=20)
             else:
-                r = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}", json={"contents": [{"role": "user", "parts": [{"text": f"{SP}\n\n{full}"}]}]}, timeout=20)
-            if r.status_code == 200:
-                return r.json()["choices"][0]["message"]["content"] if api == 'groq' else r.json()["candidates"][0]["content"]["parts"][0]["text"]
+                r=requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={k}", json={"contents":[{"role":"user","parts":[{"text":f"{SP}\n\n{f}"}]}]}, timeout=20)
+            if r.status_code==200: return r.json()["choices"][0]["message"]["content"] if api=='groq' else r.json()["candidates"][0]["content"]["parts"][0]["text"]
         except: continue
     return None
 
-HTML = """<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>ARIA Chat</title><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#1a1a1a;color:#fff}.container{max-width:500px;height:100vh;margin:0 auto;display:flex;flex-direction:column}.header{background:#0f7938;padding:20px;text-align:center}.header h1{font-size:24px}.header p{font-size:12px;opacity:0.8;margin-top:5px}.chat{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:15px}.msg{max-width:85%;padding:12px 16px;border-radius:12px;word-wrap:break-word;line-height:1.5}.msg.user{align-self:flex-end;background:#0f7938}.msg.aria{align-self:flex-start;background:#333}.msg.aria h1{font-size:16px;margin:8px 0 5px}.msg.aria h2{font-size:14px;margin:6px 0 3px}.msg.aria p{margin:8px 0}.msg.aria ul{margin:8px 0 8px 15px}.msg.aria li{margin:4px 0}.input-box{display:flex;gap:10px;padding:15px;background:#222}input{flex:1;padding:12px;border:none;border-radius:8px;font-size:14px;background:#333;color:#fff}button{padding:12px 20px;background:#0f7938;border:none;border-radius:8px;color:#fff;cursor:pointer;font-weight:bold}button:hover{background:#0a5a2a}</style></head><body><div class="container"><div class="header"><h1>🇳🇬 ARIA</h1><p>Your Strategic AI Friend</p></div><div class="chat" id="chat"></div><div class="input-box"><input type="text" id="input" placeholder="Message ARIA..."/><button onclick="send()">Send</button></div></div><script>const chat=document.getElementById("chat"),input=document.getElementById("input"),UID="default_user";function addMsg(t,s){const d=document.createElement("div");d.className=`msg ${s}`;d.innerHTML=s==="aria"?marked.parse(t):t;chat.appendChild(d);chat.scrollTop=chat.scrollHeight}async function send(){const m=input.value.trim();if(!m)return;addMsg(m,"user");input.value="";addMsg("...","aria");const l=chat.lastChild;try{const r=await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:m,user_id:UID})});const d=await r.json();l.innerHTML=marked.parse(d.reply||"No response")}catch(e){l.textContent="Error: "+e.message}}input.addEventListener("keypress",e=>{if(e.key==="Enter")send()})</script></body></html>"""
+HTML="""<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>ARIA Chat</title><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script><style>*{margin:0;padding:0;box-sizing:border-box}[data-render],.render-brand,.powered-by,footer{display:none!important;visibility:hidden!important}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#1a1a1a;color:#fff;overflow:hidden}.container{max-width:500px;height:100vh;margin:0 auto;display:flex;flex-direction:column;background:#1a1a1a}.header{background:linear-gradient(135deg,#0f7938 0%,#0a5a2a 100%);padding:20px;text-align:center;border-bottom:2px solid #0a5a2a;box-shadow:0 2px 8px rgba(0,0,0,0.3)}.header h1{font-size:28px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#fff;margin-bottom:5px}.header p{font-size:12px;opacity:0.9;color:#e0f0e8;font-weight:500}.chat{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:15px;background:#1a1a1a}.msg{max-width:85%;padding:14px 16px;border-radius:14px;word-wrap:break-word;line-height:1.5;font-size:14px;animation:slideIn 0.3s ease}@keyframes slideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.msg.user{align-self:flex-end;background:#0f7938;color:#fff;border-radius:20px 4px 20px 20px;box-shadow:0 2px 6px rgba(15,121,56,0.4)}.msg.aria{align-self:flex-start;background:#2a2a2a;color:#e0e0e0;border:1px solid #3a3a3a;border-radius:4px 20px 20px 20px;box-shadow:0 2px 6px rgba(0,0,0,0.3)}.msg.aria h1{font-size:14px;margin:4px 0 6px;color:#0f7938;font-weight:700}.msg.aria h2{font-size:13px;margin:3px 0 5px;color:#4CAF50;font-weight:600}.msg.aria p{margin:6px 0;line-height:1.6}.msg.aria ul{margin:8px 0 8px 18px;padding:0}.msg.aria li{margin:3px 0;list-style:disc}.msg.aria strong{color:#fff;font-weight:600}.input-box{display:flex;gap:10px;padding:15px;background:#222;border-top:1px solid #333;align-items:center}input{flex:1;padding:12px 15px;border:1px solid #3a3a3a;border-radius:20px;font-size:14px;background:#2a2a2a;color:#fff;outline:none;transition:all 0.2s}input::placeholder{color:#666}input:focus{border-color:#0f7938;background:#333}button{padding:10px 20px;background:#0f7938;border:none;border-radius:20px;color:#fff;cursor:pointer;font-weight:600;transition:all 0.2s;font-size:14px}button:hover{background:#0a5a2a;transform:scale(1.05)}button:active{transform:scale(0.95)}.fiducia-credit{text-align:center;padding:10px;font-size:11px;color:#0f7938;opacity:0.5;margin-top:auto}</style></head><body><div class="container"><div class="header"><h1>🇳🇬 ARIA</h1><p>Your Strategic AI Friend</p></div><div class="chat" id="chat"></div><div class="input-box"><input type="text" id="input" placeholder="Talk to ARIA..."/><button onclick="send()">Send</button></div><div class="fiducia-credit">Made with 💚 for Africa</div></div><script>const chat=document.getElementById("chat"),input=document.getElementById("input"),UID="default_user";function addMsg(t,s){const d=document.createElement("div");d.className=`msg ${s}`;d.innerHTML=s==="aria"?marked.parse(t):t;chat.appendChild(d);chat.scrollTop=chat.scrollHeight}async function send(){const m=input.value.trim();if(!m)return;addMsg(m,"user");input.value="";addMsg("...","aria");const l=chat.lastChild;try{const r=await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:m,user_id:UID})});const d=await r.json();l.innerHTML=marked.parse(d.reply||"No response")}catch(e){l.textContent="Error: "+e.message}}input.addEventListener("keypress",e=>{if(e.key==="Enter")send()})</script></body></html>"""
 
 class Handler(BaseHTTPRequestHandler):
-    def log_message(self, *a): pass
+    def log_message(self,*a):pass
     def do_GET(self):
         if self.path=="/":
-            self.send_response(200)
-            self.send_header("Content-Type","text/html")
-            self.send_header("Access-Control-Allow-Origin","*")
-            self.end_headers()
+            self.send_response(200); self.send_header("Content-Type","text/html; charset=utf-8"); self.send_header("Access-Control-Allow-Origin","*"); self.end_headers()
             self.wfile.write(HTML.encode())
-        else: self.send_response(404); self.end_headers()
+        else:self.send_response(404);self.end_headers()
     def do_POST(self):
         if self.path=="/chat":
             try:
-                self.send_response(200)
-                self.send_header("Content-Type","application/json")
-                self.send_header("Access-Control-Allow-Origin","*")
-                self.end_headers()
+                self.send_response(200);self.send_header("Content-Type","application/json");self.send_header("Access-Control-Allow-Origin","*");self.end_headers()
                 b=json.loads(self.rfile.read(int(self.headers.get("Content-Length",0))))
                 m,u=b.get("message","").strip(),b.get("user_id","default_user")
-                r=ask(m,u,'groq') or ask(m,u,'gemini') or "APIs offline"
+                r=ask(m,u,'groq') or ask(m,u,'gemini') or "APIs offline, try later"
                 save_compressed(u,m,r)
                 self.wfile.write(json.dumps({"reply":r}).encode())
-            except: self.send_response(500); self.send_header("Access-Control-Allow-Origin","*"); self.end_headers()
+            except:self.send_response(500);self.send_header("Access-Control-Allow-Origin","*");self.end_headers()
 
 port=int(os.environ.get("PORT",8080))
 print(f"[ARIA] Starting on port {port}...")
