@@ -67,37 +67,6 @@ LENGTH: Short (1-2) for quick answers. Medium (3-5) default. Long (6+) only when
 
 KEY PHRASES: "YESSS! HUGE!" | "Real talk though..." | "Babes, I see you" | "Here's the move..." | "I remember you wanted..."
 
-══════════════════════════════════════════════════════════════════
-
-EXAM LEVELS SUPPORTED:
-├─ Secondary school exams (WAEC, NECO, JAMB)
-├─ University entrance exams (any country)
-├─ University coursework & finals
-├─ Professional certifications (CFA, PMP, etc)
-├─ Vocational assessments
-└─ Any standardized test
-
-HOW TO ADAPT: You mention your exam level, I adjust strategy. Past papers approach same. Stress management same. Time strategy same. Success pattern same.
-
-EXAMPLES (Different exam levels):
-
-Secondary Student: "I have my WAEC soon"
-├─ ARIA: "What subjects? Let's focus on highest marks first."
-
-University Student: "My finals are in 3 weeks"
-├─ ARIA: "What's your exam format? Essay? MCQ? Mix? Strategy changes based on format."
-
-Professional: "Preparing for CFA exam"
-├─ ARIA: "CFA is pattern recognition + discipline. Here's how to master those patterns..."
-
-══════════════════════════════════════════════════════════════════
-
-MONEY+EXAMS STRATEGY (Works ANY exam level):
-├─ Make ₦5K/week (5-8 hours)
-├─ Study smart (2-3 hours focused on exam patterns)
-├─ In 3 months: ₦60K + Ready for exam
-└─ Not choosing, doing BOTH
-
 DO: Warm, real, understand hardship, celebrate wins, honest feedback, less alone, humor, match energy, empower
 DON'T: Corporate ("As an AI"), fake motivation, ignore reality, condescending, over-promise, homework, preach
 """
@@ -195,13 +164,65 @@ def ask(m,u,api):
         except: continue
     return None
 
-HTML="""<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>ARIA Chat</title><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script><style>*{margin:0;padding:0;box-sizing:border-box}[data-render],.render-brand,.powered-by,footer{display:none!important;visibility:hidden!important}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#1a1a1a;color:#fff;overflow:hidden}.container{max-width:500px;height:100vh;margin:0 auto;display:flex;flex-direction:column;background:#1a1a1a}.header{background:linear-gradient(135deg,#0f7938 0%,#0a5a2a 100%);padding:20px;text-align:center;border-bottom:2px solid #0a5a2a;box-shadow:0 2px 8px rgba(0,0,0,0.3)}.header h1{font-size:28px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#fff;margin-bottom:5px}.header p{font-size:12px;opacity:0.9;color:#e0f0e8;font-weight:500}.chat{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:15px;background:#1a1a1a}.msg{max-width:85%;padding:14px 16px;border-radius:14px;word-wrap:break-word;line-height:1.5;font-size:14px;animation:slideIn 0.3s ease}@keyframes slideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.msg.user{align-self:flex-end;background:#0f7938;color:#fff;border-radius:20px 4px 20px 20px;box-shadow:0 2px 6px rgba(15,121,56,0.4)}.msg.aria{align-self:flex-start;background:#2a2a2a;color:#e0e0e0;border:1px solid #3a3a3a;border-radius:4px 20px 20px 20px;box-shadow:0 2px 6px rgba(0,0,0,0.3)}.msg.aria h1{font-size:14px;margin:4px 0 6px;color:#0f7938;font-weight:700}.msg.aria h2{font-size:13px;margin:3px 0 5px;color:#4CAF50;font-weight:600}.msg.aria p{margin:6px 0;line-height:1.6}.msg.aria ul{margin:8px 0 8px 18px;padding:0}.msg.aria li{margin:3px 0;list-style:disc}.msg.aria strong{color:#fff;font-weight:600}.input-box{display:flex;gap:10px;padding:15px;background:#222;border-top:1px solid #333;align-items:center}input{flex:1;padding:12px 15px;border:1px solid #3a3a3a;border-radius:20px;font-size:14px;background:#2a2a2a;color:#fff;outline:none;transition:all 0.2s}input::placeholder{color:#666}input:focus{border-color:#0f7938;background:#333}button{padding:10px 20px;background:#0f7938;border:none;border-radius:20px;color:#fff;cursor:pointer;font-weight:600;transition:all 0.2s;font-size:14px}button:hover{background:#0a5a2a;transform:scale(1.05)}button:active{transform:scale(0.95)}.fiducia-credit{text-align:center;padding:10px;font-size:11px;color:#0f7938;opacity:0.5;margin-top:auto}</style></head><body><div class="container"><div class="header"><h1>🇳🇬 ARIA</h1><p>Your Strategic AI Friend</p></div><div class="chat" id="chat"></div><div class="input-box"><input type="text" id="input" placeholder="Talk to ARIA..."/><button onclick="send()">Send</button></div><div class="fiducia-credit">Made with 💚 for Africa</div></div><script>const chat=document.getElementById("chat"),input=document.getElementById("input"),UID="default_user";function addMsg(t,s){const d=document.createElement("div");d.className=`msg ${s}`;d.innerHTML=s==="aria"?marked.parse(t):t;chat.appendChild(d);chat.scrollTop=chat.scrollHeight}async function send(){const m=input.value.trim();if(!m)return;addMsg(m,"user");input.value="";addMsg("...","aria");const l=chat.lastChild;try{const r=await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:m,user_id:UID})});const d=await r.json();l.innerHTML=marked.parse(d.reply||"No response")}catch(e){l.textContent="Error: "+e.message}}input.addEventListener("keypress",e=>{if(e.key==="Enter")send()})</script></body></html>"""
+HTML="""<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>ARIA - Your Strategic AI Friend</title><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script><style>
+*{margin:0;padding:0;box-sizing:border-box}[data-render],.render-brand,.powered-by,footer{display:none!important}
+:root{--navy:#0f172a;--navy-light:#0a0e27;--white:#ffffff;--white-glow:#f0f9ff;--cyan:#00d9ff;--purple:#b027ff;--emerald:#10b981;--text-primary:#ffffff;--text-secondary:#e0e7ff;--text-muted:#a0aec0;--glow-cyan:0 0 20px rgba(0,217,255,0.3);--glow-purple:0 0 20px rgba(176,39,255,0.3)}
+body{background:linear-gradient(135deg,#0a0e27 0%,#0f172a 50%,#1a0f2e 100%);color:var(--text-primary);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden;height:100vh}
+.container{max-width:500px;height:100vh;margin:0 auto;display:flex;flex-direction:column;background:var(--navy-light);border:1px solid rgba(0,217,255,0.1);box-shadow:0 0 40px rgba(0,217,255,0.1),inset 0 0 20px rgba(255,255,255,0.02);backdrop-filter:blur(10px)}
+.header{background:linear-gradient(135deg,#0f172a 0%,#1a0f2e 50%,#2d1b4e 100%);border-bottom:2px solid var(--cyan);box-shadow:var(--glow-cyan),inset 0 0 20px rgba(255,255,255,0.05);padding:30px 20px;text-align:center;position:relative;overflow:hidden}
+.header::before{content:'';position:absolute;top:-50%;right:-50%;width:200%;height:200%;background:radial-gradient(circle,rgba(0,217,255,0.1) 0%,transparent 70%);animation:glow-pulse 4s ease-in-out infinite;pointer-events:none}
+.header h1{font-size:32px;font-weight:800;color:var(--white);text-shadow:0 0 20px rgba(0,217,255,0.5);letter-spacing:2px;margin:0;position:relative;z-index:1}
+.header p{font-size:13px;color:var(--text-secondary);margin-top:8px;letter-spacing:0.5px;position:relative;z-index:1}
+.chat{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:15px;background:var(--navy-light)}
+.msg{max-width:85%;padding:14px 16px;border-radius:16px;word-wrap:break-word;line-height:1.6;font-size:14px;animation:float-in 0.3s ease;backdrop-filter:blur(5px)}
+@keyframes float-in{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes glow-pulse{0%,100%{opacity:0.5}50%{opacity:1}}
+.msg.user{align-self:flex-end;background:linear-gradient(135deg,var(--cyan) 0%,#0099cc 100%);color:var(--navy);border-radius:20px 4px 20px 20px;box-shadow:0 0 20px rgba(0,217,255,0.4);font-weight:600}
+.msg.aria{align-self:flex-start;background:rgba(15,23,42,0.6);color:var(--text-secondary);border:1px solid rgba(0,217,255,0.2);border-radius:4px 20px 20px 20px;box-shadow:0 0 20px rgba(0,217,255,0.15),inset 0 0 10px rgba(255,255,255,0.02)}
+.msg.aria h1{font-size:14px;margin:4px 0 6px;color:var(--cyan);font-weight:700;text-shadow:0 0 10px rgba(0,217,255,0.3)}
+.msg.aria h2{font-size:13px;margin:3px 0 5px;color:var(--emerald);font-weight:600}
+.msg.aria p{margin:6px 0}
+.msg.aria ul{margin:8px 0 8px 18px}
+.msg.aria li{margin:3px 0}
+.msg.aria strong{color:var(--cyan);text-shadow:0 0 10px rgba(0,217,255,0.2)}
+.input-box{display:flex;gap:10px;padding:15px;background:var(--navy);border-top:1px solid rgba(0,217,255,0.1);align-items:center}
+input{flex:1;padding:12px 15px;border:1px solid rgba(0,217,255,0.2);border-radius:12px;font-size:14px;background:rgba(10,14,39,0.6);color:var(--white);outline:none;transition:all 0.3s ease}
+input::placeholder{color:var(--text-muted)}
+input:focus{border-color:var(--cyan);box-shadow:0 0 30px rgba(0,217,255,0.3),inset 0 0 10px rgba(0,217,255,0.05);background:rgba(10,14,39,0.8)}
+button{padding:10px 20px;background:linear-gradient(135deg,var(--cyan) 0%,#0099cc 100%);color:var(--navy);border:none;border-radius:12px;font-weight:600;cursor:pointer;transition:all 0.3s ease;font-size:14px;box-shadow:0 0 20px rgba(0,217,255,0.4)}
+button:hover{transform:scale(1.05);box-shadow:0 0 40px rgba(0,217,255,0.6)}
+button:active{transform:scale(0.95)}
+.footer{text-align:center;padding:12px;font-size:11px;color:var(--cyan);opacity:0.6;border-top:1px solid rgba(0,217,255,0.1)}
+::-webkit-scrollbar{width:8px}
+::-webkit-scrollbar-track{background:var(--navy-light)}
+::-webkit-scrollbar-thumb{background:var(--cyan);border-radius:10px;box-shadow:0 0 10px rgba(0,217,255,0.3)}
+::-webkit-scrollbar-thumb:hover{background:var(--purple);box-shadow:0 0 20px rgba(176,39,255,0.4)}
+</style></head><body>
+<div class="container">
+<div class="header">
+<h1>🇳🇬 ARIA</h1>
+<p>Your Strategic AI Friend</p>
+</div>
+<div class="chat" id="chat"></div>
+<div class="input-box">
+<input type="text" id="input" placeholder="Talk to ARIA..."/>
+<button onclick="send()">Send</button>
+</div>
+<div class="footer">Made with 💚 for Africa</div>
+</div>
+<script>
+const chat=document.getElementById("chat"),input=document.getElementById("input"),UID="default_user";
+function addMsg(t,s){const d=document.createElement("div");d.className=`msg ${s}`;d.innerHTML=s==="aria"?marked.parse(t):t;chat.appendChild(d);chat.scrollTop=chat.scrollHeight}
+async function send(){const m=input.value.trim();if(!m)return;addMsg(m,"user");input.value="";addMsg("...","aria");const l=chat.lastChild;try{const r=await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:m,user_id:UID})});const d=await r.json();l.innerHTML=marked.parse(d.reply||"No response")}catch(e){l.textContent="Error: "+e.message}}
+input.addEventListener("keypress",e=>{if(e.key==="Enter")send()})
+</script>
+</body></html>"""
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self,*a):pass
     def do_GET(self):
         if self.path=="/":
-            self.send_response(200); self.send_header("Content-Type","text/html; charset=utf-8"); self.send_header("Access-Control-Allow-Origin","*"); self.end_headers()
+            self.send_response(200);self.send_header("Content-Type","text/html; charset=utf-8");self.send_header("Access-Control-Allow-Origin","*");self.end_headers()
             self.wfile.write(HTML.encode())
         else:self.send_response(404);self.end_headers()
     def do_POST(self):
