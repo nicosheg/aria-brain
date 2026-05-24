@@ -198,9 +198,10 @@ def save_compressed(uid, msg, resp):
 def ask(msg, uid, api):
     mode = detect_mode(msg, uid)
     ctx = get_context(uid)
+    current_date = datetime.now().strftime("%A, %B %d, %Y at %H:%M")
     mode_instruction = f"\n\nRESPONSE MODE: {mode.upper()}"
-    full = f"CONTEXT:\n{ctx}\n\nCURRENT:\n{msg}{mode_instruction}" if ctx else msg + mode_instruction
-    
+    full = f"CONTEXT:\n{ctx}\n\nCURRENT TIME: {current_date}\n\nCURRENT:\n{msg}{mode_instruction}" if ctx else f"CURRENT TIME: {current_date}\n\n{msg}{mode_instruction}"
+
     for key in KEYS[api]:
         if not key: continue
         try:
