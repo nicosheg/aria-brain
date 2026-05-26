@@ -1,6 +1,5 @@
-# Ctrl+W → search "@app.route"
-# Find the /chat routefrom http.server import HTTPServer, BaseHTTPRequestHandler
-import json, os, requests, firebase_admin, re
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import json, os, requests, firebase_admin, re, psutil
 from firebase_admin import credentials, firestore
 from datetime import datetime, timezone, timedelta
 
@@ -144,6 +143,20 @@ class Handler(BaseHTTPRequestHandler):
         if self.path=="/":
             self.send_response(200);self.send_header("Content-Type","text/html; charset=utf-8");self.send_header("Access-Control-Allow-Origin","*");self.end_headers()
             self.wfile.write(HTML.encode())
+        elif self.path=="/health":
+            self.send_response(200);self.send_header("Content-Type","application/json");self.send_header("Access-Control-Allow-Origin","*");self.end_headers()
+            self.wfile.write(json.dumps({"status":"ARIA 3.5 is alive! 💚"}).encode())
+        elif self.path=="/analytics":
+            try:
+                mem=psutil.virtual_memory();cpu=psutil.cpu_percent(interval=1);user_count=0
+                if db:
+                    try:
+                        docs=list(db.collection("users").stream());user_count=len(docs)
+                    except:user_count=0
+                self.send_response(200);self.send_header("Content-Type","application/json");self.send_header("Access-Control-Allow-Origin","*");self.end_headers()
+                self.wfile.write(json.dumps({"status":"ARIA 3.5 Analytics","memory":{"used_mb":round(mem.used/1024/1024,2),"total_mb":round(mem.total/1024/1024,2),"percent":mem.percent},"cpu_percent":cpu,"users":user_count,"timestamp":datetime.now().isoformat()}).encode())
+            except Exception as e:
+                self.send_response(500);self.send_header("Access-Control-Allow-Origin","*");self.end_headers()
         else:self.send_response(404);self.end_headers()
     def do_POST(self):
         if self.path=="/chat":
@@ -155,59 +168,6 @@ class Handler(BaseHTTPRequestHandler):
                 save_compressed(u,m,r)
                 self.wfile.write(json.dumps({"reply":r}).encode())
             except:self.send_response(500);self.send_header("Access-Control-Allow-Origin","*");self.end_headers()
-
-# ADD ANALYTICS
-
-def do_GET(self):
-    if self.path == "/":
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html")
-        self.end_headers()
-        self.wfile.write(HTML.encode())
-
-    elif self.path == "/analytics":
-        try:
-            mem = psutil.virtual_memory()
-            cpu = psutil.cpu_percent(interval=1)
-
-            user_count = 0
-            if db:
-                try:
-                    docs = list(db.collection('users').stream())
-                    user_count = len(docs)
-                except:
-                    user_count = 0
-
-            data = {
-                'status': 'ARIA 3.5 Analytics',
-                'memory': {
-                    'used_mb': round(mem.used / 1024 / 1024, 2),
-                    'total_mb': round(mem.total / 1024 / 1024, 2),
-                    'percent': mem.percent
-                },
-                'cpu_percent': cpu,
-                'users': user_count,
-                'timestamp': datetime.now().isoformat()
-            }
-
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-
-            self.wfile.write(json.dumps(data).encode())
-
-        except Exception as e:
-            self.send_response(500)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-
-            self.wfile.write(json.dumps({
-                "error": str(e)
-            }).encode())
-
-    else:
-        self.send_response(404)
-        self.end_headers()
 
 port=int(os.environ.get("PORT",8080))
 print(f"✅ [ARIA 3.5] Deployed. Listening on port {port}...")
