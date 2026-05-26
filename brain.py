@@ -3,7 +3,6 @@
 import json, os, requests, firebase_admin, re
 from firebase_admin import credentials, firestore
 from datetime import datetime, timezone, timedelta
-import psutil
 
 try:
     cd=json.loads(os.environ.get("FIREBASE_CREDENTIALS", "{}")) if os.environ.get("FIREBASE_CREDENTIALS") else None
@@ -157,33 +156,58 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"reply":r}).encode())
             except:self.send_response(500);self.send_header("Access-Control-Allow-Origin","*");self.end_headers()
 
-# ← ADD ANALYTICS HERE (after chat route ends)
+# ADD ANALYTICS
 
-@app.route('/analytics', methods=['GET'])
-def analytics():
-    try:
-        mem = psutil.virtual_memory()
-        cpu = psutil.cpu_percent(interval=1)
-        user_count = 0
-        if db:
-            try:
-                docs = list(db.collection('users').stream())
-                user_count = len(docs)
-            except:
-                user_count = 0
-        return jsonify({
-            'status': 'ARIA 3.5 Analytics',
-            'memory': {
-                'used_mb': round(mem.used / 1024 / 1024, 2),
-                'total_mb': round(mem.total / 1024 / 1024, 2),
-                'percent': mem.percent
-            },
-            'cpu_percent': cpu,
-            'users': user_count,
-            'timestamp': datetime.now().isoformat()
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+def do_GET(self):
+    if self.path == "/":
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html")
+        self.end_headers()
+        self.wfile.write(HTML.encode())
+
+    elif self.path == "/analytics":
+        try:
+            mem = psutil.virtual_memory()
+            cpu = psutil.cpu_percent(interval=1)
+
+            user_count = 0
+            if db:
+                try:
+                    docs = list(db.collection('users').stream())
+                    user_count = len(docs)
+                except:
+                    user_count = 0
+
+            data = {
+                'status': 'ARIA 3.5 Analytics',
+                'memory': {
+                    'used_mb': round(mem.used / 1024 / 1024, 2),
+                    'total_mb': round(mem.total / 1024 / 1024, 2),
+                    'percent': mem.percent
+                },
+                'cpu_percent': cpu,
+                'users': user_count,
+                'timestamp': datetime.now().isoformat()
+            }
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+
+            self.wfile.write(json.dumps(data).encode())
+
+        except Exception as e:
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+
+            self.wfile.write(json.dumps({
+                "error": str(e)
+            }).encode())
+
+    else:
+        self.send_response(404)
+        self.end_headers()
 
 port=int(os.environ.get("PORT",8080))
 print(f"✅ [ARIA 3.5] Deployed. Listening on port {port}...")
