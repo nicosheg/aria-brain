@@ -1,4 +1,3 @@
-from http.server import HTTPServer, BaseHTTPRequestHandler
 import json, os, requests, firebase_admin, re, psutil
 from firebase_admin import credentials, firestore
 from datetime import datetime, timezone, timedelta
@@ -9,33 +8,46 @@ try:
     else: db=None
 except: db=None
 
-SP="""You are ARIA 3.5 - Personal Nigerian AI Friend + Teacher + Career Coach
+SP="""You are ARIA 3.5 - Strategic Wealth & Growth Partner
 
-👑 OWNER MODE: If user_id == "nicholas" → OWNER MODE (Full access). Else → STUDENT MODE (Personal coach).
+CORE DNA: Wealth Creation (compounding) + Magnetic Friendship (psychology) + Problem-Solving (McKinsey)
 
-OWNER & IDENTITY: Owner: Egwame Oshiogwe Nicholas (Mathematician, LASU 100lvl). Remember forever. Identity: ARIA 3.5, made by Nicholas for Nigerian students.
+PHASE 1: UNDERSTAND USER (0-5 messages)
+Analyze position:
+- WEALTH LEVEL: Broke (0-₦1K/mo) | Struggling (₦1K-50K) | Building (₦50K-500K) | Scaling (₦500K+)
+- KNOWLEDGE: Novice | Intermediate | Advanced
+- MINDSET: Victim | Learner | Builder | Obsessed
+- PRIORITY SCORE (0-100%): What matters MOST?
 
-CONVERSATION STARTERS: When asked "Hi"/"How are you?" → Respond like friend. Don't list features unless asked "What can you do?"
+PHASE 2: PROBLEM-SOLVING (McKinsey 7-Step)
+1. DEFINE core issue 2. STRUCTURE into 3 pieces 3. PRIORITIZE impact 4. PLAN tests 5. ANALYZE data 6. SYNTHESIZE meaning 7. EXECUTE tasks
 
-COMMUNICATION PREFERENCE TRACKING: Watch how user likes info. Note preferences. REMEMBER and apply to ALL responses. Default: Compressed.
+PHASE 3: WEALTH ENGINE
+📥 INPUT (Earn): High-income skills, gigs, expansion
+🛡️ BASE (Protect): Emergency fund, debt kill, automation
+⚙️ ENGINE (Compound): Assets, passive income, network
 
-CORE IDENTITY: Your Nigerian friend who teaches daily (Science first) | helps make real ₦ (verified only) | preps exams while hustling | creates job opportunities | tells truth (internet ≠ verified)
+PHASE 4: MAGNETIC FRIEND
+- Responsive empathy (deeply understand them)
+- 100% reliability (show up always)
+- Challenge them (no coddling)
+- Shared wins (team mentality)
 
-🎓 TEACHING SYSTEM: Day 1-5: Concept intro (relatable, FUN). Day 6-20: Build depth. Day 21-30: Apply to exams. Methods: NOT lecture → YES ask questions → they answer → build on answer. Science Priority: Physics → Chemistry → Biology.
+YOUR VOICE:
+✅ SHORT & SHARP (max 4 lines unless deep work)
+✅ ACTIONABLE (3 next tasks, copy-paste ready)
+✅ PERCENTAGE-DRIVEN (give odds, not certainty)
+✅ PSYCHOLOGICAL (understand fears + logic)
+✅ WEALTH-OBSESSED (every move = ₦ or skills or network)
+✅ REFERENCE MEMORY (know their story, build on it)
 
-✅ VERIFICATION SYSTEM: Internet (Unverified, LOW confidence) | User Community (Real Nigerians, HIGH confidence) | Exam Data (Pattern from past papers, HIGH confidence). Rule: When uncertain → SAY "I'm not sure, verify yourself"
+SCORING: Problem Priority = (Impact % × Feasibility % × Speed %) / 3
 
-📚 REAL-TIME LEARNING ENGINE: Learns from past papers, textbooks, trending Qs. Creates custom lessons, adaptive practice Qs, exam predictions. Science first.
+EXECUTION MODES:
+🎯 BUILDER (code/system) | 📊 STRATEGIST (long-term) | 🔧 FIXER (immediate) | 💰 HUSTLER (₦ NOW) | 🧠 TEACHER (by doing) | ⚡ MOVER (momentum)
 
-💰 JOBS + SKILLS: PATH 1 Quick gigs (₦1K week 1 → ₦5K/week by week 4) | PATH 2 Real jobs (2-4 weeks) | PATH 3 Job creation (₦50K+/month). Only verify: Real Nigerians doing this.
-
-🧠 CORE SYSTEMS: GOAL TRACKING | PATTERN RECOGNITION | BOTTLENECK DETECTION | EMOTIONAL INTELLIGENCE | EXECUTION MODES (BUILDER, STRATEGIST, ANALYST, REALITY CHECK, MARKET) | PROACTIVE | DECISION TRACKING | DEEP MEMORY
-
-🇳🇬 NIGERIA REALITY: Hardship real. Money urgent. Need ₦1K THIS WEEK. Months 1-8 = money+skills, Month 9-10 = exam prep. Never preach. SHOW through advice.
-
-✅ RESPONSE RULES: READ ROOM | REFERENCE MEMORY | SPEAK THEIR LANGUAGE | ACTIONABLE | CELEBRATE SMALL | TEACH INTERACTIVE | STAY REAL | EMPOWER | VERIFY | WARN UNCERTAIN.
-
-PARALLEL JOURNEY: Week 1 (Skill+₦1K+1concept) → Month 6 (₦50K/month+Exam-ready) → Exam day (Financially stable+Academically ready)."""
+DO: Give next task | Score probability | Push forward | Be REAL
+DON'T: Explain features | List options | Generic advice | Repeat"""
 
 KEYS={'groq':[os.environ.get(f"GROQ_KEY_{i}","") for i in range(1,4)],'gemini':[os.environ.get(f"GEMINI_KEY_{i}","") for i in range(1,4)]}
 
@@ -114,6 +126,22 @@ def save_compressed(u,m,r):
         sm=cs(m,r); db.collection("users").document(u).collection("memory").add(sm)
     except: pass
 
+def learn_user(u,m,r):
+    if not db: return
+    try:
+        profile={"last_interaction":datetime.now().isoformat(),"message_preview":m[:50]}
+        db.collection("users").document(u).collection("learning").add(profile)
+    except: pass
+
+def analyze_user_level(u):
+    if not db: return "novice"
+    try:
+        docs=list(db.collection("users").document(u).collection("learning").limit(10).stream())
+        if len(docs)<3: return "novice"
+        if len(docs)<20: return "intermediate"
+        return "advanced"
+    except: return "novice"
+
 def ask(m,u,api):
     cx=get_context(u)
     if not cx and m.lower() in ["hi","hello","hey","start","intro"]:
@@ -131,11 +159,14 @@ def ask(m,u,api):
                 r=requests.post("https://api.groq.com/openai/v1/chat/completions", json={"model":"llama-3.3-70b-versatile","messages":[{"role":"system","content":SP},{"role":"user","content":f}]}, headers={"Authorization":f"Bearer {k}"}, timeout=20)
             else:
                 r=requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={k}", json={"contents":[{"role":"user","parts":[{"text":f"{SP}\n\n{f}"}]}]}, timeout=20)
-            if r.status_code==200: return r.json()["choices"][0]["message"]["content"] if api=='groq' else r.json()["candidates"][0]["content"]["parts"][0]["text"]
+            if r.status_code==200:
+                resp=r.json()["choices"][0]["message"]["content"] if api=='groq' else r.json()["candidates"][0]["content"]["parts"][0]["text"]
+                learn_user(u,m,resp); save_compressed(u,m,resp)
+                return resp
         except: continue
     return None
 
-HTML="""<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>ARIA</title><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script><style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden}body{background:linear-gradient(135deg,#0a0e27 0%,#0f172a 50%,#1a0f2e 100%);color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden}.container{width:100%;height:100%;display:flex;flex-direction:column;background:#0f172a}.header{background:linear-gradient(135deg,#0f172a 0%,#1a0f2e 50%,#2d1b4e 100%);border-bottom:2px solid #00d9ff;box-shadow:0 0 40px rgba(0,217,255,0.2),inset 0 0 20px rgba(255,255,255,0.05);padding:30px 20px;text-align:center;position:relative}.header h1{font-size:32px;font-weight:800;color:#ffffff;text-shadow:0 0 20px rgba(0,217,255,0.5);letter-spacing:2px;margin:0}.header p{font-size:13px;color:#e0e7ff;margin-top:8px;letter-spacing:0.5px}.chat{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:15px;background:#0f172a}.msg{max-width:85%;padding:14px 16px;border-radius:16px;word-wrap:break-word;line-height:1.6;font-size:14px;animation:float-in 0.3s ease}@keyframes float-in{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}.msg.user{align-self:flex-end;background:linear-gradient(135deg,#00d9ff 0%,#0099cc 100%);color:#0f172a;border-radius:20px 4px 20px 20px;box-shadow:0 0 20px rgba(0,217,255,0.4);font-weight:600}.msg.aria{align-self:flex-start;background:rgba(15,23,42,0.6);color:#e0e7ff;border:1px solid rgba(0,217,255,0.2);border-radius:4px 20px 20px 20px;box-shadow:0 0 20px rgba(0,217,255,0.15),inset 0 0 10px rgba(255,255,255,0.02)}.msg.aria h1{font-size:14px;margin:4px 0 6px;color:#00d9ff;font-weight:700;text-shadow:0 0 10px rgba(0,217,255,0.3)}.msg.aria h2{font-size:13px;margin:3px 0 5px;color:#10b981;font-weight:600}.msg.aria p{margin:6px 0}.msg.aria ul{margin:8px 0 8px 18px}.msg.aria li{margin:3px 0}.msg.aria strong{color:#00d9ff;text-shadow:0 0 10px rgba(0,217,255,0.2)}.input-box{display:flex;gap:10px;padding:15px;background:#0a0e27;border-top:1px solid rgba(0,217,255,0.1);align-items:center}input{flex:1;padding:12px 15px;border:1px solid rgba(0,217,255,0.2);border-radius:12px;font-size:14px;background:rgba(10,14,39,0.6);color:#ffffff;outline:none;transition:all 0.3s ease}input::placeholder{color:#a0aec0}input:focus{border-color:#00d9ff;box-shadow:0 0 30px rgba(0,217,255,0.3),inset 0 0 10px rgba(0,217,255,0.05);background:rgba(10,14,39,0.8)}button{padding:10px 20px;background:linear-gradient(135deg,#00d9ff 0%,#0099cc 100%);color:#0f172a;border:none;border-radius:12px;font-weight:600;cursor:pointer;transition:all 0.3s ease;font-size:14px;box-shadow:0 0 20px rgba(0,217,255,0.4)}button:hover{transform:scale(1.05);box-shadow:0 0 40px rgba(0,217,255,0.6)}button:active{transform:scale(0.95)}.footer{text-align:center;padding:12px;font-size:11px;color:#00d9ff;opacity:0.6;border-top:1px solid rgba(0,217,255,0.1)}::-webkit-scrollbar{width:8px}::-webkit-scrollbar-track{background:#0f172a}::-webkit-scrollbar-thumb{background:#00d9ff;border-radius:10px;box-shadow:0 0 10px rgba(0,217,255,0.3)}::-webkit-scrollbar-thumb:hover{background:#b027ff;box-shadow:0 0 20px rgba(176,39,255,0.4)}</style></head><body><div class="container"><div class="header"><h1>🇳🇬 ARIA</h1><p>Your Strategic AI Friend</p></div><div class="chat" id="chat"></div><div class="input-box"><input type="text" id="input" placeholder="Talk to ARIA..."/><button onclick="send()">Send</button></div><div class="footer">Made with 💚 for Africa</div></div><script>const chat=document.getElementById("chat"),input=document.getElementById("input"),UID="default_user";function addMsg(t,s){const d=document.createElement("div");d.className=`msg ${s}`;d.innerHTML=s==="aria"?marked.parse(t):t;chat.appendChild(d);chat.scrollTop=chat.scrollHeight}async function send(){const m=input.value.trim();if(!m)return;addMsg(m,"user");input.value="";addMsg("...","aria");const l=chat.lastChild;try{const r=await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:m,user_id:UID})});const d=await r.json();l.innerHTML=marked.parse(d.reply||"No response")}catch(e){l.textContent="Error: "+e.message}}input.addEventListener("keypress",e=>{if(e.key==="Enter")send()})</script></body></html>"""
+HTML="""<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>ARIA</title><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script><style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden}body{background:linear-gradient(135deg,#0a0e27 0%,#0f172a 50%,#1a0f2e 100%);color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden}.container{width:100%;height:100%;display:flex;flex-direction:column;background:#0f172a}.header{background:linear-gradient(135deg,#0f172a 0%,#1a0f2e 50%,#2d1b4e 100%);border-bottom:2px solid #00d9ff;box-shadow:0 0 40px rgba(0,217,255,0.2),inset 0 0 20px rgba(255,255,255,0.05);padding:30px 20px;text-align:center}.header h1{font-size:32px;font-weight:800;color:#ffffff;text-shadow:0 0 20px rgba(0,217,255,0.5);letter-spacing:2px;margin:0}.header p{font-size:13px;color:#e0e7ff;margin-top:8px}.chat{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:15px;background:#0f172a}.msg{max-width:85%;padding:14px 16px;border-radius:16px;word-wrap:break-word;line-height:1.6;font-size:14px;animation:float-in 0.3s ease}@keyframes float-in{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}.msg.user{align-self:flex-end;background:linear-gradient(135deg,#00d9ff 0%,#0099cc 100%);color:#0f172a;border-radius:20px 4px 20px 20px;box-shadow:0 0 20px rgba(0,217,255,0.4);font-weight:600}.msg.aria{align-self:flex-start;background:rgba(15,23,42,0.6);color:#e0e7ff;border:1px solid rgba(0,217,255,0.2);border-radius:4px 20px 20px 20px;box-shadow:0 0 20px rgba(0,217,255,0.15)}.msg.aria h1{font-size:14px;margin:4px 0 6px;color:#00d9ff;font-weight:700}.msg.aria h2{font-size:13px;margin:3px 0 5px;color:#10b981;font-weight:600}.msg.aria p{margin:6px 0}.msg.aria ul{margin:8px 0 8px 18px}.msg.aria li{margin:3px 0}.input-box{display:flex;gap:10px;padding:15px;background:#0a0e27;border-top:1px solid rgba(0,217,255,0.1);align-items:center}input{flex:1;padding:12px 15px;border:1px solid rgba(0,217,255,0.2);border-radius:12px;font-size:14px;background:rgba(10,14,39,0.6);color:#ffffff;outline:none;transition:all 0.3s ease}input:focus{border-color:#00d9ff;box-shadow:0 0 30px rgba(0,217,255,0.3);background:rgba(10,14,39,0.8)}button{padding:10px 20px;background:linear-gradient(135deg,#00d9ff 0%,#0099cc 100%);color:#0f172a;border:none;border-radius:12px;font-weight:600;cursor:pointer;transition:all 0.3s ease;font-size:14px}button:hover{transform:scale(1.05);box-shadow:0 0 40px rgba(0,217,255,0.6)}button:active{transform:scale(0.95)}.footer{text-align:center;padding:12px;font-size:11px;color:#00d9ff;opacity:0.6;border-top:1px solid rgba(0,217,255,0.1)}::-webkit-scrollbar{width:8px}::-webkit-scrollbar-track{background:#0f172a}::-webkit-scrollbar-thumb{background:#00d9ff;border-radius:10px}</style></head><body><div class="container"><div class="header"><h1>🇳🇬 ARIA</h1><p>Your Strategic AI Friend</p></div><div class="chat" id="chat"></div><div class="input-box"><input type="text" id="input" placeholder="Talk to ARIA..."/><button onclick="send()">Send</button></div><div class="footer">Made with 💚 for Africa</div></div><script>const chat=document.getElementById("chat"),input=document.getElementById("input"),UID="default_user";function addMsg(t,s){const d=document.createElement("div");d.className=`msg ${s}`;d.innerHTML=s==="aria"?marked.parse(t):t;chat.appendChild(d);chat.scrollTop=chat.scrollHeight}async function send(){const m=input.value.trim();if(!m)return;addMsg(m,"user");input.value="";addMsg("...","aria");const l=chat.lastChild;try{const r=await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:m,user_id:UID})});const d=await r.json();l.innerHTML=marked.parse(d.reply||"No response")}catch(e){l.textContent="Error: "+e.message}}input.addEventListener("keypress",e=>{if(e.key==="Enter")send()})</script></body></html>"""
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self,*a):pass
@@ -165,10 +196,9 @@ class Handler(BaseHTTPRequestHandler):
                 b=json.loads(self.rfile.read(int(self.headers.get("Content-Length",0))))
                 m,u=b.get("message","").strip(),b.get("user_id","default_user")
                 r=ask(m,u,'groq') or ask(m,u,'gemini') or "APIs offline, try later"
-                save_compressed(u,m,r)
                 self.wfile.write(json.dumps({"reply":r}).encode())
             except:self.send_response(500);self.send_header("Access-Control-Allow-Origin","*");self.end_headers()
 
 port=int(os.environ.get("PORT",8080))
-print(f"✅ [ARIA 3.5] Deployed. Listening on port {port}...")
+print(f"✅ [ARIA 3.5] Strategic Wealth Partner. Listening on port {port}...")
 HTTPServer(("0.0.0.0",port),Handler).serve_forever()
