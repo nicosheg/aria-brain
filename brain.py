@@ -1,4 +1,5 @@
-from http.server import HTTPServer, BaseHTTPRequestHandler
+# Ctrl+W → search "@app.route"
+# Find the /chat routefrom http.server import HTTPServer, BaseHTTPRequestHandler
 import json, os, requests, firebase_admin, re
 from firebase_admin import credentials, firestore
 from datetime import datetime, timezone, timedelta
@@ -154,6 +155,34 @@ class Handler(BaseHTTPRequestHandler):
                 save_compressed(u,m,r)
                 self.wfile.write(json.dumps({"reply":r}).encode())
             except:self.send_response(500);self.send_header("Access-Control-Allow-Origin","*");self.end_headers()
+
+# ← ADD ANALYTICS HERE (after chat route ends)
+
+@app.route('/analytics', methods=['GET'])
+def analytics():
+    try:
+        mem = psutil.virtual_memory()
+        cpu = psutil.cpu_percent(interval=1)
+        user_count = 0
+        if db:
+            try:
+                docs = list(db.collection('users').stream())
+                user_count = len(docs)
+            except:
+                user_count = 0
+        return jsonify({
+            'status': 'ARIA 3.5 Analytics',
+            'memory': {
+                'used_mb': round(mem.used / 1024 / 1024, 2),
+                'total_mb': round(mem.total / 1024 / 1024, 2),
+                'percent': mem.percent
+            },
+            'cpu_percent': cpu,
+            'users': user_count,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 port=int(os.environ.get("PORT",8080))
 print(f"✅ [ARIA 3.5] Deployed. Listening on port {port}...")
