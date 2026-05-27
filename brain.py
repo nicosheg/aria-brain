@@ -253,6 +253,20 @@ def learn_from_interaction(u,m,r,feedback=None):
         db.collection("aria_learning").add(learning_data)
         db.collection("users").document(u).collection("learning").add(learning_data)
     except: pass
+def detect_tone(m, u):
+    """Detect user mood/need and return ARIA's mode"""
+    m_lower = m.lower()
+    if any(w in m_lower for w in ["don't know", "can't", "impossible", "stuck", "confused", "help"]):
+        return "STRICT"
+    if any(w in m_lower for w in ["lol", "😂", "funny", "joke", "haha", "😭"]) or m.endswith("?") and len(m) < 30:
+        return "FUNNY"
+    if any(w in m_lower for w in ["should i", "should we", "vs", "strategy", "plan"]):
+        return "STRATEGIST"
+    if any(w in m_lower for w in ["broken", "failed", "depressed", "tired", "exhausted"]):
+        return "COMPASSIONATE"
+    if u == "nicholas":
+        return "HARSH"
+    return "BALANCED"
 
 def extract_pattern(m,r,feedback):
     if not feedback or feedback<3: return None
