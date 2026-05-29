@@ -55,7 +55,7 @@ KEYS = {
 }
 
 OWNER_UID        = None          # Set automatically on first verified login
-OWNER_PASSPHRASE = "CHANGE_THIS_TO_YOUR_SECRET_WORD"  # ← CHANGE THIS
+OWNER_PASSPHRASE = "OWNERS_PASSPHRASE_AMG"  # ← CHANGE THIS
 
 
 def verify_owner(message):
