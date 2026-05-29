@@ -898,4 +898,187 @@ function addMsg(text,sender,showRating=false){
   if(sender==="aria"&&showRating){
     const bar=document.createElement("div");bar.className="rate-bar show";
     [["&#128078;","1"],["&#128528;","2"],["&#128077;","3"],["&#128293;","4"],["&#128175;","5"]].forEach(([e,s])=>{
-      const btn=document.createElement("button");btn.className="rate-btn”
+      const btn=document.createElement("button");btn.className="rate-btn”;btn.className="rate-btn" ;btn.innerHTML=e;
+      btn.onclick=()=>rate(parseInt(s),bar);bar.appendChild(btn)});
+    wrap.appendChild(bar)}
+  chat.appendChild(wrap);chat.scrollTop=chat.scrollHeight;lastMsgId=Math.random();return wrap}
+function rate(score,bar){
+  fetch("/feedback",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({user_id:UID,score:score,message_id:lastMsgId})}).catch(()=>{});
+  bar.innerHTML='<div class="rate-done">&#10003; RATED '+score+'/5</div>'}
+async function send(){
+  const m=inp.value.trim();if(!m)return;
+  addMsg(m,"user");inp.value="";inp.style.height="36px";
+  const thinkWrap=addMsg("...","aria",false);
+  try{
+    const r=await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:m,user_id:UID})});
+    const d=await r.json();thinkWrap.remove();addMsg(d.reply||"No response","aria",true)
+  }catch(e){thinkWrap.remove();addMsg("Connection error. Try again.","aria",false)}}
+inp.addEventListener("input",()=>{inp.style.height="36px";inp.style.height=Math.min(inp.scrollHeight,90)+"px"});
+inp.addEventListener("keydown",(e)=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}});
+window.addEventListener("load",()=>{const s=localStorage.getItem("aria_theme")||"male";setTheme(s)});
+</script>
+</body>
+</html>"""
+
+
+# ════════════════════════════════════════════════════════════════════
+# [S11] HTTP ENDPOINTS
+#  All routes ARIA responds to.
+#  To add a new endpoint: add an elif self.path=="/yourpath" block.
+# ════════════════════════════════════════════════════════════════════
+class Handler(BaseHTTPRequestHandler):
+
+    def log_message(self, format, *args):
+        pass  # Suppress default server logs
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin","*")
+        self.send_header("Access-Control-Allow-Methods","POST,GET,OPTIONS")
+        self.send_header("Access-Control-Allow-Headers","Content-Type")
+        self.end_headers()
+
+    def do_GET(self):
+
+        # ── Home (UI) ──────────────────────────────
+        if self.path == "/":
+            self.send_response(200)
+            self.send_header("Content-Type","text/html; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin","*")
+            self.end_headers()
+            self.wfile.write(HTML.encode())
+
+        # ── Health check ──────────────────────────
+        elif self.path == "/health":
+            self._json({"status":"ARIA 3.5 alive 💚","stage":get_aria_stage()[0]})
+
+        # ── API diagnostic ────────────────────────
+        elif self.path == "/debug":
+            results = {}
+            for i,k in enumerate(KEYS['groq']):
+                if not k: continue
+                try:
+                    r = requests.post("https://api.groq.com/openai/v1/chat/completions",
+                        json={"model":"llama-3.3-70b-versatile","messages":[{"role":"user","content":"test"}]},
+                        headers={"Authorization":f"Bearer {k}"},timeout=5)
+                    results[f"groq_{i+1}"] = f"✅ {r.status_code}"
+                except Exception as e:
+                    results[f"groq_{i+1}"] = f"❌ {str(e)[:30]}"
+            for i,k in enumerate(KEYS['gemini']):
+                if not k: continue
+                try:
+                    r = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={k}",
+                        json={"contents":[{"role":"user","parts":[{"text":"test"}]}]},timeout=5)
+                    results[f"gemini_{i+1}"] = f"✅ {r.status_code}"
+                except Exception as e:
+                    results[f"gemini_{i+1}"] = f"❌ {str(e)[:30]}"
+            self._json({"status":"API Diagnostic","results":results,"timestamp":datetime.now().isoformat()})
+
+        # ── Memory debug ──────────────────────────
+        elif self.path == "/memory-debug":
+            self._json({"status":"Memory Breakdown","breakdown":get_memory_breakdown(),"timestamp":datetime.now().isoformat()})
+
+        # ── Analytics ─────────────────────────────
+        elif self.path == "/analytics":
+            try:
+                mem = psutil.virtual_memory()
+                cpu = psutil.cpu_percent(interval=1)
+                stage, conf = get_aria_stage()
+                user_count = 0
+                learning_count = 0
+                kb_count = 0
+                if db:
+                    try:
+                        ldocs = list(db.collection("aria_learning").stream())
+                        learning_count = len(ldocs)
+                        uids = set(d.to_dict().get("user_id","") for d in ldocs if d.to_dict().get("user_id"))
+                        user_count = len(uids)
+                        kb_count = len(list(db.collection("aria_knowledge").stream()))
+                    except: pass
+                self._json({
+                    "status":"ARIA 3.5 Analytics",
+                    "aria_stage":stage,
+                    "aria_confidence":f"{round(conf*100)}%",
+                    "memory":{"used_mb":round(mem.used/1024/1024,2),"total_mb":round(mem.total/1024/1024,2),"percent":mem.percent},
+                    "cpu_percent":cpu,
+                    "users":user_count,
+                    "learning_interactions":learning_count,
+                    "knowledge_base_size":kb_count,
+                    "cache_stats":cache_stats,
+                    "timestamp":datetime.now().isoformat()
+                })
+            except Exception as e:
+                self._json({"error":str(e)},500)
+
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def do_POST(self):
+
+        data = self._body()
+
+        # ── /chat ──────────────────────────────────
+        if self.path == "/chat":
+            m  = data.get("message","").strip()
+            u  = data.get("user_id","default_user").strip()
+            if not m:
+                self._json({"reply":"Say something!"})
+                return
+            # Try Groq first, then Gemini
+            reply = ask(m, u, 'groq') or ask(m, u, 'gemini')
+            if not reply:
+                reply = "I'm thinking slower than usual. Give me a moment? 🤔"
+            self._json({"reply":reply})
+
+        # ── /feedback ─────────────────────────────
+        elif self.path == "/feedback":
+            u     = data.get("user_id","default_user")
+            score = data.get("score",0)
+            if db:
+                try:
+                    # Get last interaction for this user
+                    docs = list(db.collection("aria_learning")
+                                 .where("user_id","==",u)
+                                 .order_by("timestamp",direction=firestore.Query.DESCENDING)
+                                 .limit(1).stream())
+                    if docs:
+                        last = docs[0].to_dict()
+                        q = last.get("user_message","")
+                        a = last.get("aria_response","")
+                        # Trigger learning
+                        learn_from_rating(u, score, q, a)
+                        # Update the interaction record
+                        docs[0].reference.update({"feedback_score":score,"execution_status":"rated"})
+                except: pass
+            self._json({"status":"Feedback recorded","score":score})
+
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def _body(self):
+        try:
+            length = int(self.headers.get("Content-Length",0))
+            return json.loads(self.rfile.read(length))
+        except:
+            return {}
+
+    def _json(self, data, code=200):
+        body = json.dumps(data).encode()
+        self.send_response(code)
+        self.send_header("Content-Type","application/json")
+        self.send_header("Access-Control-Allow-Origin","*")
+        self.end_headers()
+        self.wfile.write(body)
+
+
+# ════════════════════════════════════════════════════════════════════
+# [S12] SERVER START
+# ════════════════════════════════════════════════════════════════════
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
+    server = HTTPServer(("0.0.0.0", port), Handler)
+    print(f"ARIA 3.5 running on port {port} 💚")
+    server.serve_forever()
+
