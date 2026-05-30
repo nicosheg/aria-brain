@@ -370,7 +370,12 @@ def get_stage_prefix(stage):
 
 def msg_similarity(a, b):
     """Check how similar two messages are (0.0 to 1.0)"""
-    return SequenceMatcher(None, a.lower().strip(), b.lower().strip()).ratio()
+    # Normalize: remove ₦, common words, focus on core meaning
+    normalize = lambda x: " ".join([w for w in x.lower().split() 
+                                   if w not in ["₦","can","how","well","an","a","for","on"]])
+    a_norm = normalize(a)
+    b_norm = normalize(b)
+    return SequenceMatcher(None, a_norm, b_norm).ratio()
 
 
 def search_knowledge_base(question, threshold=0.72):
