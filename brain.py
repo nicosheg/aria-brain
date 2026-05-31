@@ -902,6 +902,28 @@ def get_relevant_lessons(question):
         return result
     except:
         return ""
+
+def get_relevant_lessons(question):
+    """Get top 5 lessons relevant to this question."""
+    if not db:
+        return ""
+    
+    category = detect_topic(question)
+    try:
+        docs = db.collection("aria_lessons") \
+                 .where("category", "==", category) \
+                 .where("active", "==", True) \
+                 .order_by("priority", direction=firestore.Query.DESCENDING) \
+                 .limit(5) \
+                 .stream()
+        
+        lessons = [d.to_dict().get("lesson", "") for d in docs]
+        if lessons:
+            formatted = "\n".join([f"• {l}" for l in lessons if l])
+            return f"\n## LIVE NIGERIAN CONTEXT:\n{formatted}"
+        return ""
+    except:
+        return ""
         
 def ask(m, u, api):
 
