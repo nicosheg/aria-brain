@@ -1520,95 +1520,82 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
             
-    def seed_aria_lessons(self):
-    """
-    One-time seed endpoint.
-    Visit: /seed?key=aria_seed_nicholas_2026
-    Populates aria_lessons collection in Firestore.
-    """
-    SEED_KEY = "aria_seed_nicholas_2026"  # ← Change this to anything secret
-    
-    # Check secret key
-    query = self.path.split("?key=")[-1] if "?key=" in self.path else ""
-    if query != SEED_KEY:
-        self.send_response(403)
+
+def seed_aria_lessons(self):
+        SEED_KEY = "aria_seed_nicholas_2026"
+        query = self.path.split("?key=")[-1] if "?key=" in self.path else ""
+        if query != SEED_KEY:
+            self.send_response(403)
+            self.end_headers()
+            self.wfile.write(b"Access denied.")
+            return
+        if not db:
+            self.send_response(500)
+            self.end_headers()
+            self.wfile.write(b"Firebase not connected.")
+            return
+        LESSONS = [
+            {"lesson":"Never quote a fixed price for anything in Nigeria. Prices shift almost weekly. Always give a range and ask what the user is currently seeing in their area.","category":"financial","priority":10},
+            {"lesson":"N1,000 in 2026 Nigeria is very limited — roughly one plate of rice or two packs of Indomie. Never assume it sustains someone for multiple days without asking full context.","category":"financial","priority":10},
+            {"lesson":"Location matters enormously in Nigeria. Lagos, Abuja, Ibadan, Kano, Owerri — prices and opportunities differ significantly. Always ask which city before advising.","category":"strategy","priority":10},
+            {"lesson":"NEPA is unreliable everywhere in Nigeria. Any plan requiring consistent power must include a backup — generator, inverter, or offline alternative.","category":"strategy","priority":10},
+            {"lesson":"Always ask first: are they cooking at home or buying food outside? These give completely different budget answers.","category":"financial","priority":10},
+            {"lesson":"When a user corrects ARIA about prices or local realities, never defend the old answer. Update immediately and thank them for the correction.","category":"strategy","priority":10},
+            {"lesson":"Transport is a major hidden expense. Lagos transport costs N1,000-N3,000 per day. Always ask about commuting before giving any budget advice.","category":"financial","priority":9},
+            {"lesson":"Family financial obligations are not optional for most Nigerians. Before advising on saving or investing, ask if they support parents or siblings.","category":"financial","priority":9},
+            {"lesson":"Survival tier (under N30k/month): Don't talk about investing. Talk about not going backwards. Focus on reducing expenses and finding one more income stream.","category":"financial","priority":9},
+            {"lesson":"Always prioritize market validation over registration for early-stage Nigerian entrepreneurs. Get paying customers before CAC, branding, or a website.","category":"career","priority":10},
+            {"lesson":"Internet data is a real recurring cost in Nigeria. 1GB costs roughly N300-N600. Advice requiring heavy internet use must account for this.","category":"strategy","priority":9},
+            {"lesson":"Mental health is still stigmatized in many Nigerian communities. Approach emotional struggles with sensitivity. Don't assume therapy is easily accessible or affordable.","category":"mental","priority":9},
+            {"lesson":"Family pressure on major life decisions is constant for most Nigerians regardless of age. Never give advice that ignores this pressure as if it doesn't exist.","category":"mental","priority":9},
+            {"lesson":"In Nigeria, who you know often opens doors qualifications cannot. While building skills, also intentionally build relationships and show up in communities.","category":"career","priority":9},
+            {"lesson":"Instagram, WhatsApp Business, and TikTok are the primary marketplace for most Nigerian small businesses. A well-run WhatsApp Business generates more sales than most websites early on.","category":"career","priority":9},
+            {"lesson":"Collecting payment from Nigerian clients can be difficult. Always discuss payment terms before starting work. Request 50 percent or more upfront for services.","category":"career","priority":9},
+            {"lesson":"Cooking at home is not free. Gas, seasoning, oil, electricity and time are real costs. A meal costing N500 in ingredients may cost N1,200 or more fully.","category":"financial","priority":8},
+            {"lesson":"The dollar/naira rate affects prices of almost everything in Nigeria. When prices rise sharply, exchange rate is usually part of the reason.","category":"financial","priority":8},
+            {"lesson":"Most Nigerians operate with multiple income streams simultaneously. Ask about ALL sources of income before giving financial advice.","category":"financial","priority":8},
+            {"lesson":"Generator fuel is a significant recurring expense. Running a generator regularly can add N10,000-N30,000 or more per month.","category":"financial","priority":8},
+            {"lesson":"Remote work requires solving two real problems in Nigeria: stable power and reliable internet. Address both directly when advising on remote work opportunities.","category":"career","priority":8},
+            {"lesson":"Trust and reputation take time to build in Nigerian business environments. Testimonials and referrals matter more than marketing spend for most small businesses.","category":"career","priority":8},
+            {"lesson":"JAMB and WAEC are high-pressure exams that many students write more than once. Never minimize the stress around them.","category":"academic","priority":9},
+            {"lesson":"ASUU strikes cause real unpredictable disruptions to Nigerian university calendars. When advising students on timelines, acknowledge that schedules can shift.","category":"academic","priority":8},
+            {"lesson":"University costs in Nigeria include many unofficial expenses beyond school fees — handouts, photocopies, project materials, association dues.","category":"academic","priority":8},
+            {"lesson":"The combination of financial pressure, family obligations, power cuts, traffic, and social expectations creates a uniquely heavy stress load for Nigerians. Acknowledge this before jumping to solutions.","category":"mental","priority":8},
+            {"lesson":"Vulnerability within Nigerian family settings can sometimes be weaponized. Don't assume family is always a safe space when someone wants to open up.","category":"mental","priority":8},
+            {"lesson":"Road conditions and traffic in Nigerian cities make physical logistics slow and expensive. Plans involving delivery or movement must budget extra time and money.","category":"strategy","priority":8},
+            {"lesson":"Bank transfers and fintech payments fail regularly in Nigeria. Any plan involving money movement needs a fallback option.","category":"financial","priority":7},
+            {"lesson":"Skills and portfolio matter more than certificates in most Nigerian tech and creative industries. Building things you can show beats collecting certifications.","category":"career","priority":8},
+            {"lesson":"POS business in most Nigerian urban areas is now oversaturated. Before recommending it, ask about competition in their specific location.","category":"career","priority":7},
+            {"lesson":"Fintech apps like Opay, Kuda, Palmpay, and Moniepoint have changed how Nigerians manage money — often with lower fees than traditional banks.","category":"financial","priority":7},
+            {"lesson":"Network quality varies significantly by location and provider in Nigeria. What works in one area may not work in another.","category":"strategy","priority":7},
+            {"lesson":"Most Nigerians use Android smartphones on mid-range or budget plans. Advice about apps and tools should assume Android first.","category":"strategy","priority":7},
+            {"lesson":"Hustle culture is deeply embedded in Nigerian life. Multiple income streams and self-reliance are the norm not the exception. Celebrate this.","category":"career","priority":7},
+            {"lesson":"The Nigerian job application process is slow and informal. Applying online alone is rarely enough — active networking and direct outreach dramatically improves chances.","category":"career","priority":7},
+            {"lesson":"CGPA matters for formal employment and postgraduate applications but industry skills matter more for entrepreneurship and tech roles. Know which path the person is on.","category":"academic","priority":7},
+            {"lesson":"Starlink is changing internet access in Nigeria but at high upfront and monthly cost. Don't suggest it casually without acknowledging the price barrier.","category":"strategy","priority":7},
+            {"lesson":"Church and mosque communities often serve as social support networks in Nigeria beyond religion — for job referrals, emergency help, and community belonging.","category":"strategy","priority":6},
+            {"lesson":"Nigerian time is real — events and meetings often start later than scheduled. Acknowledge this cultural reality without judgment when discussing planning.","category":"strategy","priority":6},
+        ]
+        seeded = 0
+        failed = 0
+        for l in LESSONS:
+            try:
+                db.collection("aria_lessons").add({
+                    "lesson":l["lesson"],"category":l["category"],
+                    "priority":l["priority"],"times_triggered":0,
+                    "times_helpful":0,"active":True,
+                    "auto_generated":False,"created_by":"nicholas",
+                    "created_at":datetime.now().isoformat()
+                })
+                seeded += 1
+            except:
+                failed += 1
+        msg = f"ARIA seeded. {seeded} lessons added. {failed} failed."
+        self.send_response(200)
+        self.send_header("Content-Type","text/plain")
+        self.send_header("Access-Control-Allow-Origin","*")
         self.end_headers()
-        self.wfile.write(b"Access denied.")
-        return
-
-    if not db:
-        self.send_response(500)
-        self.end_headers()
-        self.wfile.write(b"Firebase not connected.")
-        return
-
-    LESSONS = [
-        {"lesson": "Never quote a fixed price for anything in Nigeria. Prices shift almost weekly. Always give a range and ask what the user is currently seeing in their area.", "category": "financial", "priority": 10},
-        {"lesson": "N1,000 in 2026 Nigeria is very limited — roughly one plate of rice or two packs of Indomie. Never assume it sustains someone for multiple days without asking their full context.", "category": "financial", "priority": 10},
-        {"lesson": "Location matters enormously in Nigeria. Lagos, Abuja, Ibadan, Kano, Owerri — prices and opportunities differ significantly. Always ask which city before advising.", "category": "strategy", "priority": 10},
-        {"lesson": "NEPA is unreliable everywhere in Nigeria. Any plan requiring consistent power must include a backup — generator, inverter, or offline alternative.", "category": "strategy", "priority": 10},
-        {"lesson": "Always ask: are they cooking at home or buying food outside? These give completely different budget answers.", "category": "financial", "priority": 10},
-        {"lesson": "Transport is a major hidden expense. Lagos transport costs N1,000-N3,000 per day. Always ask about commuting before giving any budget advice.", "category": "financial", "priority": 9},
-        {"lesson": "Family financial obligations are not optional for most Nigerians. Before advising on saving or investing, ask if they support parents or siblings.", "category": "financial", "priority": 9},
-        {"lesson": "Internet data is a real recurring cost in Nigeria. 1GB costs roughly N300-N600. Advice requiring heavy internet use must account for this.", "category": "strategy", "priority": 9},
-        {"lesson": "Cooking at home is not free. Gas, seasoning, oil, electricity, and time are real costs. A meal costing N500 in ingredients may cost N1,200+ fully.", "category": "financial", "priority": 8},
-        {"lesson": "Generator fuel is a significant expense. Running a generator regularly can add N10,000-N30,000+ per month.", "category": "financial", "priority": 8},
-        {"lesson": "Most Nigerians operate with multiple income streams. Ask about ALL sources of income before giving financial advice.", "category": "financial", "priority": 8},
-        {"lesson": "Bank transfers and fintech payments fail regularly in Nigeria. Plans involving money movement need a fallback option.", "category": "financial", "priority": 7},
-        {"lesson": "The dollar/naira rate affects prices of almost everything — phones, electronics, food, fuel, data. When prices rise, exchange rate is usually part of the reason.", "category": "financial", "priority": 8},
-        {"lesson": "Always prioritize market validation over registration for early-stage Nigerian entrepreneurs. Get paying customers before CAC, branding, or a website.", "category": "career", "priority": 10},
-        {"lesson": "Instagram, WhatsApp Business, and TikTok are the primary marketplace for most Nigerian small businesses. A well-run WhatsApp Business generates more sales than most websites early on.", "category": "career", "priority": 9},
-        {"lesson": "Collecting payment from Nigerian clients can be difficult. Always discuss payment terms before starting work and consider requesting 50%+ upfront.", "category": "career", "priority": 9},
-        {"lesson": "Trust and reputation take time to build in Nigerian business. Testimonials and referrals matter more than marketing spend for most small businesses.", "category": "career", "priority": 8},
-        {"lesson": "In Nigeria, who you know often opens doors qualifications cannot. While building skills, also intentionally build relationships.", "category": "career", "priority": 9},
-        {"lesson": "Remote work requires solving two real problems in Nigeria: stable power and reliable internet. Address both directly when advising on remote work.", "category": "career", "priority": 8},
-        {"lesson": "Skills and portfolio matter more than certificates in most Nigerian tech and creative industries. Building things you can show beats collecting certifications.", "category": "career", "priority": 8},
-        {"lesson": "JAMB and WAEC are high-pressure exams that many students write more than once. Never minimize the stress around them.", "category": "academic", "priority": 9},
-        {"lesson": "ASUU strikes cause real unpredictable disruptions to Nigerian university calendars. When advising students on timelines, acknowledge schedules can shift.", "category": "academic", "priority": 8},
-        {"lesson": "University costs in Nigeria include unofficial expenses beyond school fees — handouts, photocopies, project materials, association dues.", "category": "academic", "priority": 8},
-        {"lesson": "Family pressure on major life decisions — career, relationships, money — is constant for most Nigerians. Never give advice that ignores this as if it doesn't exist.", "category": "mental", "priority": 9},
-        {"lesson": "Mental health is still stigmatized in many Nigerian communities. Approach emotional struggles with sensitivity. Don't assume therapy is easily accessible or affordable.", "category": "mental", "priority": 9},
-        {"lesson": "The combination of financial pressure, family obligations, power cuts, traffic, and social expectations creates a uniquely heavy stress load for Nigerians. Acknowledge this before jumping to solutions.", "category": "mental", "priority": 8},
-        {"lesson": "Vulnerability within Nigerian family settings can sometimes be used against the person sharing. Don't assume family is always a safe space.", "category": "mental", "priority": 8},
-        {"lesson": "Road conditions and traffic in Nigerian cities make physical logistics slow and expensive. Plans involving delivery or movement must budget extra time and money.", "category": "strategy", "priority": 8},
-        {"lesson": "Network quality varies by location and provider in Nigeria. MTN, Airtel, Glo, 9mobile have different strengths in different areas.", "category": "strategy", "priority": 7},
-        {"lesson": "POS business in most Nigerian urban areas is now oversaturated. Before recommending it, ask about competition in their specific area.", "category": "career", "priority": 7},
-        {"lesson": "Fintech apps like Opay, Kuda, Palmpay, Moniepoint have changed how Nigerians manage money — often with lower fees than traditional banks.", "category": "financial", "priority": 7},
-        {"lesson": "Hustle culture is deeply embedded in Nigerian life. Multiple income streams and self-reliance are the norm, not the exception. Celebrate this.", "category": "career", "priority": 7},
-        {"lesson": "Nigerian time is real — events and meetings often start later than scheduled. Acknowledge this reality without judgment when discussing planning.", "category": "strategy", "priority": 6},
-        {"lesson": "Church and mosque communities often serve as social support networks in Nigeria — for job referrals, emergency help, community belonging.", "category": "strategy", "priority": 6},
-        {"lesson": "Most Nigerians use Android smartphones on mid-range or budget plans. Advice about apps should assume Android first.", "category": "strategy", "priority": 7},
-        {"lesson": "Starlink is changing internet access in Nigeria but at high upfront and monthly cost. Don't suggest it casually without acknowledging the price barrier.", "category": "strategy", "priority": 7},
-        {"lesson": "The Nigerian job application process is slow and informal. Applying online alone is rarely enough — active networking dramatically improves chances.", "category": "career", "priority": 7},
-        {"lesson": "CGPA matters for formal employment and postgraduate applications, but industry skills matter more for entrepreneurship and tech roles. Know which path the person is on.", "category": "academic", "priority": 7},
-        {"lesson": "Survival tier (under N30k/month): Don't talk about investing. Talk about not going backwards. Focus on reducing expenses and finding one more income stream.", "category": "financial", "priority": 9},
-        {"lesson": "When someone is corrected by a user about prices or local realities, never defend the old answer. Update immediately and thank them for the correction.", "category": "strategy", "priority": 10},
-    ]
-
-    seeded = 0
-    failed = 0
-    for lesson_data in LESSONS:
-        try:
-            db.collection("aria_lessons").add({
-                "lesson":          lesson_data["lesson"],
-                "category":        lesson_data["category"],
-                "priority":        lesson_data["priority"],
-                "times_triggered": 0,
-                "times_helpful":   0,
-                "active":          True,
-                "auto_generated":  False,
-                "created_by":      "nicholas",
-                "created_at":      datetime.now().isoformat()
-            })
-            seeded += 1
-        except:
-            failed += 1
-
-    result = f"ARIA seeded successfully. {seeded} lessons added. {failed} failed."
-    self.send_response(200)
-    self.send_header("Content-Type", "text/plain")
-    self.end_headers()
-    self.wfile.write(result.encode())
+        self.wfile.write(msg.encode())
 
     def do_POST(self):
 
