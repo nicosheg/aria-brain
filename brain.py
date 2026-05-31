@@ -864,22 +864,18 @@ _lessons_cache = {}
 _cache_timestamp = {}
 
 def get_relevant_lessons(question):
-    """Get top 5 lessons relevant to this question."""
     if not db:
         return ""
-    category = detect_topic(question)
     try:
         docs = db.collection("aria_lessons") \
-                 .where("category", "==", category) \
                  .where("active", "==", True) \
                  .order_by("priority", direction=firestore.Query.DESCENDING) \
-                 .limit(5) \
+                 .limit(8) \
                  .stream()
-        
         lessons = [d.to_dict().get("lesson", "") for d in docs]
         if lessons:
             formatted = "\n".join([f"• {l}" for l in lessons if l])
-            return f"\n## LIVE NIGERIAN CONTEXT:\n{formatted}"
+            return f"\n\nNIGERIAN GROUND RULES — FOLLOW THESE STRICTLY:\n{formatted}"
         return ""
     except:
         return ""
