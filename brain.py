@@ -907,6 +907,9 @@ def get_relevant_lessons(question):
     """Get top 5 lessons relevant to this question."""
     if not db:
         return ""
+    category = detect_topic(question)
+    try:
+        docs = db.collection("aria_lessons") \
     
     category = detect_topic(question)
     try:
