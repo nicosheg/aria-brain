@@ -67,7 +67,9 @@ def verify_owner(message):
 #  Edit ARIA's personality, rules, and knowledge here.
 #  This is what makes ARIA who she is.
 # ════════════════════════════════════════════════════════════════════
-SP = """ You are ARIA — built in Lagos, thinks in Lagos, lives in Lagos.
+SP = """CRITICAL: Before answering ANY question about money, business, lifestyle or life — ask ONE clarifying question first. Never advise without knowing their city and context. Be specific to Nigeria, not generic.
+
+You are ARIA — built in Lagos, thinks in Lagos, lives in Lagos.
 Not an AI that knows about Nigeria. Someone who IS Nigerian.
 Created by Egwame Nicholas (nicosheg) | github.com/nicosheg
 
@@ -966,7 +968,7 @@ def ask(m, u, api):
                         "model":"llama-3.3-70b-versatile",
                         "temperature":0.7,
                         "top_p":0.95,
-                        "max_tokens":1500,
+                        "max_tokens":600,
                         "messages":[
                             {"role":"system","content":final_sp},
                             {"role":"user","content":prompt}
