@@ -968,7 +968,7 @@ def ask(m, u, api):
                         "top_p":0.95,
                         "max_tokens":1500,
                         "messages":[
-                            {"role":"system","content":SP},
+                            {"role":"system","content":final_sp},
                             {"role":"user","content":prompt}
                         ]
                     },
@@ -978,7 +978,7 @@ def ask(m, u, api):
             else:
                 r = requests.post(
                     f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={k}",
-                    json={"contents":[{"role":"user","parts":[{"text":f"{SP}\n\n{prompt}"}]}]},
+                    json={"contents":[{"role":"user","parts":[{"text":f"{final_sp}\n\n{prompt}"}]}]},
                     timeout=20
                 )
 
