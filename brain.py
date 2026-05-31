@@ -953,9 +953,10 @@ def ask(m, u, api):
 
     lesson_injection = get_relevant_lessons(m)
     if lesson_injection:
-    final_sp = SP + "\n\n## YOU MUST FOLLOW THESE RULES FOR THIS QUESTION:\n" + lesson_injection
+        final_sp = SP + "\n\n## YOU MUST FOLLOW THESE RULES FOR THIS QUESTION:\n" + lesson_injection
     else:
-    final_sp = SP
+        final_sp = SP
+    prompt = f"CONTEXT:\n{cx}\n\nTIME (Lagos): {cd}\n\n{m}{meta}" if cx else f"TIME (Lagos): {cd}\n\n{m}{meta}"
     prompt = f"CONTEXT:\n{cx}\n\nTIME (Lagos): {cd}\n\n{m}{meta}" if cx else f"TIME (Lagos): {cd}\n\n{m}{meta}"
 
     # ── 7 & 8. Try APIs ───────────────────────────────
