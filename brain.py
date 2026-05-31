@@ -55,8 +55,7 @@ KEYS = {
 }
 
 OWNER_UID        = None          # Set automatically on first verified login
-OWNER_PASSPHRASE = "OWNERS_PASSPHRASE_AMG"  # ← CHANGE THIS
-
+OWNER_PASSPHRASE = os.environ.get("OWNER_PASSPHRASE", "default")
 
 def verify_owner(message):
     """Returns True if message contains the owner passphrase"""
