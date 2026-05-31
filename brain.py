@@ -952,7 +952,10 @@ def ask(m, u, api):
     meta = f"\n\nMODE: {mode.upper()} | TONE: {tone} | TOPIC: {topic}{owner_note}{stage_ctx}{learning_ctx}{compress_note}"
 
     lesson_injection = get_relevant_lessons(m)
-    final_sp = SP + lesson_injection
+    if lesson_injection:
+    final_sp = SP + "\n\n## YOU MUST FOLLOW THESE RULES FOR THIS QUESTION:\n" + lesson_injection
+    else:
+    final_sp = SP
     prompt = f"CONTEXT:\n{cx}\n\nTIME (Lagos): {cd}\n\n{m}{meta}" if cx else f"TIME (Lagos): {cd}\n\n{m}{meta}"
 
     # ── 7 & 8. Try APIs ───────────────────────────────
