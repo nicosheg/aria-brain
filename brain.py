@@ -1513,10 +1513,13 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._json({"error":str(e)},500)
 
+        elif self.path.startswith("/seed"):
+            self.seed_aria_lessons()
+
         else:
             self.send_response(404)
             self.end_headers()
-
+            
     def seed_aria_lessons(self):
     """
     One-time seed endpoint.
