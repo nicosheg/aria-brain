@@ -1277,6 +1277,50 @@ def get_memory_breakdown():
 #  9. Fall back to cache if all APIs fail
 # ════════════════════════════════════════════════════════════════════
 
+# ── Lesson Injection Middleware ────────────────────────────────────
+_lessons_cache = {}
+_cache_timestamp = {}
+
+def get_relevant_lessons(question):
+    """
+    Fetch top 5 lessons relevant to this question's topic.
+    Cache for 1 hour to avoid hitting Firestore every message.
+    """
+    if not db:
+        return ""
+    
+    category = detect_topic(question)
+    cache_key = f"lessons_{category}"
+    now = time.time()
+    
+    if cache_key in _lessons_cache:
+        if (now - _cache_timestamp.get(cache_key, 0)) < 3600:
+            return _lessons_cache[cache_key]
+    
+    try:
+        docs = db.collection("aria_lessons") \
+                 .where("category", "==", category) \
+                 .where("active", "==", True) \
+                 .where("is_flagged_incorrect", "==", False) \
+                 .order_by("priority", direction=firestore.Query.DESCENDING) \
+                 .limit(5) \
+                 .stream()
+        
+        lessons = [d.to_dict().get("lesson", "") for d in docs]
+        
+        if lessons:
+            formatted = "\n".join([f"• {l}" for l in lessons if l])
+            result = f"\n## LIVE NIGERIAN CONTEXT (Updated by real users):\n{formatted}"
+        else:
+            result = ""
+        
+        _lessons_cache[cache_key] = result
+        _cache_timestamp[cache_key] = now
+        
+        return result
+    except:
+        return ""
+        
 def ask(m, u, api):
 
     # ── 1. Rate limiting ──────────────────────────────
