@@ -763,8 +763,8 @@ def ask(m, u, api):
 
     # ── 3. Knowledge base check (API-free) ────────────
     original_m = m
-    m = compress_message(m, 800)  # Compress long inputs
-    kb_result = search_knowledge_base(m)
+    m = compress_message(m, 800)
+    kb_result = search_knowledge_base(m) if len(m) > 30 else None
     if kb_result and kb_result["found"]:
         stage, _ = get_aria_stage()
         prefix = get_stage_prefix(stage)
