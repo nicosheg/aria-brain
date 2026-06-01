@@ -832,15 +832,25 @@ def ask(m, u, api):
                             "pattern": pattern,
                             "topic": topic
                         })
-                        db.collection("aria_learning").add({
-                            "user_id": u,
+                        db.collection("users").document(u).collection("learning").add({
                             "user_message": m[:100],
                             "aria_response": resp[:1000],
                             "timestamp": datetime.now().isoformat(),
-                            "feedback_score": 0,
-                            "execution_status": "pending",
                             "pattern": pattern,
                             "topic": topic
+                        })
+                        db.collection("aria_learning").add({
+                            "user_id": u,
+                            "user_message": m[:200],
+                            "aria_response": resp[:1000],
+                            "response_length": len(resp),
+                            "message_length": len(m),
+                            "timestamp": datetime.now().isoformat(),
+                            "feedback_score": 0,
+                            "feedback_weight": 0,
+                            "execution_status": "pending",
+                            "topic": topic,
+                            "embedding_ready": True
                         })
                     except: pass
 
