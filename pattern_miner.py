@@ -254,7 +254,7 @@ def _save_lesson(db, lesson, category, confidence, evidence_count):
         for doc in existing:
             data = doc.to_dict()
             # If this lesson text is very similar, update confidence instead
-            if data.get("lesson","")[:50] == lesson[:50]:
+            if data.get("pattern_type","") == f"{category}_{lesson[:30]}":
                 if confidence > data.get("confidence_score", 0):
                     doc.reference.update({
                         "confidence_score": confidence,
