@@ -556,6 +556,55 @@ def learn_from_rating(user_id, rating, question, answer, topic=None):
         })
     except: pass
 
+def extract_behavior_pattern(user_msg, aria_response, rating):
+    """Extract behavior patterns from high-rated responses."""
+    if not db or rating < 4:
+        return  # Only learn from 4-5 star responses
+    
+    # Detect what style this response used
+    style = "short" if len(aria_response) < 250 else "long"
+    asks_question = "?" in aria_response[-100:]
+    uses_nigerian = any(w in aria_response.lower() 
+                       for w in ["omo","enh","na ","sha","abeg","wahala"])
+    answer_first = not aria_response[:50].startswith(("Before","Can you","Could you"))
+    
+    # Build pattern key
+    intent = detect_topic(user_msg)
+    pattern_key = f"{intent}_{style}_{'question' if asks_question else 'statement'}"
+    
+    try:
+        # Check if pattern exists
+        existing = list(db.collection("aria_behavior_patterns")
+                        .where("pattern_key","==",pattern_key)
+                        .limit(1).stream())
+        
+        if existing:
+            doc = existing[0]
+            data = doc.to_dict()
+            old_avg = data.get("rating_average", rating)
+            old_count = data.get("helpful_count", 1)
+            new_avg = round((old_avg * old_count + rating) / (old_count + 1), 2)
+            doc.reference.update({
+                "helpful_count": old_count + 1,
+                "rating_average": new_avg,
+                "last_used": datetime.now().isoformat()
+            })
+        else:
+            db.collection("aria_behavior_patterns").add({
+                "pattern_key": pattern_key,
+                "intent": intent,
+                "style": style,
+                "asks_question": asks_question,
+                "uses_nigerian": uses_nigerian,
+                "answer_first": answer_first,
+                "helpful_count": 1,
+                "rating_average": float(rating),
+                "last_used": datetime.now().isoformat(),
+                "created_at": datetime.now().isoformat()
+            })
+    except:
+        pass
+
 
 # ════════════════════════════════════════════════════════════════════
 # [S6] MEMORY & CONTEXT
