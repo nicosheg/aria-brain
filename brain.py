@@ -1067,8 +1067,8 @@ class Handler(BaseHTTPRequestHandler):
             if not m:
                 self._json({"reply":"Say something!"})
                 return
-            # Try Groq first, then Gemini
-            reply = ask(m, u, 'groq') or ask(m, u, 'gemini')
+            # Try Groq first, then Gemini, then Deepseek
+            reply = ask(m, u, 'groq') or ask(m, u, 'deepseek') or ask(m, u, 'gemini')
             if not reply:
                 reply = "I'm thinking slower than usual. Give me a moment? 🤔"
             self._json({"reply":reply})
