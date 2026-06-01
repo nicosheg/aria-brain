@@ -50,8 +50,9 @@ except:
 #  - Change OWNER_PASSPHRASE to your secret word (never share it)
 # ════════════════════════════════════════════════════════════════════
 KEYS = {
-    'groq':   [os.environ.get(f"GROQ_KEY_{i}","")   for i in range(1,21)],
-    'gemini': [os.environ.get(f"GEMINI_KEY_{i}","") for i in range(1,21)]
+    'groq':     [os.environ.get(f"GROQ_KEY_{i}","")     for i in range(1,21)],
+    'gemini':   [os.environ.get(f"GEMINI_KEY_{i}","")   for i in range(1,21)],
+    'deepseek': [os.environ.get(f"DEEPSEEK_KEY_{i}","") for i in range(1,6)]
 }
 
 OWNER_UID        = None          # Set automatically on first verified login
@@ -811,6 +812,21 @@ def ask(m, u, api):
                 r = requests.post(
                     f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={k}",
                     json={"contents":[{"role":"user","parts":[{"text":f"{final_sp}\n\n{prompt}"}]}]},
+                    timeout=20
+                )
+            elif api == 'deepseek':
+                r = requests.post(
+                    "https://api.deepseek.com/chat/completions",
+                    json={
+                        "model": "deepseek-chat",
+                        "temperature": 0.7,
+                        "max_tokens": 600,
+                        "messages": [
+                            {"role":"system","content":final_sp},
+                            {"role":"user","content":prompt}
+                        ]
+                    },
+                    headers={"Authorization":f"Bearer {k}"},
                     timeout=20
                 )
 
