@@ -808,12 +808,6 @@ def ask(m, u, api):
                     headers={"Authorization":f"Bearer {k}"},
                     timeout=20
                 )
-            else:
-                r = requests.post(
-                    f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={k}",
-                    json={"contents":[{"role":"user","parts":[{"text":f"{final_sp}\n\n{prompt}"}]}]},
-                    timeout=20
-                )
             elif api == 'deepseek':
                 r = requests.post(
                     "https://api.deepseek.com/chat/completions",
@@ -829,7 +823,13 @@ def ask(m, u, api):
                     headers={"Authorization":f"Bearer {k}"},
                     timeout=20
                 )
-
+            else:
+                r = requests.post(
+                    f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={k}",
+                    json={"contents":[{"role":"user","parts":[{"text":f"{final_sp}\n\n{prompt}"}]}]},
+                    timeout=20
+                )
+            
             if r.status_code == 200:
                 resp = r.json()["choices"][0]["message"]["content"] if api=='groq' else r.json()["candidates"][0]["content"]["parts"][0]["text"]
 
