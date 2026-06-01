@@ -662,9 +662,48 @@ def get_memory_breakdown():
 #  9. Fall back to cache if all APIs fail
 # ════════════════════════════════════════════════════════════════════
 
-# ── Lesson Injection Middleware ────────────────────────────────────
-_lessons_cache = {}
-_cache_timestamp = {}
+# ── Preloaded Memory (Fast — loaded once at startup) ───────────────
+_startup_lessons = ""
+_startup_behaviors = ""
+
+def preload_aria_memory():
+    """Load lessons and behavior patterns ONCE at startup into memory."""
+    global _startup_lessons, _startup_behaviors
+    if not db:
+        return
+    try:
+        docs = db.collection("aria_lessons") \
+                 .where("active", "==", True) \
+                 .order_by("priority", direction=firestore.Query.DESCENDING) \
+                 .limit(8).stream()
+        lessons = [d.to_dict().get("lesson","") for d in docs]
+        if lessons:
+            formatted = "\n".join([f"• {l}" for l in lessons if l])
+            _startup_lessons = f"\n\nNIGERIAN GROUND RULES:\n{formatted}"
+    except: pass
+    try:
+        docs = db.collection("aria_behavior_patterns") \
+                 .where("rating_average",">=",4.0) \
+                 .order_by("helpful_count", direction=firestore.Query.DESCENDING) \
+                 .limit(3).stream()
+        patterns = [d.to_dict() for d in docs]
+        if patterns:
+            guidance = "\nUSERS REWARD THESE STYLES:\n"
+            for p in patterns:
+                guidance += f"• {p['intent']}: {p['style']} response"
+                if p.get("answer_first"): guidance += ", answer first"
+                guidance += "\n"
+            _startup_behaviors = guidance
+    except: pass
+
+# Load once when server starts
+preload_aria_memory()
+
+def get_relevant_lessons(question):
+    return _startup_lessons
+
+def get_behavior_guidance():
+    return _startup_behaviors
 
 def get_relevant_lessons(question):
     if not db:
