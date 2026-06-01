@@ -832,13 +832,6 @@ def ask(m, u, api):
                             "pattern": pattern,
                             "topic": topic
                         })
-                        db.collection("users").document(u).collection("learning").add({
-                            "user_message": m[:100],
-                            "aria_response": resp[:1000],
-                            "timestamp": datetime.now().isoformat(),
-                            "pattern": pattern,
-                            "topic": topic
-                        })
                         db.collection("aria_learning").add({
                             "user_id": u,
                             "user_message": m[:200],
