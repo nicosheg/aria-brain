@@ -1316,7 +1316,7 @@ class Handler(BaseHTTPRequestHandler):
                         last = docs[0].to_dict()
                         q = last.get("user_message","")
                         a = last.get("aria_response","")
-                        # Trigger learning
+                # Trigger learning
                 learn_from_rating(u, score, q, a)
                 extract_behavior_pattern(q, a, score)
                 # Update the interaction record
