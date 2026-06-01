@@ -502,7 +502,8 @@ req_queue      = queue.Queue(maxsize=50)
 def get_cached(message, user_id):
     """Return cached response if it exists and is under 1 hour old"""
     global cache_stats
-    key = message[:50]
+    import hashlib
+    key = hashlib.md5(message.lower().strip().encode()).hexdigest()
     if key in response_cache:
         resp, ts = response_cache[key]
         age = time.time() - ts
