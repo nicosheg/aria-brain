@@ -1054,12 +1054,12 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"reply":reply})
 
         # ── /feedback ─────────────────────────────
+        # ── /feedback ─────────────────────────────
         elif self.path == "/feedback":
             u     = data.get("user_id","default_user")
             score = data.get("score",0)
             if db:
                 try:
-                    # Get last interaction for this user
                     docs = list(db.collection("aria_learning")
                                  .where("user_id","==",u)
                                  .order_by("timestamp",direction=firestore.Query.DESCENDING)
@@ -1068,11 +1068,9 @@ class Handler(BaseHTTPRequestHandler):
                         last = docs[0].to_dict()
                         q = last.get("user_message","")
                         a = last.get("aria_response","")
-                # Trigger learning
-                learn_from_rating(u, score, q, a)
-                extract_behavior_pattern(q, a, score)
-                # Update the interaction record
-                docs[0].reference.update({"feedback_score":score,"execution_status":"rated"})
+                        learn_from_rating(u, score, q, a)
+                        extract_behavior_pattern(q, a, score)
+                        docs[0].reference.update({"feedback_score":score,"execution_status":"rated"})
                 except: pass
             self._json({"status":"Feedback recorded","score":score})
 
