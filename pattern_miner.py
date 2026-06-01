@@ -209,7 +209,13 @@ def mine_patterns(db):
             / len(high)
         )
 
-        if high_ans_first > 0.75:
+        low_ans_first = (
+            sum(1 for e in low
+                if not e["response"].strip()[:60].startswith(("Before","Can you","Could","What","Which","Where","How many")))
+            / len(low) if low else 0.5
+        )
+
+        if high_ans_first > 0.75 and high_ans_first > low_ans_first + 0.15:
             lesson = (
                 f"For {topic} questions, leading with the answer or insight "
                 f"before asking for context gets higher ratings. "
