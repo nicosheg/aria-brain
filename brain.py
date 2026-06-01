@@ -300,7 +300,7 @@ def learn_from_rating(user_id, rating, question, answer, topic=None):
         db.collection("aria_learning").add({
             "user_id":    user_id,
             "question":   question[:200],
-            "answer":     answer[:300],
+            "answer":     answer[:1000],
             "rating":     rating,
             "topic":      topic,
             "stage":      stage,
@@ -827,7 +827,7 @@ def ask(m, u, api):
                     try:
                         db.collection("users").document(u).collection("learning").add({
                             "user_message": m[:100],
-                            "aria_response": resp[:200],
+                            "aria_response": resp[:1000],
                             "timestamp": datetime.now().isoformat(),
                             "pattern": pattern,
                             "topic": topic
@@ -835,7 +835,7 @@ def ask(m, u, api):
                         db.collection("aria_learning").add({
                             "user_id": u,
                             "user_message": m[:100],
-                            "aria_response": resp[:200],
+                            "aria_response": resp[:1000],
                             "timestamp": datetime.now().isoformat(),
                             "feedback_score": 0,
                             "execution_status": "pending",
