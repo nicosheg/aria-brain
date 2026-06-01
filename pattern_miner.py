@@ -173,7 +173,8 @@ def mine_patterns(db):
             })
 
         # ── Pattern C: Nigerian slang increases satisfaction ───────
-        nigerian = ["omo","enh","na ","sha","abeg","wahala","wetin","dey ","naira","₦"]
+        nigerian = ["omo","enh","na ","sha","abeg","wahala","wetin","dey ","naira","₦",
+                    "abi","my guy","no wahala","e don","make you","for real","naa","guy ","rest"]
         high_ng = (
             sum(1 for e in high if any(w in e["response"].lower() for w in nigerian))
             / len(high)
