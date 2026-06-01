@@ -930,6 +930,34 @@ def get_relevant_lessons(question):
         return ""
     except:
         return ""
+
+def get_behavior_guidance():
+    """Get top learned behaviors to guide response style."""
+    if not db:
+        return ""
+    try:
+        docs = db.collection("aria_behavior_patterns") \
+                 .where("rating_average",">=",4.0) \
+                 .order_by("helpful_count",
+                           direction=firestore.Query.DESCENDING) \
+                 .limit(3) \
+                 .stream()
+        
+        patterns = [d.to_dict() for d in docs]
+        if not patterns:
+            return ""
+        
+        guidance = "\nUSERS REWARD THESE STYLES:\n"
+        for p in patterns:
+            guidance += f"• {p['intent']} questions: use {p['style']} response"
+            if p.get("answer_first"):
+                guidance += ", answer first"
+            if p.get("asks_question"):
+                guidance += ", end with one question"
+            guidance += f" (rated {p['rating_average']}/5 by {p['helpful_count']} users)\n"
+        return guidance
+    except:
+        return ""
         
 def ask(m, u, api):
 
