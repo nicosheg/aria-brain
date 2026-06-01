@@ -451,20 +451,26 @@ def get_learning_insights(u):
     except: return ""
 
 
+_global_cache = {"data": "", "ts": 0}
+
 def get_global_learnings():
-    """Get top patterns learned across ALL users"""
-    if not db: return ""
+    global _global_cache
+    if time.time() - _global_cache["ts"] < 300:  # 5 min cache
+        return _global_cache["data"]
+    if not db:
+        return ""
     try:
         docs = list(db.collection("aria_learning")
                      .where("rating",">=",4)
                      .limit(20).stream())
         patterns = {}
         for d in docs:
-            dt = d.to_dict()
-            p = dt.get("topic","")
+            p = d.to_dict().get("topic","")
             if p: patterns[p] = patterns.get(p,0)+1
         top = sorted(patterns.items(), key=lambda x:x[1], reverse=True)[:3]
-        return "Strong topics: "+", ".join([p for p,_ in top]) if top else ""
+        result = "Strong topics: "+", ".join([p for p,_ in top]) if top else ""
+        _global_cache = {"data": result, "ts": time.time()}
+        return result
     except: return ""
 
 
