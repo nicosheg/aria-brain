@@ -743,9 +743,10 @@ def ask(m, u, api):
     else:
         cx = get_context(u)
 
-    learning_insights   = get_learning_insights(u)
-    global_learnings    = get_global_learnings()
-    high_rated          = get_high_rated_responses(u)
+    is_short = len(m) < 25
+    learning_insights   = "" if is_short else get_learning_insights(u)
+    global_learnings    = "" if is_short else get_global_learnings()
+    high_rated          = "" if is_short else get_high_rated_responses(u)
     stage, conf         = get_aria_stage()
 
     # ── 5. Greetings & Owner verification ────────────
