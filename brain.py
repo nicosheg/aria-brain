@@ -1317,9 +1317,10 @@ class Handler(BaseHTTPRequestHandler):
                         q = last.get("user_message","")
                         a = last.get("aria_response","")
                         # Trigger learning
-                        learn_from_rating(u, score, q, a)
-                        # Update the interaction record
-                        docs[0].reference.update({"feedback_score":score,"execution_status":"rated"})
+                learn_from_rating(u, score, q, a)
+                extract_behavior_pattern(q, a, score)
+                # Update the interaction record
+                docs[0].reference.update({"feedback_score":score,"execution_status":"rated"})
                 except: pass
             self._json({"status":"Feedback recorded","score":score})
 
