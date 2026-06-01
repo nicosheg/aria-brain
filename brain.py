@@ -28,6 +28,7 @@ from difflib import SequenceMatcher
 import json, os, re, time, queue, threading, requests, psutil, hashlib
 import firebase_admin
 from firebase_admin import credentials, firestore
+from pattern_miner import mine_patterns
 
 
 # ════════════════════════════════════════════════════════════════════
