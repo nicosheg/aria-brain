@@ -996,6 +996,16 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path.startswith("/seed"):
             self.seed_aria_lessons()
 
+        elif self.path.startswith("/mine"):
+            key = self.path.split("?key=")[-1] if "?key=" in self.path else ""
+            if key != "aria_mine_nicholas_2026":
+                self.send_response(403)
+                self.end_headers()
+                self.wfile.write(b"Access denied.")
+                return
+            results = mine_patterns(db)
+            self._json(results)
+
         else:
             self.send_response(404)
             self.end_headers()
