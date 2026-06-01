@@ -831,8 +831,10 @@ def ask(m, u, api):
                 )
             
             if r.status_code == 200:
-                resp = r.json()["choices"][0]["message"]["content"] if api=='groq' else r.json()["candidates"][0]["content"]["parts"][0]["text"]
-
+                if api in ('groq', 'deepseek'):
+                    resp = r.json()["choices"][0]["message"]["content"]
+                else:
+                    resp = r.json()["candidates"][0]["content"]["parts"][0]["text"]
                 # Save everything
                 save_memory(u, original_m, resp)
                 cache_response(m, u, resp)
