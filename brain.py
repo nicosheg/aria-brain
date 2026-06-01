@@ -519,7 +519,7 @@ def get_cached(message, user_id):
 
 def cache_response(message, user_id, response):
     """Store response in cache with timestamp"""
-    key = message[:50]
+    key = hashlib.md5(message.lower().strip().encode()).hexdigest()
     response_cache[key] = (response, time.time())
     if len(response_cache) > 200:
         response_cache.popitem(0)  # Remove oldest
