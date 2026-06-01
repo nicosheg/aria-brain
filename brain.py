@@ -1080,7 +1080,12 @@ class Handler(BaseHTTPRequestHandler):
                         a = last.get("aria_response","")
                         learn_from_rating(u, score, q, a)
                         extract_behavior_pattern(q, a, score)
-                        docs[0].reference.update({"feedback_score":score,"execution_status":"rated"})
+                        weight = 1 if score >= 4 else -1 if score <= 2 else 0
+                        docs[0].reference.update({
+                            "feedback_score": score,
+                            "feedback_weight": weight,
+                            "execution_status": "rated"
+                        })
                 except: pass
             self._json({"status":"Feedback recorded","score":score})
 
