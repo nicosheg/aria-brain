@@ -868,7 +868,7 @@ def ask(m, u, api):
     behavior_guidance = get_behavior_guidance()
     final_sp = SP  # SP is now flexible, injections are optional additions only
     if lesson_injection or behavior_guidance:
-    final_sp = final_sp + "\n\n## LEARNED PATTERNS FROM THIS COMMUNITY\n" + lesson_injection + behavior_guidance
+        final_sp = final_sp + "\n\n## LEARNED PATTERNS FROM THIS COMMUNITY\n" + lesson_injection + behavior_guidance
 if cx:
     memory_section = f"## THIS USER'S MEMORY\n{cx}\n\n"
 
