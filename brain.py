@@ -981,7 +981,7 @@ def ask(m, u, api):
     
     if resp:
         # Save memory in background
-        save_memory_async(u, original_m, resp)
+        save_memory(u, original_m, resp)
         cache_response(m, u, resp)
         
         # Extract and save name if provided
