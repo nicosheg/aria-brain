@@ -570,7 +570,6 @@ def get_high_rated_responses(u):
         return ""
     except: return ""
 
-
 def get_user_facts(u):
     """Get persistent facts about a user (name, preferences, etc.) from Firebase"""
     if not db or not u:
