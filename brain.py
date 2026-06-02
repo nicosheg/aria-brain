@@ -870,8 +870,10 @@ def ask(m, u, api):
         final_sp = SP + lesson_injection + behavior_guidance
     else:
         final_sp = SP
-    prompt = f"CONTEXT:\n{cx}\n\nTIME (Lagos): {cd}\n\n{m}{meta}" if cx else f"TIME (Lagos): {cd}\n\n{m}{meta}"
+if cx:
+    memory_section = f"## THIS USER'S MEMORY\n{cx}\n\n"
 
+prompt = f"{memory_section}TIME (Lagos): {cd}\n\n{m}{meta}"
     # ── 7 & 8. Try APIs ───────────────────────────────
     for k in KEYS[api]:
         if not k: continue
