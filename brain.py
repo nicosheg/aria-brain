@@ -504,23 +504,38 @@ def is_new_session(u):
 
 
 def save_memory(u, m, r):
-    """Save conversation to Firebase memory"""
+    """Save memory with extracted facts"""
     if not db: return
     try:
         data = {
-            "m": m[:100], "r": r[:200],
-            "t": datetime.now().isoformat(),
-            "mo": detect_mode(m, u)
+            "user_message": m,           # FULL message
+            "aria_response": r,          # FULL response
+            "timestamp": datetime.now().isoformat(),
+            "mode": detect_mode(m, u)
         }
-        # Extract context signals
-        dec = extract_decision(m, r)
-        goal = extract_goal(m)
-        interest = extract_interest(m)
-        if dec: data["d"] = dec
-        if goal: data["g"] = goal
-        if interest: data["i"] = interest
+        
+        # Extract facts automatically
+        import re
+        
+        # Name extraction
+        name_match = re.search(r'(?:name|call me|i am|i\'m) (\w+)', m, re.IGNORECASE)
+        if name_match:
+            save_user_fact(u, "name", name_match.group(1))
+        
+        # Color extraction
+        color_match = re.search(r'(?:favorite|love|like|color|is) (red|blue|green|yellow|black|white|orange|purple)', m, re.IGNORECASE)
+        if color_match:
+            save_user_fact(u, "favorite_color", color_match.group(1))
+        
+        # Goal extraction
+        if any(w in m.lower() for w in ["building", "making", "creating", "goal", "want to"]):
+            goal_match = re.search(r'(?:building|making|want to|goal.*?) ([^.!?]+)', m, re.IGNORECASE)
+            if goal_match:
+                save_user_fact(u, "goal", goal_match.group(1)[:200])
+        
         db.collection("users").document(u).collection("memory").add(data)
-    except: pass
+    except:
+        pass
 
 
 def get_learning_insights(u):
