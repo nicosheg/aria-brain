@@ -844,7 +844,7 @@ def ask(m, u, api):
         else:
             return "ARIA 3.5 was created by Egwame Nicholas (nicosheg), a builder from Lagos, Nigeria. github.com/nicosheg 🇳🇬"
 
-    # ── 6. Build prompt ───────────────────────────────
+     # ── 6. Build prompt ───────────────────────────────
     nz = timezone(timedelta(hours=1))
     cd = datetime.now(nz).strftime("%A, %B %d, %Y at %H:%M")
 
@@ -864,25 +864,25 @@ def ask(m, u, api):
 
     meta = f"\n\nMODE: {mode.upper()} | TONE: {tone} | TOPIC: {topic}{owner_note}{stage_ctx}{learning_ctx}{compress_note}"
 
-lesson_injection = get_relevant_lessons(m)
-behavior_guidance = get_behavior_guidance()
-final_sp = SP
-if lesson_injection or behavior_guidance:
-    final_sp = final_sp + "\n\n## LEARNED PATTERNS FROM THIS COMMUNITY\n" + lesson_injection + behavior_guidance
+    lesson_injection = get_relevant_lessons(m)
+    behavior_guidance = get_behavior_guidance()
+    final_sp = SP
+    if lesson_injection or behavior_guidance:
+        final_sp = final_sp + "\n\n## LEARNED PATTERNS FROM THIS COMMUNITY\n" + lesson_injection + behavior_guidance
 
-memory_section = ""
-if cx:
-    memory_section = f"## THIS USER'S MEMORY\n{cx}\n\n"
+    memory_section = ""
+    if cx:
+        memory_section = f"## THIS USER'S MEMORY\n{cx}\n\n"
 
-prompt = f"{memory_section}TIME (Lagos): {cd}\n\n{m}{meta}"
+    prompt = f"{memory_section}TIME (Lagos): {cd}\n\n{m}{meta}"
 
-for k in KEYS[api]:
-    if not k: continue
-    try:
-        if api == 'groq':
-            r = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                json={
+    for k in KEYS[api]:
+        if not k: continue
+        try:
+            if api == 'groq':
+                r = requests.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    json={
                         "model":"llama-3.3-70b-versatile",
                         "temperature":0.7,
                         "top_p":0.95,
@@ -915,7 +915,7 @@ for k in KEYS[api]:
                     f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={k}",
                     json={"contents":[{"role":"user","parts":[{"text":f"{final_sp}\n\n{prompt}"}]}]},
                     timeout=20
-                )
+               )
             
             if r.status_code == 200:
                 if api in ('groq', 'deepseek'):
