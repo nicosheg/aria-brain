@@ -815,14 +815,13 @@ def get_relevant_lessons(question): return _startup_lessons
 def get_behavior_guidance(): return _startup_behaviors
 
 def try_all_apis_parallel(prompt, system_prompt):
-    """Simple sequential API call - no parallel, just works"""
+    """Only use Groq — skip Gemini (429 rate limit) and Deepseek"""
+    results = {"response": None, "lock": threading.Lock()}
     
-    # Try Groq keys first (fastest)
-    for k in KEYS['groq']:
-        if not k:
-            continue
+    def call_groq(key):
+        if results["response"]:
+            return
         try:
-            print(f"Trying Groq key: {k[:10]}...")
             r = requests.post(
                 "https://api.groq.com/openai/v1/chat/completions",
                 json={
@@ -835,67 +834,30 @@ def try_all_apis_parallel(prompt, system_prompt):
                         {"role": "user", "content": prompt}
                     ]
                 },
-                headers={"Authorization": f"Bearer {k}"},
-                timeout=15
+                headers={"Authorization": f"Bearer {key}"},
+                timeout=10
             )
             if r.status_code == 200:
                 resp = r.json()["choices"][0]["message"]["content"]
-                print(f"Groq success!")
-                return resp
-            else:
-                print(f"Groq failed with status {r.status_code}")
-        except Exception as e:
-            print(f"Groq error: {e}")
-            continue
+                with results["lock"]:
+                    if not results["response"]:
+                        results["response"] = resp
+        except:
+            pass
     
-    # Try Deepseek if Groq fails
-    for k in KEYS['deepseek']:
-        if not k:
-            continue
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        futures = []
+        # Only use working Groq keys (skip key 1 which is 401)
+        for k in KEYS['groq'][1:]:  # Start from index 1 (skip first)
+            if k:
+                futures.append(executor.submit(call_groq, k))
+        
         try:
-            print(f"Trying Deepseek key: {k[:10]}...")
-            r = requests.post(
-                "https://api.deepseek.com/chat/completions",
-                json={
-                    "model": "deepseek-chat",
-                    "temperature": 0.7,
-                    "max_tokens": 400,
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": prompt}
-                    ]
-                },
-                headers={"Authorization": f"Bearer {k}"},
-                timeout=15
-            )
-            if r.status_code == 200:
-                resp = r.json()["choices"][0]["message"]["content"]
-                print(f"Deepseek success!")
-                return resp
-        except Exception as e:
-            print(f"Deepseek error: {e}")
-            continue
+            concurrent.futures.wait(futures, timeout=8, return_when=concurrent.futures.FIRST_COMPLETED)
+        except:
+            pass
     
-    # Try Gemini if others fail
-    for k in KEYS['gemini']:
-        if not k:
-            continue
-        try:
-            print(f"Trying Gemini key: {k[:10]}...")
-            r = requests.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={k}",
-                json={"contents": [{"role": "user", "parts": [{"text": f"{system_prompt}\n\n{prompt}"}]}]},
-                timeout=15
-            )
-            if r.status_code == 200:
-                resp = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-                print(f"Gemini success!")
-                return resp
-        except Exception as e:
-            print(f"Gemini error: {e}")
-            continue
-    
-    return None
+    return results["response"]
     
     def call_deepseek(key):
         if results["response"]: return
