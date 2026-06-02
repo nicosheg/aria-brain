@@ -815,12 +815,11 @@ def get_relevant_lessons(question): return _startup_lessons
 def get_behavior_guidance(): return _startup_behaviors
 
 def try_all_apis_parallel(prompt, system_prompt):
-    """Only use Groq — skip Gemini (429 rate limit) and Deepseek"""
+    """Try all APIs in parallel, return first successful response"""
     results = {"response": None, "lock": threading.Lock()}
     
     def call_groq(key):
-        if results["response"]:
-            return
+        if results["response"]: return
         try:
             r = requests.post(
                 "https://api.groq.com/openai/v1/chat/completions",
@@ -842,48 +841,49 @@ def try_all_apis_parallel(prompt, system_prompt):
                 with results["lock"]:
                     if not results["response"]:
                         results["response"] = resp
-        except:
-            pass
-    
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        futures = []
-        # Only use working Groq keys (skip key 1 which is 401)
-        for k in KEYS['groq'][1:]:  # Start from index 1 (skip first)
-            if k:
-                futures.append(executor.submit(call_groq, k))
-        
-        try:
-            concurrent.futures.wait(futures, timeout=8, return_when=concurrent.futures.FIRST_COMPLETED)
-        except:
-            pass
-    
-    return results["response"]
+        except: pass
     
     def call_deepseek(key):
         if results["response"]: return
         try:
-            r = requests.post("https://api.deepseek.com/chat/completions",
-                json={"model": "deepseek-chat", "temperature": 0.7, "max_tokens": 400,
-                      "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}]},
-                headers={"Authorization": f"Bearer {k}"}, timeout=5)
+            r = requests.post(
+                "https://api.deepseek.com/chat/completions",
+                json={
+                    "model": "deepseek-chat",
+                    "temperature": 0.7,
+                    "max_tokens": 400,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": prompt}
+                    ]
+                },
+                headers={"Authorization": f"Bearer {key}"},
+                timeout=10
+            )
             if r.status_code == 200:
                 resp = r.json()["choices"][0]["message"]["content"]
                 with results["lock"]:
-                    if not results["response"]: results["response"] = resp
+                    if not results["response"]:
+                        results["response"] = resp
         except: pass
     
     def call_gemini(key):
         if results["response"]: return
         try:
-            r = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}",
-                json={"contents": [{"role": "user", "parts": [{"text": f"{system_prompt}\n\n{prompt}"}]}]}, timeout=5)
+            r = requests.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}",
+                json={"contents": [{"role": "user", "parts": [{"text": f"{system_prompt}\n\n{prompt}"}]}]},
+                timeout=10
+            )
             if r.status_code == 200:
                 resp = r.json()["candidates"][0]["content"]["parts"][0]["text"]
                 with results["lock"]:
-                    if not results["response"]: results["response"] = resp
+                    if not results["response"]:
+                        results["response"] = resp
         except: pass
     
-    with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
+    # Run all API calls in parallel
+    with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
         futures = []
         for k in KEYS['groq']:
             if k: futures.append(executor.submit(call_groq, k))
@@ -891,6 +891,7 @@ def try_all_apis_parallel(prompt, system_prompt):
             if k: futures.append(executor.submit(call_deepseek, k))
         for k in KEYS['gemini']:
             if k: futures.append(executor.submit(call_gemini, k))
+        
         try:
             concurrent.futures.wait(futures, timeout=8, return_when=concurrent.futures.FIRST_COMPLETED)
         except: pass
