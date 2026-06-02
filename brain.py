@@ -571,6 +571,47 @@ def get_high_rated_responses(u):
     except: return ""
 
 
+def get_user_facts(u):
+    """Get persistent facts about a user (name, preferences, etc.) from Firebase"""
+    if not db or not u:
+        return ""
+    try:
+        docs = list(db.collection("users").document(u).collection("facts").stream())
+        if not docs:
+            return ""
+        facts = []
+        for doc in docs:
+            data = doc.to_dict()
+            key = data.get("key", "")
+            value = data.get("value", "")
+            if key and value:
+                facts.append(f"{key}: {value}")
+        return "\n".join(facts) if facts else ""
+    except:
+        return ""
+
+def save_user_fact(u, key, value):
+    """Save a persistent fact about a user"""
+    if not db or not u or not key or not value:
+        return
+    try:
+        existing = list(db.collection("users").document(u).collection("facts").where("key", "==", key).limit(1).stream())
+        if existing:
+            existing[0].reference.update({
+                "value": value,
+                "updated_at": datetime.now().isoformat()
+            })
+        else:
+            db.collection("users").document(u).collection("facts").add({
+                "key": key,
+                "value": value,
+                "created_at": datetime.now().isoformat(),
+                "updated_at": datetime.now().isoformat()
+            })
+    except:
+        pass
+
+
 # ════════════════════════════════════════════════════════════════════
 # [S7] SMART CACHE
 #  Stores recent responses with 1-hour TTL.
