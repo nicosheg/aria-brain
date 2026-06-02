@@ -739,44 +739,25 @@ def get_memory_breakdown():
 
 
 # ════════════════════════════════════════════════════════════════════
-# [S9] MAIN ask() FUNCTION
-#  The core response engine.
-#  Order of operations:
-#  1. Rate limit check
-#  2. Cache check (instant response if cached)
-#  3. Knowledge base check (API-free response)
-#  4. Load user memory + learning context
-#  5. Handle greetings and owner verification
-#  6. Build prompt with all context
-#  7. Try Groq keys (fast, reliable)
-#  8. Fall back to Gemini keys
-#  9. Fall back to cache if all APIs fail
+# [S9] MAIN ask() FUNCTION (OPTIMIZED + MEMORY)
+#  Parallel API calls + Async memory loading = <3sec responses
 # ════════════════════════════════════════════════════════════════════
 
-# ── Preloaded Memory (Fast — loaded once at startup) ───────────────
 _startup_lessons = ""
 _startup_behaviors = ""
 
 def preload_aria_memory():
-    """Load lessons and behavior patterns ONCE at startup into memory."""
     global _startup_lessons, _startup_behaviors
-    if not db:
-        return
+    if not db: return
     try:
-        docs = db.collection("aria_lessons") \
-                 .where("active", "==", True) \
-                 .order_by("priority", direction=firestore.Query.DESCENDING) \
-                 .limit(8).stream()
-        lessons = [d.to_dict().get("lesson","") for d in docs]
+        docs = db.collection("aria_lessons").where("active", "==", True).order_by("priority", direction=firestore.Query.DESCENDING).limit(8).stream()
+        lessons = [d.to_dict().get("lesson", "") for d in docs]
         if lessons:
             formatted = "\n".join([f"• {l}" for l in lessons if l])
             _startup_lessons = f"\n\nNIGERIAN GROUND RULES:\n{formatted}"
     except: pass
     try:
-        docs = db.collection("aria_behavior_patterns") \
-                 .where("rating_average",">=",4.0) \
-                 .order_by("helpful_count", direction=firestore.Query.DESCENDING) \
-                 .limit(3).stream()
+        docs = db.collection("aria_behavior_patterns").where("rating_average", ">=", 4.0).order_by("helpful_count", direction=firestore.Query.DESCENDING).limit(3).stream()
         patterns = [d.to_dict() for d in docs]
         if patterns:
             guidance = "\nUSERS REWARD THESE STYLES:\n"
@@ -787,27 +768,77 @@ def preload_aria_memory():
             _startup_behaviors = guidance
     except: pass
 
-# Load once when server starts
 preload_aria_memory()
 
-def get_relevant_lessons(question):
-    return _startup_lessons
+def get_relevant_lessons(question): return _startup_lessons
+def get_behavior_guidance(): return _startup_behaviors
 
-def get_behavior_guidance():
-    return _startup_behaviors
-        
+def try_all_apis_parallel(prompt, system_prompt):
+    """Try ALL API keys in parallel. First response wins. Timeout: 5 sec per call."""
+    results = {"response": None, "lock": threading.Lock()}
+    
+    def call_groq(key):
+        if results["response"]: return
+        try:
+            r = requests.post("https://api.groq.com/openai/v1/chat/completions",
+                json={"model": "llama-3.3-70b-versatile", "temperature": 0.7, "top_p": 0.95, "max_tokens": 400,
+                      "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}]},
+                headers={"Authorization": f"Bearer {k}"}, timeout=5)
+            if r.status_code == 200:
+                resp = r.json()["choices"][0]["message"]["content"]
+                with results["lock"]:
+                    if not results["response"]: results["response"] = resp
+        except: pass
+    
+    def call_deepseek(key):
+        if results["response"]: return
+        try:
+            r = requests.post("https://api.deepseek.com/chat/completions",
+                json={"model": "deepseek-chat", "temperature": 0.7, "max_tokens": 400,
+                      "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}]},
+                headers={"Authorization": f"Bearer {k}"}, timeout=5)
+            if r.status_code == 200:
+                resp = r.json()["choices"][0]["message"]["content"]
+                with results["lock"]:
+                    if not results["response"]: results["response"] = resp
+        except: pass
+    
+    def call_gemini(key):
+        if results["response"]: return
+        try:
+            r = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}",
+                json={"contents": [{"role": "user", "parts": [{"text": f"{system_prompt}\n\n{prompt}"}]}]}, timeout=5)
+            if r.status_code == 200:
+                resp = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+                with results["lock"]:
+                    if not results["response"]: results["response"] = resp
+        except: pass
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
+        futures = []
+        for k in KEYS['groq']:
+            if k: futures.append(executor.submit(call_groq, k))
+        for k in KEYS['deepseek']:
+            if k: futures.append(executor.submit(call_deepseek, k))
+        for k in KEYS['gemini']:
+            if k: futures.append(executor.submit(call_gemini, k))
+        try:
+            concurrent.futures.wait(futures, timeout=8, return_when=concurrent.futures.FIRST_COMPLETED)
+        except: pass
+    
+    return results["response"]
+
 def ask(m, u, api):
-
-    # ── 1. Rate limiting ──────────────────────────────
+    # ── 1. Rate limit ──────────────────────────────
     if not check_rate_limit(u):
         return "You're moving fast! Take a breath, try again in a moment 🧘"
-
+    
     # ── 2. Cache check ────────────────────────────────
     cached = get_cached(m, u)
     if cached:
         return f"{cached}\n\n[✨ From memory]"
-
-    # ── 3. Knowledge base check (API-free) ────────────
+    
+    # ── 3. Knowledge base check ────────────────────────
     original_m = m
     m = compress_message(m, 800)
     kb_result = search_knowledge_base(m) if len(m) > 30 else None
@@ -815,155 +846,88 @@ def ask(m, u, api):
         stage, _ = get_aria_stage()
         prefix = get_stage_prefix(stage)
         return f"{prefix}\n\n{kb_result['answer']}\n\n[🧠 {kb_result['confidence']}% confidence]"
-
-    # ── 4. Load context ───────────────────────────────
-    try: req_queue.put_nowait(1)
-    except: pass
-
-    if is_new_session(u):
-        full_history = get_full_history(u)
-        cx = full_history if full_history else get_context(u)
-    else:
-        cx = get_context(u)
-
-    is_short = len(m) < 25
-    learning_insights   = "" if is_short else get_learning_insights(u)
-    global_learnings    = "" if is_short else get_global_learnings()
-    high_rated          = "" if is_short else get_high_rated_responses(u)
-    stage, conf         = get_aria_stage()
-
-    # ── 5. Greetings & Owner verification ────────────
-    if not cx and m.lower() in ["hi","hello","hey","start","intro"]:
+    
+    # ── 4. Start async context load (parallel with API) ──
+    context_result = {"data": ""}
+    def load_context():
+        if is_new_session(u):
+            context_result["data"] = get_full_history(u)
+        else:
+            context_result["data"] = get_context(u)
+    threading.Thread(target=load_context, daemon=True).start()
+    
+    # ── 5. Get persistent facts (synchronous but fast) ──
+    user_facts = get_user_facts(u) if 'get_user_facts' in dir() else ""
+    
+    # ── 6. Greetings & Owner check (no wait) ──────────
+    if m.lower() in ["hi", "hello", "hey", "start", "intro"]:
         return "Hey! 👋 I'm ARIA 3.5, created by Egwame Nicholas (nicosheg) from Lagos. What's your name?"
-
-    if any(w in m.lower() for w in ["creator","who made you","who built you","owner"]):
+    
+    if any(w in m.lower() for w in ["creator", "who made you", "who built you", "owner"]):
         if verify_owner(m):
             global OWNER_UID
             OWNER_UID = u
             return "✅ OWNER VERIFIED. Welcome back, nicholas. [OWNER MODE ACTIVE]"
         else:
             return "ARIA 3.5 was created by Egwame Nicholas (nicosheg), a builder from Lagos, Nigeria. github.com/nicosheg 🇳🇬"
-
-     # ── 6. Build prompt ───────────────────────────────
+    
+    # ── 7. Build prompt (wait briefly for context) ─────
+    time.sleep(0.1)  # Give context thread 100ms to load
+    cx = context_result.get("data", "")
+    
     nz = timezone(timedelta(hours=1))
     cd = datetime.now(nz).strftime("%A, %B %d, %Y at %H:%M")
-
-    is_owner   = (u == OWNER_UID) if OWNER_UID else False
+    
+    is_owner = (u == OWNER_UID) if OWNER_UID else False
     owner_note = "\n[OWNER MODE ACTIVE — Push harder, no mercy]" if is_owner else ""
-
-    tone     = detect_tone(m, u)
-    mode     = detect_mode(m, u)
-    topic    = detect_topic(m)
-
-    learning_ctx = ""
-    if learning_insights or global_learnings or high_rated:
-        learning_ctx = f"\nLEARNED:\n{learning_insights}\n{global_learnings}\n{high_rated}"
-
+    
+    tone = detect_tone(m, u)
+    mode = detect_mode(m, u)
+    topic = detect_topic(m)
+    
+    stage, conf = get_aria_stage()
     stage_ctx = f"\nARIA STAGE: {stage} (confidence: {round(conf*100)}%)\n{get_stage_prefix(stage)}"
-    compress_note = f"\n[Input compressed: {len(original_m)}→{len(m)} chars]" if len(original_m)>800 else ""
-
-    meta = f"\n\nMODE: {mode.upper()} | TONE: {tone} | TOPIC: {topic}{owner_note}{stage_ctx}{learning_ctx}{compress_note}"
-
+    compress_note = f"\n[Input compressed: {len(original_m)}→{len(m)} chars]" if len(original_m) > 800 else ""
+    
+    meta = f"\n\nMODE: {mode.upper()} | TONE: {tone} | TOPIC: {topic}{owner_note}{stage_ctx}{compress_note}"
+    
     lesson_injection = get_relevant_lessons(m)
     behavior_guidance = get_behavior_guidance()
     final_sp = SP
     if lesson_injection or behavior_guidance:
         final_sp = final_sp + "\n\n## LEARNED PATTERNS FROM THIS COMMUNITY\n" + lesson_injection + behavior_guidance
-
+    
+    # ── BUILD MEMORY SECTION (FACTS + CONTEXT) ──
     memory_section = ""
+    if user_facts:
+        memory_section = f"## FACTS I KNOW ABOUT THIS USER\n{user_facts}\n\n"
     if cx:
-        memory_section = f"## THIS USER'S MEMORY\n{cx}\n\n"
-
+        memory_section += f"## RECENT CONVERSATION\n{cx}\n\n"
+    
     prompt = f"{memory_section}TIME (Lagos): {cd}\n\n{m}{meta}"
-
-    for k in KEYS[api]:
-        if not k: continue
-        try:
-            if api == 'groq':
-                r = requests.post(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    json={
-                        "model":"llama-3.3-70b-versatile",
-                        "temperature":0.7,
-                        "top_p":0.95,
-                        "max_tokens":600,
-                        "messages":[
-                            {"role":"system","content":final_sp},
-                            {"role":"user","content":prompt}
-                        ]
-                    },
-                    headers={"Authorization":f"Bearer {k}"},
-                    timeout=20
-                )
-            elif api == 'deepseek':
-                r = requests.post(
-                    "https://api.deepseek.com/chat/completions",
-                    json={
-                        "model": "deepseek-chat",
-                        "temperature": 0.7,
-                        "max_tokens": 600,
-                        "messages": [
-                            {"role":"system","content":final_sp},
-                            {"role":"user","content":prompt}
-                        ]
-                    },
-                    headers={"Authorization":f"Bearer {k}"},
-                    timeout=20
-                )
-            else:
-                r = requests.post(
-                    f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={k}",
-                    json={"contents":[{"role":"user","parts":[{"text":f"{final_sp}\n\n{prompt}"}]}]},
-                    timeout=20
-               )
-            
-            if r.status_code == 200:
-                if api in ('groq', 'deepseek'):
-                    resp = r.json()["choices"][0]["message"]["content"]
-                else:
-                    resp = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-                # Save everything
-                save_memory(u, original_m, resp)
-                cache_response(m, u, resp)
-                extract_from_api_response(m, resp, topic)
-
-                # Save to user learning
-                pattern = extract_pattern(m, resp, None)
-                if db:
-                    try:
-                        db.collection("users").document(u).collection("learning").add({
-                            "user_message": m[:100],
-                            "aria_response": resp[:1000],
-                            "timestamp": datetime.now().isoformat(),
-                            "pattern": pattern,
-                            "topic": topic
-                        })
-                        db.collection("aria_learning").add({
-                            "user_id": u,
-                            "user_message": m[:200],
-                            "aria_response": resp[:1000],
-                            "response_length": len(resp),
-                            "message_length": len(m),
-                            "timestamp": datetime.now().isoformat(),
-                            "feedback_score": 0,
-                            "feedback_weight": 0,
-                            "execution_status": "pending",
-                            "topic": topic,
-                            "embedding_ready": True
-                        })
-                    except: pass
-
-                return resp
-
-        except: continue
-
+    
+    # ── 8. Parallel API call ──────────────────────────
+    resp = try_all_apis_parallel(prompt, final_sp)
+    
+    if resp:
+        # Save memory in background
+        save_memory_async(u, original_m, resp)
+        cache_response(m, u, resp)
+        
+        # Extract and save name if provided
+        import re
+        name_match = re.search(r'(?:my name is|call me|i am) (\w+)', original_m, re.IGNORECASE)
+        if name_match and 'save_user_fact' in dir():
+            save_user_fact(u, "name", name_match.group(1))
+        
+        return resp
+    
     # ── 9. Fallback to cache ──────────────────────────
     fallback = get_cached(m, u)
     if fallback:
         return f"[From memory] {fallback}\n\n(APIs busy, serving saved knowledge)"
-
+    
     return "I'm thinking slower than usual right now. Give me a moment? 🤔"
-
 
 # ════════════════════════════════════════════════════════════════════
 # [S10] HTML UI
