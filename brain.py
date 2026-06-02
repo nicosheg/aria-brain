@@ -864,23 +864,25 @@ def ask(m, u, api):
 
     meta = f"\n\nMODE: {mode.upper()} | TONE: {tone} | TOPIC: {topic}{owner_note}{stage_ctx}{learning_ctx}{compress_note}"
 
-    lesson_injection = get_relevant_lessons(m)
-    behavior_guidance = get_behavior_guidance()
-    final_sp = SP  # SP is now flexible, injections are optional additions only
-    if lesson_injection or behavior_guidance:
-        final_sp = final_sp + "\n\n## LEARNED PATTERNS FROM THIS COMMUNITY\n" + lesson_injection + behavior_guidance
+lesson_injection = get_relevant_lessons(m)
+behavior_guidance = get_behavior_guidance()
+final_sp = SP
+if lesson_injection or behavior_guidance:
+    final_sp = final_sp + "\n\n## LEARNED PATTERNS FROM THIS COMMUNITY\n" + lesson_injection + behavior_guidance
+
+memory_section = ""
 if cx:
     memory_section = f"## THIS USER'S MEMORY\n{cx}\n\n"
 
 prompt = f"{memory_section}TIME (Lagos): {cd}\n\n{m}{meta}"
-    # ── 7 & 8. Try APIs ───────────────────────────────
-    for k in KEYS[api]:
-        if not k: continue
-        try:
-            if api == 'groq':
-                r = requests.post(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    json={
+
+for k in KEYS[api]:
+    if not k: continue
+    try:
+        if api == 'groq':
+            r = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                json={
                         "model":"llama-3.3-70b-versatile",
                         "temperature":0.7,
                         "top_p":0.95,
