@@ -1002,7 +1002,10 @@ def ask(m, u, api):
         import re
         name_match = re.search(r'(?:my name is|call me|i am) (\w+)', original_m, re.IGNORECASE)
         if name_match and 'save_user_fact' in dir():
-            save_user_fact(u, "name", name_match.group(1))
+     try:
+        user_facts = get_user_facts(u)
+    except NameError:
+        user_facts = ""
         
         return resp
     
