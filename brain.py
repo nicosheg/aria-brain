@@ -1057,6 +1057,8 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(f.read().encode())
         return
 
+    # Your existing health check an
+
         # ── Home (UI) ──────────────────────────────
         if self.path == "/":
             self.send_response(200)
