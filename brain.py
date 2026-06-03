@@ -1041,7 +1041,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         # ── Logins (before other checks) ──
-        elif self.path == "/login.html":
+        if self.path == "/login.html":
              with open("public/login.html", "r") as f:
                 self.send_response(200)
                 self.send_header("Content-type", "text/html")
