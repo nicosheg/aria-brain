@@ -1023,9 +1023,8 @@ def ask(m, u, api):
         if name_match:
             try:
                 save_user_fact(u, "name", name_match.group(1))
-                # ── DEBUG: Check if it saved ──
+                # ── DEBUG ──
                 print(f"DEBUG: Attempted to save name: {name_match.group(1)} for user {u}")
-                # Also fetch back to verify
                 verify_facts = get_user_facts(u)
                 print(f"DEBUG: User facts after save: {verify_facts}")
             except NameError:
