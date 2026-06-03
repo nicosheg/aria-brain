@@ -941,7 +941,10 @@ def ask(m, u, api):
     threading.Thread(target=load_context, daemon=True).start()
     
     # ── 5. Get persistent facts (synchronous but fast) ──
-    user_facts = get_user_facts(u) if 'get_user_facts' in dir() else ""
+    try:
+        user_facts = get_user_facts(u)
+    except NameError:
+        user_facts = ""
     
     # ── 6. Greetings & Owner check (no wait) ──────────
     if m.lower() in ["hi", "hello", "hey", "start", "intro"]:
