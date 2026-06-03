@@ -1057,21 +1057,25 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(f.read().encode())
         return
 
-    # Your existing health check an
+    # ── Home (UI) ──────────────────────────────
+    if self.path == "/":
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(HTML.encode())
+        return
 
-        # ── Home (UI) ──────────────────────────────
-        if self.path == "/":
-            self.send_response(200)
-            self.send_header("Content-Type","text/html; charset=utf-8")
-            self.send_header("Access-Control-Allow-Origin","*")
-            self.end_headers()
-            self.wfile.write(HTML.encode())
+    # ── Health check ──────────────────────────
+    elif self.path == "/health":
+        self.send_response(200)
+        self.send_header("Content-type", "application/json")
+        self.end_headers()
+        import json
+        self.wfile.write(json.dumps({"status": "ARIA 3.5 alive 💚", "stage": get_aria_stage()[0]}).encode())
+        return
 
-        # ── Health check ──────────────────────────
-        elif self.path == "/health":
-            self._json({"status":"ARIA 3.5 alive 💚","stage":get_aria_stage()[0]})
-
-        # ── API diagnostic ────────────────────────
+    # ── API diagnostic ────────────────────
         elif self.path == "/debug":
             results = {}
             for i,k in enumerate(KEYS['groq']):
