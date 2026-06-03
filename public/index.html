@@ -187,19 +187,36 @@
         if(enable) inp.focus();
     }
 
-    auth.onAuthStateChanged(async (user) => {
+auth.onAuthStateChanged(async (user) => {
     if (user) {
         currentUser = user;
+        userInfoDiv.style.display = "flex";
+        userAvatar.src = user.photoURL || "";
+        userNameSpan.textContent = user.displayName || user.email;
         
-        // Send Google name to backend to save if not already saved
-        fetch("/set_user_name", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({
-                user_id: user.uid,
-                name: user.displayName || user.email.split("@")[0]
-            })
-        });
+        // ── NEW: Send Google name to backend ──
+        try {
+            await fetch("/set_user_name", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    user_id: user.uid,
+                    name: user.displayName || user.email.split("@")[0]
+                })
+            });
+        } catch(e) {
+            console.log("Failed to send name:", e);
+        }
+        
+        enableChat(true);
+    } else {
+        currentUser = null;
+        userInfoDiv.style.display = "none";
+        enableChat(false);
+        chat.innerHTML = "";
+        addMsg("👋 Please sign in at /login.html to continue.", "aria", false);
+    }
+});
 
     logoutBtn.onclick = () => auth.signOut();
 
