@@ -1076,79 +1076,87 @@ class Handler(BaseHTTPRequestHandler):
         return
 
     # ── API diagnostic ────────────────────
-        elif self.path == "/debug":
-            results = {}
-            for i,k in enumerate(KEYS['groq']):
-                if not k: continue
-                try:
-                    r = requests.post("https://api.groq.com/openai/v1/chat/completions",
-                        json={"model":"llama-3.3-70b-versatile","messages":[{"role":"user","content":"test"}]},
-                        headers={"Authorization":f"Bearer {k}"},timeout=5)
-                    results[f"groq_{i+1}"] = f"✅ {r.status_code}"
-                except Exception as e:
-                    results[f"groq_{i+1}"] = f"❌ {str(e)[:30]}"
-            for i,k in enumerate(KEYS['gemini']):
-                if not k: continue
-                try:
-                    r = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={k}",
-                        json={"contents":[{"role":"user","parts":[{"text":"test"}]}]},timeout=5)
-                    results[f"gemini_{i+1}"] = f"✅ {r.status_code}"
-                except Exception as e:
-                    results[f"gemini_{i+1}"] = f"❌ {str(e)[:30]}"
-            self._json({"status":"API Diagnostic","results":results,"timestamp":datetime.now().isoformat()})
-
-        # ── Memory debug ──────────────────────────
-        elif self.path == "/memory-debug":
-            self._json({"status":"Memory Breakdown","breakdown":get_memory_breakdown(),"timestamp":datetime.now().isoformat()})
-
-        # ── Analytics ─────────────────────────────
-        elif self.path == "/analytics":
+    elif self.path == "/debug":
+        results = {}
+        for i, k in enumerate(KEYS['groq']):
+            if not k:
+                continue
             try:
-                mem = psutil.virtual_memory()
-                cpu = psutil.cpu_percent(interval=1)
-                stage, conf = get_aria_stage()
-                user_count = 0
-                learning_count = 0
-                kb_count = 0
-                if db:
-                    try:
-                        ldocs = list(db.collection("aria_learning").stream())
-                        learning_count = len(ldocs)
-                        uids = set(d.to_dict().get("user_id","") for d in ldocs if d.to_dict().get("user_id"))
-                        user_count = len(uids)
-                        kb_count = len(list(db.collection("aria_knowledge").stream()))
-                    except: pass
-                self._json({
-                    "status":"ARIA 3.5 Analytics",
-                    "aria_stage":stage,
-                    "aria_confidence":f"{round(conf*100)}%",
-                    "memory":{"used_mb":round(mem.used/1024/1024,2),"total_mb":round(mem.total/1024/1024,2),"percent":mem.percent},
-                    "cpu_percent":cpu,
-                    "users":user_count,
-                    "learning_interactions":learning_count,
-                    "knowledge_base_size":kb_count,
-                    "cache_stats":cache_stats,
-                    "timestamp":datetime.now().isoformat()
-                })
+                r = requests.post("https://api.groq.com/openai/v1/chat/completions",
+                    json={"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": "test"}]},
+                    headers={"Authorization": f"Bearer {k}"}, timeout=5)
+                results[f"groq_{i+1}"] = f"✅ {r.status_code}"
             except Exception as e:
-                self._json({"error":str(e)},500)
+                results[f"groq_{i+1}"] = f"❌ {str(e)[:30]}"
+        for i, k in enumerate(KEYS['gemini']):
+            if not k:
+                continue
+            try:
+                r = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={k}",
+                    json={"contents": [{"role": "user", "parts": [{"text": "test"}]}]}, timeout=5)
+                results[f"gemini_{i+1}"] = f"✅ {r.status_code}"
+            except Exception as e:
+                results[f"gemini_{i+1}"] = f"❌ {str(e)[:30]}"
+        self._json({"status": "API Diagnostic", "results": results, "timestamp": datetime.now().isoformat()})
+        return
 
-        elif self.path.startswith("/seed"):
-            self.seed_aria_lessons()
+    # ── Memory debug ──────────────────────────
+    elif self.path == "/memory-debug":
+        self._json({"status": "Memory Breakdown", "breakdown": get_memory_breakdown(), "timestamp": datetime.now().isoformat()})
+        return
 
-        elif self.path.startswith("/mine"):
-            key = self.path.split("?key=")[-1] if "?key=" in self.path else ""
-            if key != "aria_mine_nicholas_2026":
-                self.send_response(403)
-                self.end_headers()
-                self.wfile.write(b"Access denied.")
-                return
-            results = mine_patterns(db)
-            self._json(results)
+    # ── Analytics ─────────────────────────────
+    elif self.path == "/analytics":
+        try:
+            mem = psutil.virtual_memory()
+            cpu = psutil.cpu_percent(interval=1)
+            stage, conf = get_aria_stage()
+            user_count = 0
+            learning_count = 0
+            kb_count = 0
+            if db:
+                try:
+                    ldocs = list(db.collection("aria_learning").stream())
+                    learning_count = len(ldocs)
+                    uids = set(d.to_dict().get("user_id", "") for d in ldocs if d.to_dict().get("user_id"))
+                    user_count = len(uids)
+                    kb_count = len(list(db.collection("aria_knowledge").stream()))
+                except:
+                    pass
+            self._json({
+                "status": "ARIA 3.5 Analytics",
+                "aria_stage": stage,
+                "aria_confidence": f"{round(conf*100)}%",
+                "memory": {"used_mb": round(mem.used/1024/1024, 2), "total_mb": round(mem.total/1024/1024, 2), "percent": mem.percent},
+                "cpu_percent": cpu,
+                "users": user_count,
+                "learning_interactions": learning_count,
+                "knowledge_base_size": kb_count,
+                "cache_stats": cache_stats,
+                "timestamp": datetime.now().isoformat()
+            })
+        except Exception as e:
+            self._json({"error": str(e)}, 500)
+        return
 
-        else:
-            self.send_response(404)
+    elif self.path.startswith("/seed"):
+        self.seed_aria_lessons()
+        return
+
+    elif self.path.startswith("/mine"):
+        key = self.path.split("?key=")[-1] if "?key=" in self.path else ""
+        if key != "aria_mine_nicholas_2026":
+            self.send_response(403)
             self.end_headers()
+            self.wfile.write(b"Access denied.")
+            return
+        results = mine_patterns(db)
+        self._json(results)
+        return
+
+    else:
+        self.send_response(404)
+        self.end_headers()
     
     def seed_aria_lessons(self):
         SEED_KEY = "aria_seed_nicholas_2026"
