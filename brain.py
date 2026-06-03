@@ -45,6 +45,21 @@ try:
 except:
     db = None
 
+# ════════════════════════════════════════════════════════════════════
+# [S2.5] SUPABASE SETUP (for user profiles & facts)
+# ════════════════════════════════════════════════════════════════════
+from supabase import create_client, Client
+
+supabase_url = os.environ.get("SUPABASE_URL", "")
+supabase_key = os.environ.get("SUPABASE_PUBLISHABLE_KEY", "")
+supabase: Client = None
+if supabase_url and supabase_key:
+    try:
+        supabase = create_client(supabase_url, supabase_key)
+        print("✅ Supabase connected")
+    except Exception as e:
+        print(f"⚠️ Supabase init error: {e}")
+
 
 # ════════════════════════════════════════════════════════════════════
 # [S3] API KEYS & OWNER CONFIG
