@@ -845,33 +845,30 @@ def get_relevant_lessons(question): return _startup_lessons
 def get_behavior_guidance(): return _startup_behaviors
 
 def try_all_apis_parallel(prompt, system_prompt):
-    """Try all APIs in parallel, return first successful response"""
-    results = {"response": None, "lock": threading.Lock()}
-    
-    def call_groq(key):
-        if results["response"]: return
+    """Fast sequential Groq calls — first working key wins"""
+    for k in KEYS['groq']:
+        if not k:
+            continue
         try:
             r = requests.post(
                 "https://api.groq.com/openai/v1/chat/completions",
                 json={
                     "model": "llama-3.3-70b-versatile",
                     "temperature": 0.7,
-                    "top_p": 0.95,
-                    "max_tokens": 400,
+                    "max_tokens": 300,
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": prompt}
                     ]
                 },
-                headers={"Authorization": f"Bearer {key}"},
-                timeout=10
+                headers={"Authorization": f"Bearer {k}"},
+                timeout=8
             )
             if r.status_code == 200:
-                resp = r.json()["choices"][0]["message"]["content"]
-                with results["lock"]:
-                    if not results["response"]:
-                        results["response"] = resp
-        except: pass
+                return r.json()["choices"][0]["message"]["content"]
+        except:
+            continue
+    return None
     
     def call_deepseek(key):
         if results["response"]: return
