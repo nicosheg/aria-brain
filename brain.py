@@ -1040,38 +1040,38 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-    # ── Logins (before other checks) ──
+    # ── Login/Index pages ──
     if self.path == "/login.html":
-        with open("public/login.html", "r") as f:
-            self.send_response(200)
-            self.send_header("Content-type", "text/html")
+        try:
+            with open("public/login.html", "r") as f:
+                self.send_response(200)
+                self.send_header("Content-type", "text/html")
+                self.end_headers()
+                self.wfile.write(f.read().encode())
+            return
+        except:
+            self.send_response(404)
             self.end_headers()
-            self.wfile.write(f.read().encode())
-        return
+            return
 
     elif self.path == "/index.html" or self.path == "/":
-        with open("public/index.html", "r") as f:
-            self.send_response(200)
-            self.send_header("Content-type", "text/html")
+        try:
+            with open("public/index.html", "r") as f:
+                self.send_response(200)
+                self.send_header("Content-type", "text/html")
+                self.end_headers()
+                self.wfile.write(f.read().encode())
+            return
+        except:
+            self.send_response(404)
             self.end_headers()
-            self.wfile.write(f.read().encode())
-        return
-
-    # ── Home (UI) ──────────────────────────────
-    if self.path == "/":
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.end_headers()
-        self.wfile.write(HTML.encode())
-        return
+            return
 
     # ── Health check ──────────────────────────
     elif self.path == "/health":
         self.send_response(200)
         self.send_header("Content-type", "application/json")
         self.end_headers()
-        import json
         self.wfile.write(json.dumps({"status": "ARIA 3.5 alive 💚", "stage": get_aria_stage()[0]}).encode())
         return
 
@@ -1098,11 +1098,6 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 results[f"gemini_{i+1}"] = f"❌ {str(e)[:30]}"
         self._json({"status": "API Diagnostic", "results": results, "timestamp": datetime.now().isoformat()})
-        return
-
-    # ── Memory debug ──────────────────────────
-    elif self.path == "/memory-debug":
-        self._json({"status": "Memory Breakdown", "breakdown": get_memory_breakdown(), "timestamp": datetime.now().isoformat()})
         return
 
     # ── Analytics ─────────────────────────────
@@ -1137,10 +1132,6 @@ class Handler(BaseHTTPRequestHandler):
             })
         except Exception as e:
             self._json({"error": str(e)}, 500)
-        return
-
-    elif self.path.startswith("/seed"):
-        self.seed_aria_lessons()
         return
 
     elif self.path.startswith("/mine"):
