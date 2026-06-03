@@ -1040,114 +1040,111 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-    # ── Login/Index pages ──
-    if self.path == "/login.html":
-        try:
-            with open("public/login.html", "r") as f:
-                self.send_response(200)
-                self.send_header("Content-type", "text/html")
-                self.end_headers()
-                self.wfile.write(f.read().encode())
-            return
-        except:
-            self.send_response(404)
-            self.end_headers()
-            return
-
-    elif self.path == "/index.html" or self.path == "/":
-        try:
-            with open("public/index.html", "r") as f:
-                self.send_response(200)
-                self.send_header("Content-type", "text/html")
-                self.end_headers()
-                self.wfile.write(f.read().encode())
-            return
-        except:
-            self.send_response(404)
-            self.end_headers()
-            return
-
-    # ── Health check ──────────────────────────
-    elif self.path == "/health":
-        self.send_response(200)
-        self.send_header("Content-type", "application/json")
-        self.end_headers()
-        self.wfile.write(json.dumps({"status": "ARIA 3.5 alive 💚", "stage": get_aria_stage()[0]}).encode())
-        return
-
-    # ── API diagnostic ────────────────────
-    elif self.path == "/debug":
-        results = {}
-        for i, k in enumerate(KEYS['groq']):
-            if not k:
-                continue
+        # ── Login/Index pages ──
+        if self.path == "/login.html":
             try:
-                r = requests.post("https://api.groq.com/openai/v1/chat/completions",
-                    json={"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": "test"}]},
-                    headers={"Authorization": f"Bearer {k}"}, timeout=5)
-                results[f"groq_{i+1}"] = f"✅ {r.status_code}"
-            except Exception as e:
-                results[f"groq_{i+1}"] = f"❌ {str(e)[:30]}"
-        for i, k in enumerate(KEYS['gemini']):
-            if not k:
-                continue
-            try:
-                r = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={k}",
-                    json={"contents": [{"role": "user", "parts": [{"text": "test"}]}]}, timeout=5)
-                results[f"gemini_{i+1}"] = f"✅ {r.status_code}"
-            except Exception as e:
-                results[f"gemini_{i+1}"] = f"❌ {str(e)[:30]}"
-        self._json({"status": "API Diagnostic", "results": results, "timestamp": datetime.now().isoformat()})
-        return
+                with open("public/login.html", "r") as f:
+                    self.send_response(200)
+                    self.send_header("Content-type", "text/html")
+                    self.end_headers()
+                    self.wfile.write(f.read().encode())
+                return
+            except:
+                self.send_response(404)
+                self.end_headers()
+                return
 
-    # ── Analytics ─────────────────────────────
-    elif self.path == "/analytics":
-        try:
-            mem = psutil.virtual_memory()
-            cpu = psutil.cpu_percent(interval=1)
-            stage, conf = get_aria_stage()
-            user_count = 0
-            learning_count = 0
-            kb_count = 0
-            if db:
+        elif self.path == "/index.html" or self.path == "/":
+            try:
+                with open("public/index.html", "r") as f:
+                    self.send_response(200)
+                    self.send_header("Content-type", "text/html")
+                    self.end_headers()
+                    self.wfile.write(f.read().encode())
+                return
+            except:
+                self.send_response(404)
+                self.end_headers()
+                return
+
+        elif self.path == "/health":
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ARIA 3.5 alive 💚", "stage": get_aria_stage()[0]}).encode())
+            return
+
+        elif self.path == "/debug":
+            results = {}
+            for i, k in enumerate(KEYS['groq']):
+                if not k:
+                    continue
                 try:
-                    ldocs = list(db.collection("aria_learning").stream())
-                    learning_count = len(ldocs)
-                    uids = set(d.to_dict().get("user_id", "") for d in ldocs if d.to_dict().get("user_id"))
-                    user_count = len(uids)
-                    kb_count = len(list(db.collection("aria_knowledge").stream()))
-                except:
-                    pass
-            self._json({
-                "status": "ARIA 3.5 Analytics",
-                "aria_stage": stage,
-                "aria_confidence": f"{round(conf*100)}%",
-                "memory": {"used_mb": round(mem.used/1024/1024, 2), "total_mb": round(mem.total/1024/1024, 2), "percent": mem.percent},
-                "cpu_percent": cpu,
-                "users": user_count,
-                "learning_interactions": learning_count,
-                "knowledge_base_size": kb_count,
-                "cache_stats": cache_stats,
-                "timestamp": datetime.now().isoformat()
-            })
-        except Exception as e:
-            self._json({"error": str(e)}, 500)
-        return
-
-    elif self.path.startswith("/mine"):
-        key = self.path.split("?key=")[-1] if "?key=" in self.path else ""
-        if key != "aria_mine_nicholas_2026":
-            self.send_response(403)
-            self.end_headers()
-            self.wfile.write(b"Access denied.")
+                    r = requests.post("https://api.groq.com/openai/v1/chat/completions",
+                        json={"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": "test"}]},
+                        headers={"Authorization": f"Bearer {k}"}, timeout=5)
+                    results[f"groq_{i+1}"] = f"✅ {r.status_code}"
+                except Exception as e:
+                    results[f"groq_{i+1}"] = f"❌ {str(e)[:30]}"
+            for i, k in enumerate(KEYS['gemini']):
+                if not k:
+                    continue
+                try:
+                    r = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={k}",
+                        json={"contents": [{"role": "user", "parts": [{"text": "test"}]}]}, timeout=5)
+                    results[f"gemini_{i+1}"] = f"✅ {r.status_code}"
+                except Exception as e:
+                    results[f"gemini_{i+1}"] = f"❌ {str(e)[:30]}"
+            self._json({"status": "API Diagnostic", "results": results, "timestamp": datetime.now().isoformat()})
             return
-        results = mine_patterns(db)
-        self._json(results)
-        return
 
-    else:
-        self.send_response(404)
-        self.end_headers()
+        elif self.path == "/analytics":
+            try:
+                mem = psutil.virtual_memory()
+                cpu = psutil.cpu_percent(interval=1)
+                stage, conf = get_aria_stage()
+                user_count = 0
+                learning_count = 0
+                kb_count = 0
+                if db:
+                    try:
+                        ldocs = list(db.collection("aria_learning").stream())
+                        learning_count = len(ldocs)
+                        uids = set(d.to_dict().get("user_id", "") for d in ldocs if d.to_dict().get("user_id"))
+                        user_count = len(uids)
+                        kb_count = len(list(db.collection("aria_knowledge").stream()))
+                    except:
+                        pass
+                self._json({
+                    "status": "ARIA 3.5 Analytics",
+                    "aria_stage": stage,
+                    "aria_confidence": f"{round(conf*100)}%",
+                    "memory": {"used_mb": round(mem.used/1024/1024, 2), "total_mb": round(mem.total/1024/1024, 2), "percent": mem.percent},
+                    "cpu_percent": cpu,
+                    "users": user_count,
+                    "learning_interactions": learning_count,
+                    "knowledge_base_size": kb_count,
+                    "cache_stats": cache_stats,
+                    "timestamp": datetime.now().isoformat()
+                })
+            except Exception as e:
+                self._json({"error": str(e)}, 500)
+            return
+
+        elif self.path.startswith("/mine"):
+            key = self.path.split("?key=")[-1] if "?key=" in self.path else ""
+            if key != "aria_mine_nicholas_2026":
+                self.send_response(403)
+                self.end_headers()
+                self.wfile.write(b"Access denied.")
+                return
+            results = mine_patterns(db)
+            self._json(results)
+            return
+
+        else:
+            self.send_response(404)
+            self.end_headers()
     
     def seed_aria_lessons(self):
         SEED_KEY = "aria_seed_nicholas_2026"
