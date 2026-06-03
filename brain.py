@@ -960,16 +960,18 @@ def ask(m, u, api):
         user_facts = ""
     
     # ── 6. Greetings & Owner check (no wait) ──────────
-    if m.lower() in ["hi", "hello", "hey", "start", "intro"]:
-        return "Hey! 👋 I'm ARIA 3.5, created by Egwame Nicholas (nicosheg) from Lagos. What's your name?"
+    user_facts = get_user_facts(u)
+    user_name = None
+    for line in user_facts.split("\n"):
+        if line.startswith("name:"):
+            user_name = line.split(":", 1)[1].strip()
+            break
     
-    if any(w in m.lower() for w in ["creator", "who made you", "who built you", "owner"]):
-        if verify_owner(m):
-            global OWNER_UID
-            OWNER_UID = u
-            return "✅ OWNER VERIFIED. Welcome back, nicholas. [OWNER MODE ACTIVE]"
+    if m.lower() in ["hi", "hello", "hey", "start", "intro"]:
+        if user_name:
+            return f"Hey {user_name}! 👋 Welcome back. What's on your mind today?"
         else:
-            return "ARIA 3.5 was created by Egwame Nicholas (nicosheg), a builder from Lagos, Nigeria. github.com/nicosheg 🇳🇬"
+            return "Hey! 👋 I'm ARIA 3.5. What should I call you?"
     
     # ── 7. Build prompt (wait briefly for context) ─────
     time.sleep(0.1)  # Give context thread 100ms to load
@@ -1262,7 +1264,6 @@ class Handler(BaseHTTPRequestHandler):
                 reply = "I'm thinking slower than usual. Give me a moment? 🤔"
             self._json({"reply":reply})
 
-        # ── /feedback ─────────────────────────────
         # ── /feedback ─────────────────────────────
         elif self.path == "/feedback":
             u     = data.get("user_id","default_user")
