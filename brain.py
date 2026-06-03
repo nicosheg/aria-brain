@@ -5,6 +5,7 @@
 #  SECTIONS (use Ctrl+F to jump):
 #  [S1]  IMPORTS
 #  [S2]  FIREBASE SETUP
+# [S2.5] SUPABASE SETUP (for user profiles & facts)
 #  [S3]  API KEYS & OWNER CONFIG
 #  [S4]  SYSTEM PROMPT  ← Edit ARIA's personality here
 #  [S5]  SELF-IMPROVEMENT ENGINE  ← Learning & knowledge base
