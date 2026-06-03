@@ -1,1 +1,224 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"><title>ARIA 3.5</title><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script><script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js"></script><script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js"></script><style>:root{--c:#00d9ff;--cdk:#0099bb;--g:rgba(0,217,255,0.18);--g2:rgba(0,217,255,0.06);--bg:#07091a;--bg2:#0d1128;--bg3:#111830;--usr:#00c4e8;--usrdark:#007a9e;--txt:#ffffff;--sub:rgba(255,255,255,0.5);--font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}:root.female{--c:#ff2d9a;--cdk:#c4006e;--g:rgba(255,45,154,0.18);--g2:rgba(255,45,154,0.06);--usr:#ff2d9a;--usrdark:#b0005e}*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--txt);font-family:var(--font)}body{background:linear-gradient(160deg,#070a1e 0%,#0b0f28 50%,#0f0820 100%)}.wrap{width:100%;height:100%;display:flex;flex-direction:column;max-width:640px;margin:0 auto;position:relative}.hdr{padding:16px 20px 12px;background:linear-gradient(180deg,rgba(7,9,26,0.98) 0%,rgba(10,13,32,0.95) 100%);border-bottom:1.5px solid var(--c);box-shadow:0 1px 20px var(--g);flex-shrink:0;text-align:center}.hdr-row{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:6px}.hdr h1{font-size:28px;font-weight:800;color:var(--txt);letter-spacing:1px}.hdr h1 span{color:var(--c)}.toggles{display:flex;gap:8px}.tog{width:42px;height:42px;border-radius:50%;border:2px solid var(--c);background:rgba(0,217,255,0.1);color:var(--c);font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.25s ease}.tog.active{background:var(--c);color:#07091a;box-shadow:0 0 16px var(--g)}.tog:hover{transform:scale(1.08)}.tog.ftog{border-color:var(--c);color:var(--c)}.tog.ftog.active{background:var(--c)}.hdr-sub{font-size:13px;color:var(--sub);letter-spacing:0.5px}.chat{flex:1;overflow-y:auto;padding:18px 16px 12px;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth}.chat::-webkit-scrollbar{width:3px}.chat::-webkit-scrollbar-thumb{background:var(--c);border-radius:10px}.msg-row{display:flex;flex-direction:column;animation:rise 0.3s ease}@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.msg-row.user{align-items:flex-end}.msg-row.aria{align-items:flex-start}.bubble{max-width:82%;padding:13px 17px;border-radius:22px;line-height:1.65;font-size:15px;word-break:break-word}.msg-row.user .bubble{background:linear-gradient(135deg,var(--usr) 0%,var(--usrdark) 100%);color:#ffffff;border-radius:22px 22px 6px 22px;font-weight:500;box-shadow:0 2px 16px var(--g)}.msg-row.aria .bubble{background:var(--bg2);border:1.5px solid var(--c);color:var(--txt);border-radius:22px 22px 22px 6px;box-shadow:0 2px 20px var(--g),inset 0 0 20px var(--g2)}.bubble p{margin:4px 0;line-height:1.65}.bubble strong{color:var(--c);font-weight:700}.bubble em{color:rgba(255,255,255,0.85);font-style:italic}.bubble h1,.bubble h2,.bubble h3{color:var(--c);font-weight:700;margin:8px 0 4px;text-shadow:0 0 10px var(--g)}.bubble h1{font-size:15px;text-transform:uppercase;letter-spacing:1px}.bubble h2{font-size:14px}.bubble h3{font-size:13px}.bubble ul,.bubble ol{margin:6px 0 6px 20px}.bubble li{margin:3px 0;line-height:1.6}.bubble ol{list-style:decimal}.bubble ul{list-style:disc}.bubble code{background:rgba(0,217,255,0.12);border:1px solid rgba(0,217,255,0.3);border-radius:4px;padding:1px 6px;font-family:'Courier New',monospace;font-size:12px;color:var(--c)}.bubble pre{background:rgba(0,0,0,0.4);border:1px solid var(--c);border-radius:10px;padding:12px;margin:8px 0;overflow-x:auto}.bubble pre code{background:none;border:none;padding:0;font-size:12px}.bubble blockquote{border-left:3px solid var(--c);padding-left:12px;margin:6px 0;opacity:0.85}.bubble a{color:var(--c);text-decoration:underline}.bubble hr{border:none;border-top:1px solid rgba(0,217,255,0.2);margin:8px 0}.ts{font-size:10px;color:var(--sub);margin-top:4px;padding:0 4px;display:flex;align-items:center;gap:4px}.msg-row.user .ts{justify-content:flex-end}.tick{color:var(--c);font-size:11px}.dots{display:flex;gap:5px;padding:6px 2px}.dots span{width:7px;height:7px;border-radius:50%;background:var(--c);opacity:0.4;animation:db 1.2s infinite}.dots span:nth-child(2){animation-delay:.2s}.dots span:nth-child(3){animation-delay:.4s}@keyframes db{0%,80%,100%{opacity:0.4;transform:scale(1)}40%{opacity:1;transform:scale(1.4)}}.rate-row{display:flex;gap:6px;margin-top:5px;flex-wrap:wrap;padding:0 4px}.rbtn{padding:5px 12px;border-radius:20px;background:transparent;border:1px solid var(--c);color:var(--c);font-size:13px;cursor:pointer;transition:all 0.2s}.rbtn:hover,.rbtn.done{background:var(--c);color:#07091a;box-shadow:0 0 10px var(--g)}.rdone{font-size:11px;color:var(--c);opacity:0.7;letter-spacing:0.5px}.inp-outer{padding:10px 14px 14px;background:transparent;flex-shrink:0}.inp-pill{display:flex;gap:10px;align-items:flex-end;background:var(--bg2);border:1.5px solid var(--c);border-radius:30px;padding:8px 8px 8px 18px;box-shadow:0 4px 30px var(--g),0 0 0 1px rgba(0,217,255,0.08)}textarea{flex:1;background:transparent;border:none;outline:none;color:var(--txt);font-family:var(--font);font-size:14px;resize:none;min-height:36px;max-height:100px;line-height:1.5;padding:4px 0}textarea::placeholder{color:var(--sub)}.send{padding:10px 22px;background:linear-gradient(135deg,var(--usr) 0%,var(--cdk) 100%);color:#ffffff;border:none;border-radius:22px;font-family:var(--font);font-size:14px;font-weight:700;cursor:pointer;transition:all 0.2s;white-space:nowrap;box-shadow:0 2px 12px var(--g);flex-shrink:0}.send:hover{transform:translateY(-1px);box-shadow:0 4px 20px var(--g)}.send:active{transform:scale(0.97)}.ftr{text-align:center;padding:8px;font-size:12px;color:var(--c);opacity:0.65;cursor:pointer;flex-shrink:0;transition:opacity 0.2s}.ftr:hover{opacity:1}.logout-btn{position:absolute;top:16px;right:16px;padding:6px 12px;background:rgba(255,45,154,0.2);border:1px solid #ff2d9a;color:#ff2d9a;border-radius:8px;font-size:11px;cursor:pointer;transition:all 0.2s}.logout-btn:hover{background:#ff2d9a;color:#07091a}</style></head><body><div class="wrap"><div class="hdr"><div class="hdr-row"><h1>🇳🇬 <span>ARIA</span></h1><div class="toggles"><button class="tog active" id="btnM" onclick="window.setTheme('male')">♂</button><button class="tog ftog" id="btnF" onclick="window.setTheme('female')">♀</button></div></div><div class="hdr-sub">Your Strategic AI Friend</div><button class="logout-btn" onclick="window.logout()">Logout</button></div><div class="chat" id="chat"></div><div class="inp-outer"><div class="inp-pill"><textarea id="inp" placeholder="Talk to ARIA..." rows="1"></textarea><button class="send" onclick="window.send()">Send</button></div></div><div class="ftr" id="ftr" onclick="window.showRate()">⭐ Rate ARIA's last response</div></div><script>marked.setOptions({breaks:true,gfm:true});function initARIA(){const UID=localStorage.getItem("aria_uid");if(!UID){window.location.href="/login.html";return}const chat=document.getElementById("chat"),inp=document.getElementById("inp"),ftr=document.getElementById("ftr");let lastRateBar=null,lastMsgId=null;window.setTheme=function(t){const r=document.documentElement;document.getElementById("btnM").classList.toggle("active",t==="male");document.getElementById("btnF").classList.toggle("active",t==="female");t==="female"?r.classList.add("female"):r.classList.remove("female");localStorage.setItem("aria_theme",t)};window.logout=function(){if(typeof firebase!=="undefined"&&firebase.auth){firebase.auth().signOut().then(()=>{localStorage.clear();window.location.href="/login.html"}).catch(error=>alert("Logout failed: "+error.message))}else{localStorage.clear();window.location.href="/login.html"}};function now(){return new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}function addMsg(text,sender,rate=false){const row=document.createElement("div");row.className="msg-row "+sender;const bub=document.createElement("div");bub.className="bubble";if(sender==="aria"){bub.style.whiteSpace="normal";bub.innerHTML=text==="..."?'<div class="dots"><span></span><span></span><span></span></div>':marked.parse(String(text))}else{bub.style.whiteSpace="pre-wrap";bub.textContent=text}const ts=document.createElement("div");ts.className="ts";ts.innerHTML=sender==="user"?now()+' <span class="tick">✓✓</span>':now();row.appendChild(bub);row.appendChild(ts);if(sender==="aria"&&rate){const rr=document.createElement("div");rr.className="rate-row";[["👎",1],["😐",2],["👍",3],["🔥",4],["💯",5]].forEach(([e,s])=>{const b=document.createElement("button");b.className="rbtn";b.innerHTML=e;b.onclick=()=>doRate(s,rr);rr.appendChild(b)});row.appendChild(rr);lastRateBar=rr}chat.appendChild(row);chat.scrollTop=chat.scrollHeight;lastMsgId=Math.random();return row}window.showRate=function(){if(lastRateBar)lastRateBar.scrollIntoView({behavior:"smooth"})};function doRate(s,bar){fetch("/feedback",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({user_id:UID,score:s,message_id:lastMsgId})}).catch(()=>{});bar.innerHTML='<div class="rdone">✓ Rated '+s+'/5 — Thanks!</div>'}window.send=async function(){const m=inp.value.trim();if(!m)return;addMsg(m,"user");inp.value="";inp.style.height="36px";const tw=addMsg("...","aria",false);try{const r=await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:m,user_id:UID})});const d=await r.json();tw.remove();addMsg(d.reply||"No response","aria",true)}catch(e){tw.remove();addMsg("Connection error. Try again.","aria",false)}};inp.addEventListener("input",()=>{inp.style.height="36px";inp.style.height=Math.min(inp.scrollHeight,100)+"px"});inp.addEventListener("keydown",(e)=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();window.send()}});window.addEventListener("load",()=>{window.setTheme(localStorage.getItem("aria_theme")||"male")})}document.addEventListener("DOMContentLoaded",initARIA);</script></body></html>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <title>ARIA 3.5</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <style>
+        /* your existing CSS - keep as is */
+        :root{ --c:#00d9ff; --cdk:#0099bb; --g:rgba(0,217,255,0.18); --g2:rgba(0,217,255,0.06); --bg:#07091a; --bg2:#0d1128; --bg3:#111830; --usr:#00c4e8; --usrdark:#007a9e; --txt:#ffffff; --sub:rgba(255,255,255,0.5); --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif }
+        :root.female{ --c:#ff2d9a; --cdk:#c4006e; --g:rgba(255,45,154,0.18); --g2:rgba(255,45,154,0.06); --usr:#ff2d9a; --usrdark:#b0005e }
+        *{margin:0;padding:0;box-sizing:border-box}
+        html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--txt);font-family:var(--font)}
+        body{background:linear-gradient(160deg,#070a1e 0%,#0b0f28 50%,#0f0820 100%)}
+        .wrap{width:100%;height:100%;display:flex;flex-direction:column;max-width:640px;margin:0 auto;position:relative}
+        .hdr{ padding:16px 20px 12px; background:linear-gradient(180deg,rgba(7,9,26,0.98) 0%,rgba(10,13,32,0.95) 100%); border-bottom:1.5px solid var(--c); flex-shrink:0; text-align:center }
+        .hdr-row{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:6px}
+        .hdr h1{font-size:28px;font-weight:800;color:var(--txt);letter-spacing:1px}
+        .hdr h1 span{color:var(--c)}
+        .toggles{display:flex;gap:8px}
+        .tog{ width:42px;height:42px;border-radius:50%; border:2px solid var(--c); background:rgba(0,217,255,0.1); color:var(--c);font-size:18px; display:flex;align-items:center;justify-content:center; cursor:pointer}
+        .tog.active{background:var(--c);color:#07091a}
+        .hdr-sub{font-size:13px;color:var(--sub)}
+        .user-info{ display:flex; align-items:center; justify-content:center; gap:10px; margin-top:8px; font-size:12px; color:var(--sub) }
+        .user-info img{ width:28px; height:28px; border-radius:50% }
+        .logout-btn{ background:transparent; border:1px solid var(--c); color:var(--c); padding:4px 12px; border-radius:20px; cursor:pointer }
+        .chat{ flex:1;overflow-y:auto; padding:18px 16px 12px; display:flex;flex-direction:column;gap:12px}
+        .msg-row{display:flex;flex-direction:column}
+        .msg-row.user{align-items:flex-end}
+        .msg-row.aria{align-items:flex-start}
+        .bubble{ max-width:82%; padding:13px 17px; border-radius:22px; line-height:1.65; font-size:15px }
+        .msg-row.user .bubble{ background:linear-gradient(135deg,var(--usr) 0%,var(--usrdark) 100%); border-radius:22px 22px 6px 22px }
+        .msg-row.aria .bubble{ background:var(--bg2); border:1.5px solid var(--c); border-radius:22px 22px 22px 6px }
+        .ts{font-size:10px;color:var(--sub);margin-top:4px}
+        .dots{display:flex;gap:5px;padding:6px}
+        .dots span{width:7px;height:7px;border-radius:50%;background:var(--c);animation:db 1.2s infinite}
+        @keyframes db{0%,80%,100%{opacity:0.4}40%{opacity:1}}
+        .rate-row{display:flex;gap:6px;margin-top:5px}
+        .rbtn{ padding:5px 12px;border-radius:20px; background:transparent;border:1px solid var(--c); color:var(--c);cursor:pointer}
+        .inp-outer{ padding:10px 14px 14px; flex-shrink:0 }
+        .inp-pill{ display:flex;gap:10px;align-items:flex-end; background:var(--bg2); border:1.5px solid var(--c); border-radius:30px; padding:8px 8px 8px 18px }
+        textarea{ flex:1;background:transparent;border:none;outline:none; color:var(--txt);font-size:14px;resize:none; min-height:36px; line-height:1.5;padding:4px 0 }
+        .send{ padding:10px 22px; background:linear-gradient(135deg,var(--usr) 0%,var(--cdk) 100%); color:#fff;border:none;border-radius:22px;cursor:pointer }
+        .ftr{ text-align:center;padding:8px; font-size:12px;color:var(--c); opacity:0.65;cursor:pointer }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <div class="hdr">
+        <div class="hdr-row">
+            <h1>🇳🇬 <span>ARIA</span></h1>
+            <div class="toggles">
+                <button class="tog active" id="btnM" onclick="setTheme('male')">♂</button>
+                <button class="tog" id="btnF" onclick="setTheme('female')">♀</button>
+            </div>
+        </div>
+        <div class="hdr-sub">Your Strategic AI Friend</div>
+        <div id="userInfo" class="user-info" style="display:none">
+            <img id="userAvatar" src="">
+            <span id="userName"></span>
+            <button id="logoutBtn" class="logout-btn">Sign out</button>
+        </div>
+    </div>
+    <div class="chat" id="chat"></div>
+    <div class="inp-outer">
+        <div class="inp-pill">
+            <textarea id="inp" placeholder="Talk to ARIA..." rows="1" disabled></textarea>
+            <button class="send" onclick="send()" disabled>Send</button>
+        </div>
+    </div>
+    <div class="ftr" id="ftr" onclick="showRate()">⭐ Rate ARIA's last response</div>
+</div>
+
+<script>
+    // Firebase config (same as login.html)
+    const firebaseConfig = {
+        apiKey: "AIzaSyAfrs67qWlU8FjsjqHwNeivGgm7x_vHdJY",
+        authDomain: "fiducia-148b9.firebaseapp.com",
+        projectId: "fiducia-148b9",
+        storageBucket: "fiducia-148b9.firebasestorage.app",
+        messagingSenderId: "380888909038",
+        appId: "1:380888909038:web:efe40c252537e670959fff"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+
+    marked.setOptions({breaks:true,gfm:true});
+    const chat = document.getElementById("chat");
+    const inp = document.getElementById("inp");
+    const sendBtn = document.querySelector(".send");
+    const userInfoDiv = document.getElementById("userInfo");
+    const userAvatar = document.getElementById("userAvatar");
+    const userNameSpan = document.getElementById("userName");
+    const logoutBtn = document.getElementById("logoutBtn");
+
+    let currentUser = null;
+    let lastRateBar = null;
+    let lastMsgId = null;
+
+    function setTheme(t) {
+        const r = document.documentElement;
+        document.getElementById("btnM").classList.toggle("active", t==="male");
+        document.getElementById("btnF").classList.toggle("active", t==="female");
+        r.classList.toggle("female", t==="female");
+        localStorage.setItem("aria_theme", t);
+    }
+
+    function now() {
+        return new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+    }
+
+    function addMsg(text, sender, rate=false) {
+        const row = document.createElement("div");
+        row.className = "msg-row " + sender;
+        const bub = document.createElement("div");
+        bub.className = "bubble";
+        if(sender === "aria") {
+            bub.innerHTML = text === "..." ? '<div class="dots"><span></span><span></span><span></span></div>' : marked.parse(text);
+        } else {
+            bub.textContent = text;
+        }
+        const ts = document.createElement("div");
+        ts.className = "ts";
+        ts.innerHTML = sender === "user" ? now() + ' ✓✓' : now();
+        row.appendChild(bub);
+        row.appendChild(ts);
+        if(sender === "aria" && rate) {
+            const rr = document.createElement("div");
+            rr.className = "rate-row";
+            [["👎",1],["😐",2],["👍",3],["🔥",4],["💯",5]].forEach(([e,s]) => {
+                const b = document.createElement("button");
+                b.className = "rbtn";
+                b.innerHTML = e;
+                b.onclick = () => doRate(s, rr);
+                rr.appendChild(b);
+            });
+            row.appendChild(rr);
+            lastRateBar = rr;
+        }
+        chat.appendChild(row);
+        chat.scrollTop = chat.scrollHeight;
+        lastMsgId = Math.random();
+        return row;
+    }
+
+    function showRate() {
+        if(lastRateBar) lastRateBar.scrollIntoView({behavior:"smooth"});
+    }
+
+    function doRate(s, bar) {
+        if(!currentUser) return;
+        fetch("/feedback", {
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({user_id: currentUser.uid, score: s, message_id: lastMsgId})
+        }).catch(()=>{});
+        bar.innerHTML = '<div>✓ Rated '+s+'/5</div>';
+    }
+
+    async function send() {
+        const m = inp.value.trim();
+        if(!m || !currentUser) return;
+        addMsg(m, "user");
+        inp.value = "";
+        inp.style.height = "36px";
+        const tw = addMsg("...", "aria", false);
+        try {
+            const r = await fetch("/chat", {
+                method:"POST",
+                headers:{"Content-Type":"application/json"},
+                body:JSON.stringify({message: m, user_id: currentUser.uid})
+            });
+            const d = await r.json();
+            tw.remove();
+            addMsg(d.reply || "No response", "aria", true);
+        } catch(e) {
+            tw.remove();
+            addMsg("Connection error. Try again.", "aria", false);
+        }
+    }
+
+    function enableChat(enable) {
+        inp.disabled = !enable;
+        sendBtn.disabled = !enable;
+        if(enable) inp.focus();
+    }
+
+    auth.onAuthStateChanged((user) => {
+        if(user) {
+            currentUser = user;
+            userInfoDiv.style.display = "flex";
+            userAvatar.src = user.photoURL || "";
+            userNameSpan.textContent = user.displayName || user.email;
+            enableChat(true);
+        } else {
+            currentUser = null;
+            userInfoDiv.style.display = "none";
+            enableChat(false);
+            chat.innerHTML = "";
+            addMsg("👋 Please sign in at /login.html to continue.", "aria", false);
+        }
+    });
+
+    logoutBtn.onclick = () => auth.signOut();
+
+    inp.addEventListener("input", () => {
+        inp.style.height = "36px";
+        inp.style.height = Math.min(inp.scrollHeight, 100) + "px";
+    });
+    inp.addEventListener("keydown", (e) => {
+        if(e.key === "Enter" && !e.shiftKey && currentUser) {
+            e.preventDefault();
+            send();
+        }
+    });
+
+    window.addEventListener("load", () => {
+        setTheme(localStorage.getItem("aria_theme") || "male");
+    });
+</script>
+</body>
+                                                                              </html>
