@@ -1334,13 +1334,14 @@ def do_POST(self):
         except:
             return {}
 
-    def _json(self, data, code=200):
-        body = json.dumps(data).encode()
-        self.send_response(code)
-        self.send_header("Content-Type","application/json")
-        self.send_header("Access-Control-Allow-Origin","*")
-        self.end_headers()
-        self.wfile.write(body)
+def _json(self, data, status=200):
+    """Send JSON response"""
+    self.send_response(status)
+    self.send_header("Content-Type", "application/json")
+    self.send_header("Access-Control-Allow-Origin", "*")
+    self.end_headers()
+    import json
+    self.wfile.write(json.dumps(data).encode())
 
 
 # ════════════════════════════════════════════════════════════════════
