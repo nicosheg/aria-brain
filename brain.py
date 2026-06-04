@@ -862,11 +862,11 @@ def try_all_apis_parallel(prompt, system_prompt):
                     ]
                 },
                 headers={"Authorization": f"Bearer {k}"},
-                timeout=8
+                timeout=15
             )
             if r.status_code == 200:
                 return r.json()["choices"][0]["message"]["content"]
-        except:
+        except: 
             continue
     return None
     
@@ -893,6 +893,7 @@ def try_all_apis_parallel(prompt, system_prompt):
                     if not results["response"]:
                         results["response"] = resp
         except: pass
+        time.sleep(0.5)
     
     def call_gemini(key):
         if results["response"]: return
@@ -908,6 +909,7 @@ def try_all_apis_parallel(prompt, system_prompt):
                     if not results["response"]:
                         results["response"] = resp
         except: pass
+        time.sleep(0.5)
     
     # Run all API calls in parallel
     with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
@@ -922,6 +924,7 @@ def try_all_apis_parallel(prompt, system_prompt):
         try:
             concurrent.futures.wait(futures, timeout=8, return_when=concurrent.futures.FIRST_COMPLETED)
         except: pass
+        time.sleep(0.5)
     
     return results["response"]
 
