@@ -1012,14 +1012,17 @@ def ask(m, u, api):
     if lesson_injection or behavior_guidance:
         final_sp = final_sp + "\n\n## LEARNED PATTERNS FROM THIS COMMUNITY\n" + lesson_injection + behavior_guidance
     
-    # ── BUILD MEMORY SECTION (FACTS + CONTEXT) ──
-    memory_section = ""
-    if user_facts:
-        memory_section = f"## FACTS I KNOW ABOUT THIS USER\n{user_facts}\n\n"
-    if cx:
-        memory_section += f"## RECENT CONVERSATION\n{cx}\n\n"
+    # ── UNIFIED USER CONTEXT (FACTS + MEMORY TOGETHER) ──
+    unified_context = ""
+    if user_facts or cx:
+        unified_context = "The following information is ALL about the SAME USER. Their facts AND our conversation history belong to one person.\n\n"
+        if user_facts:
+            unified_context += f"WHAT I KNOW ABOUT THIS USER:\n{user_facts}\n\n"
+        if cx:
+            unified_context += f"OUR PREVIOUS CONVERSATION:\n{cx}\n\n"
+        unified_context += "IMPORTANT: The facts and conversation above are about the SAME person. Use both to understand who they are.\n"
     
-    prompt = f"{memory_section}TIME (Lagos): {cd}\n\n{m}{meta}"
+    prompt = f"{unified_context}TIME (Lagos): {cd}\n\n{m}{meta}"
     
     # ── 8. Parallel API call ──────────────────────────
     resp = try_all_apis_parallel(prompt, final_sp)
