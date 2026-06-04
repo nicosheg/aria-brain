@@ -8,7 +8,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <style>
-        /* your existing CSS - keep as is */
+        /* Your existing CSS here (keep as is) */
         :root{ --c:#00d9ff; --cdk:#0099bb; --g:rgba(0,217,255,0.18); --g2:rgba(0,217,255,0.06); --bg:#07091a; --bg2:#0d1128; --bg3:#111830; --usr:#00c4e8; --usrdark:#007a9e; --txt:#ffffff; --sub:rgba(255,255,255,0.5); --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif }
         :root.female{ --c:#ff2d9a; --cdk:#c4006e; --g:rgba(255,45,154,0.18); --g2:rgba(255,45,154,0.06); --usr:#ff2d9a; --usrdark:#b0005e }
         *{margin:0;padding:0;box-sizing:border-box}
@@ -44,10 +44,13 @@
         textarea{ flex:1;background:transparent;border:none;outline:none; color:var(--txt);font-size:14px;resize:none; min-height:36px; line-height:1.5;padding:4px 0 }
         .send{ padding:10px 22px; background:linear-gradient(135deg,var(--usr) 0%,var(--cdk) 100%); color:#fff;border:none;border-radius:22px;cursor:pointer }
         .ftr{ text-align:center;padding:8px; font-size:12px;color:var(--c); opacity:0.65;cursor:pointer }
+        .login-overlay{ position:fixed; top:0; left:0; width:100%; height:100%; background:linear-gradient(160deg,#070a1e 0%,#0b0f28 100%); display:flex; align-items:center; justify-content:center; z-index:1000; flex-direction:column; gap:20px }
+        .login-btn{ background:linear-gradient(135deg,#00c4e8 0%,#0099bb 100%); color:white; border:none; border-radius:40px; padding:14px 28px; font-size:18px; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:12px }
+        .login-btn:hover{ transform:scale(1.02); box-shadow:0 0 20px #00d9ff }
     </style>
 </head>
 <body>
-<div class="wrap">
+<div class="wrap" id="app" style="display:none">
     <div class="hdr">
         <div class="hdr-row">
             <h1>🇳🇬 <span>ARIA</span></h1>
@@ -73,8 +76,15 @@
     <div class="ftr" id="ftr" onclick="showRate()">⭐ Rate ARIA's last response</div>
 </div>
 
+<div id="loginOverlay" class="login-overlay">
+    <h1>🇳🇬 <span style="color:#00d9ff">ARIA</span></h1>
+    <p style="color:white">Your Strategic AI Friend</p>
+    <button class="login-btn" onclick="signIn()">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="22" height="22" alt="G"> Sign in with Google
+    </button>
+</div>
+
 <script>
-    // Firebase config (same as login.html)
     const firebaseConfig = {
         apiKey: "AIzaSyAfrs67qWlU8FjsjqHwNeivGgm7x_vHdJY",
         authDomain: "fiducia-148b9.firebaseapp.com",
@@ -94,6 +104,8 @@
     const userAvatar = document.getElementById("userAvatar");
     const userNameSpan = document.getElementById("userName");
     const logoutBtn = document.getElementById("logoutBtn");
+    const appDiv = document.getElementById("app");
+    const loginOverlay = document.getElementById("loginOverlay");
 
     let currentUser = null;
     let lastRateBar = null;
@@ -111,6 +123,143 @@
         return new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
     }
 
+    function addMsg(text, sender, rate=false) {
+        const row = document.createElement("div");
+        row.className = "msg-row " + sender;
+        const bub = document.createElement("div");
+        bub.className = "bubble";
+        if(sender === "aria") {
+            bub.innerHTML = text === "..." ? '<div class="dots"><span></span><span></span><span></span></div>' : marked.parse(text);
+        } else {
+            bub.textContent = text;
+        }
+        const ts = document.createElement("div");
+        ts.className = "ts";
+        ts.innerHTML = sender === "user" ? now() + ' ✓✓' : now();
+        row.appendChild(bub);
+        row.appendChild(ts);
+        if(sender === "aria" && rate) {
+            const rr = document.createElement("div");
+            rr.className = "rate-row";
+            [["👎",1],["😐",2],["👍",3],["🔥",4],["💯",5]].forEach(([e,s]) => {
+                const b = document.createElement("button");
+                b.className = "rbtn";
+                b.innerHTML = e;
+                b.onclick = () => doRate(s, rr);
+                rr.appendChild(b);
+            });
+            row.appendChild(rr);
+            lastRateBar = rr;
+        }
+        chat.appendChild(row);
+        chat.scrollTop = chat.scrollHeight;
+        lastMsgId = Math.random();
+        return row;
+    }
+
+    function showRate() {
+        if(lastRateBar) lastRateBar.scrollIntoView({behavior:"smooth"});
+    }
+
+    function doRate(s, bar) {
+        if(!currentUser) return;
+        fetch("/feedback", {
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({user_id: currentUser.uid, score: s, message_id: lastMsgId})
+        }).catch(()=>{});
+        bar.innerHTML = '<div>✓ Rated '+s+'/5</div>';
+    }
+
+    async function send() {
+        const m = inp.value.trim();
+        if(!m || !currentUser) return;
+        addMsg(m, "user");
+        inp.value = "";
+        inp.style.height = "36px";
+        const tw = addMsg("...", "aria", false);
+        try {
+            const r = await fetch("/chat", {
+                method:"POST",
+                headers:{"Content-Type":"application/json"},
+                body:JSON.stringify({message: m, user_id: currentUser.uid})
+            });
+            const d = await r.json();
+            tw.remove();
+            addMsg(d.reply || "No response", "aria", true);
+        } catch(e) {
+            tw.remove();
+            addMsg("Connection error. Try again.", "aria", false);
+        }
+    }
+
+    function enableChat(enable) {
+        inp.disabled = !enable;
+        sendBtn.disabled = !enable;
+        if(enable) inp.focus();
+    }
+
+    async function signIn() {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        try {
+            const result = await auth.signInWithPopup(provider);
+            // Name will be saved automatically by backend via /set_user_name
+        } catch(e) {
+            console.error(e);
+        }
+    }
+
+    auth.onAuthStateChanged(async (user) => {
+        if (user) {
+            currentUser = user;
+            loginOverlay.style.display = "none";
+            appDiv.style.display = "flex";
+            userInfoDiv.style.display = "flex";
+            userAvatar.src = user.photoURL || "";
+            userNameSpan.textContent = user.displayName || user.email;
+            
+            // Send Google name to backend
+            try {
+                await fetch("/set_user_name", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({
+                        user_id: user.uid,
+                        name: user.displayName || user.email.split("@")[0]
+                    })
+                });
+            } catch(e) {
+                console.log("Failed to send name:", e);
+            }
+            
+            enableChat(true);
+        } else {
+            currentUser = null;
+            appDiv.style.display = "none";
+            loginOverlay.style.display = "flex";
+            enableChat(false);
+        }
+    });
+
+    logoutBtn.onclick = () => auth.signOut();
+
+    inp.addEventListener("input", () => {
+        inp.style.height = "36px";
+        inp.style.height = Math.min(inp.scrollHeight, 100) + "px";
+    });
+    inp.addEventListener("keydown", (e) => {
+        if(e.key === "Enter" && !e.shiftKey && currentUser) {
+            e.preventDefault();
+            send();
+        }
+    });
+
+    window.addEventListener("load", () => {
+        setTheme(localStorage.getItem("aria_theme") || "male");
+    });
+</script>
+</body>
+    </html>
     function addMsg(text, sender, rate=false) {
         const row = document.createElement("div");
         row.className = "msg-row " + sender;
