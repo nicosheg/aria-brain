@@ -1072,18 +1072,20 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin","*")
-        self.send_header("Access-Control-Allow-Methods","POST,GET,OPTIONS")
-        self.send_header("Access-Control-Allow-Headers","Content-Type")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "POST,GET,OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
     def do_GET(self):
         print("Has _json?", hasattr(self, "_json"))
         if self.path == "/ping":
-           self.send_response(200)
-           self.send_header("Content-type", "text/plain")
-           self.end_headers()
-           self.wfile.write(b"pong")
+            self.send_response(200)
+            self.send_header("Content-type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"pong")
+            return
+
         # ── Login/Index pages ──
         if self.path == "/login.html":
             try:
@@ -1186,10 +1188,14 @@ class Handler(BaseHTTPRequestHandler):
             self._json(results)
             return
 
+        elif self.path.startswith("/seed"):
+            self.seed_aria_lessons()
+            return
+
         else:
             self.send_response(404)
             self.end_headers()
-    
+
     def seed_aria_lessons(self):
         SEED_KEY = "aria_seed_nicholas_2026"
         query = self.path.split("?key=")[-1] if "?key=" in self.path else ""
@@ -1250,98 +1256,94 @@ class Handler(BaseHTTPRequestHandler):
         for l in LESSONS:
             try:
                 db.collection("aria_lessons").add({
-                    "lesson":l["lesson"],"category":l["category"],
-                    "priority":l["priority"],"times_triggered":0,
-                    "times_helpful":0,"active":True,
-                    "auto_generated":False,"created_by":"nicholas",
-                    "created_at":datetime.now().isoformat()
+                    "lesson": l["lesson"], "category": l["category"],
+                    "priority": l["priority"], "times_triggered": 0,
+                    "times_helpful": 0, "active": True,
+                    "auto_generated": False, "created_by": "nicholas",
+                    "created_at": datetime.now().isoformat()
                 })
                 seeded += 1
             except:
                 failed += 1
         msg = f"ARIA seeded. {seeded} lessons added. {failed} failed."
         self.send_response(200)
-        self.send_header("Content-Type","text/plain")
-        self.send_header("Access-Control-Allow-Origin","*")
+        self.send_header("Content-Type", "text/plain")
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(msg.encode())
 
-def do_POST(self):
-    # ── NEW: Save name from Google login ──
-    if self.path == "/set_user_name":
-        content_length = int(self.headers.get('Content-Length', 0))
-        body = json.loads(self.rfile.read(content_length))
-        uid = body.get("user_id")
-        name = body.get("name")
-        
-        if uid and name:
-            save_user_fact(uid, "name", name)
-            self._json({"status": "ok", "saved": name})
-        else:
-            self._json({"status": "error", "message": "Missing user_id or name"}, 400)
-        return
-    
-    # ── Get body for other endpoints ──
-    data = self._body()
-
-    # ── /chat ──────────────────────────────────
-    if self.path == "/chat":
-        m = data.get("message", "").strip()
-        u = data.get("user_id", "default_user").strip()
-        if not m:
-            self._json({"reply": "Say something!"})
+    def do_POST(self):
+        # ── Save name from Google login ──
+        if self.path == "/set_user_name":
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = json.loads(self.rfile.read(content_length))
+            uid = body.get("user_id")
+            name = body.get("name")
+            if uid and name:
+                save_user_fact(uid, "name", name)
+                self._json({"status": "ok", "saved": name})
+            else:
+                self._json({"status": "error", "message": "Missing user_id or name"}, 400)
             return
-        # Try Groq first, then Gemini, then Deepseek
-        reply = ask(m, u, 'groq') or ask(m, u, 'deepseek') or ask(m, u, 'gemini')
-        if not reply:
-            reply = "I'm thinking slower than usual. Give me a moment? 🤔"
-        self._json({"reply": reply})
 
-    # ── /feedback ─────────────────────────────
-    elif self.path == "/feedback":
-        u = data.get("user_id", "default_user")
-        score = data.get("score", 0)
-        if db:
-            try:
-                docs = list(db.collection("aria_learning")
-                           .where("user_id", "==", u)
-                           .order_by("timestamp", direction=firestore.Query.DESCENDING)
-                           .limit(1).stream())
-                if docs:
-                    last = docs[0].to_dict()
-                    q = last.get("user_message", "")
-                    a = last.get("aria_response", "")
-                    learn_from_rating(u, score, q, a)
-                    extract_behavior_pattern(q, a, score)
-                    weight = 1 if score >= 4 else -1 if score <= 2 else 0
-                    docs[0].reference.update({
-                        "feedback_score": score,
-                        "feedback_weight": weight,
-                        "execution_status": "rated"
-                    })
-            except:
-                pass
-        self._json({"status": "Feedback recorded", "score": score})
+        # ── Get body for other endpoints ──
+        data = self._body()
 
-    else:
-        self.send_response(404)
-        self.end_headers()
+        # ── /chat ──────────────────────────────────
+        if self.path == "/chat":
+            m = data.get("message", "").strip()
+            u = data.get("user_id", "default_user").strip()
+            if not m:
+                self._json({"reply": "Say something!"})
+                return
+            reply = ask(m, u, 'groq') or ask(m, u, 'deepseek') or ask(m, u, 'gemini')
+            if not reply:
+                reply = "I'm thinking slower than usual. Give me a moment? 🤔"
+            self._json({"reply": reply})
+
+        # ── /feedback ─────────────────────────────
+        elif self.path == "/feedback":
+            u = data.get("user_id", "default_user")
+            score = data.get("score", 0)
+            if db:
+                try:
+                    docs = list(db.collection("aria_learning")
+                               .where("user_id", "==", u)
+                               .order_by("timestamp", direction=firestore.Query.DESCENDING)
+                               .limit(1).stream())
+                    if docs:
+                        last = docs[0].to_dict()
+                        q = last.get("user_message", "")
+                        a = last.get("aria_response", "")
+                        learn_from_rating(u, score, q, a)
+                        extract_behavior_pattern(q, a, score)
+                        weight = 1 if score >= 4 else -1 if score <= 2 else 0
+                        docs[0].reference.update({
+                            "feedback_score": score,
+                            "feedback_weight": weight,
+                            "execution_status": "rated"
+                        })
+                except:
+                    pass
+            self._json({"status": "Feedback recorded", "score": score})
+
+        else:
+            self.send_response(404)
+            self.end_headers()
 
     def _body(self):
         try:
-            length = int(self.headers.get("Content-Length",0))
+            length = int(self.headers.get("Content-Length", 0))
             return json.loads(self.rfile.read(length))
         except:
             return {}
 
-def _json(self, data, status=200):
-    """Send JSON response"""
-    self.send_response(status)
-    self.send_header("Content-Type", "application/json")
-    self.send_header("Access-Control-Allow-Origin", "*")
-    self.end_headers()
-    import json
-    self.wfile.write(json.dumps(data).encode())
+    def _json(self, data, status=200):
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(json.dumps(data).encode())
 
 
 # ════════════════════════════════════════════════════════════════════
