@@ -845,14 +845,17 @@ def get_relevant_lessons(question): return _startup_lessons
 def get_behavior_guidance(): return _startup_behaviors
 
 def try_all_apis_parallel(prompt, system_prompt):
-    """Simple sequential Groq calls — first working key wins"""
+    """Try at most 15 Groq keys sequentially with delay"""
     import time
-    
+    count = 0
     for k in KEYS['groq']:
         if not k:
             continue
+        if count >= 15:
+            break
+        count += 1
         try:
-            print(f"Trying Groq key: {k[:10]}...")
+            print(f"Trying Groq key #{count}")
             r = requests.post(
                 "https://api.groq.com/openai/v1/chat/completions",
                 json={
@@ -868,16 +871,13 @@ def try_all_apis_parallel(prompt, system_prompt):
                 timeout=20
             )
             if r.status_code == 200:
-                resp = r.json()["choices"][0]["message"]["content"]
-                print("Groq success!")
-                return resp
+                print("Groq success")
+                return r.json()["choices"][0]["message"]["content"]
             else:
-                print(f"Groq failed with status {r.status_code}")
+                print(f"Groq status {r.status_code}")
         except Exception as e:
             print(f"Groq error: {e}")
-        
-        time.sleep(1)  # Wait 1 second before trying next key
-    
+        time.sleep(1.5)  # Wait 1.5 seconds before next key
     return None
     
     def call_deepseek(key):
