@@ -1078,6 +1078,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        print("Has _json?", hasattr(self, "_json"))
         if self.path == "/ping":
            self.send_response(200)
            self.send_header("Content-type", "text/plain")
