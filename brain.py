@@ -846,6 +846,8 @@ def get_behavior_guidance(): return _startup_behaviors
 
 def try_all_apis_parallel(prompt, system_prompt):
     """Fast sequential Groq calls — first working key wins"""
+    import time  # Add this at the top of the function
+    
     for k in KEYS['groq']:
         if not k:
             continue
@@ -862,12 +864,13 @@ def try_all_apis_parallel(prompt, system_prompt):
                     ]
                 },
                 headers={"Authorization": f"Bearer {k}"},
-                timeout=15
+                timeout=20  # Increased from 15 to 20
             )
             if r.status_code == 200:
                 return r.json()["choices"][0]["message"]["content"]
         except: 
             continue
+        time.sleep(1) 
     return None
     
     def call_deepseek(key):
