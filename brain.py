@@ -1196,10 +1196,7 @@ def ask(m, u, api):
         else:
             return "ARIA 3.5 was created by Egwame Nicholas (nicosheg), a builder from Lagos, Nigeria. github.com/nicosheg 🇳🇬"
     
-    # ── 7. Build prompt (wait briefly for context) ─────
-    time.sleep(0.1)  # Give context thread 100ms to load
-    cx = context_result.get("data", "")
-    
+    # ── 7. Build prompt ─────────────────────────────
     nz = timezone(timedelta(hours=1))
     cd = datetime.now(nz).strftime("%A, %B %d, %Y at %H:%M")
     
