@@ -1447,7 +1447,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(msg.encode())
 
     def do_POST(self):
-        if self.path == "/test_db":
+        if self.path == "/test":
             import json
             result = save_memory_node("test_user", "fact", "Test entry", 50)
             self._json(result)
