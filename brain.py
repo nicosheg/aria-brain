@@ -1275,9 +1275,7 @@ HTML = """<!DOCTYPE html> <html> <head> <meta charset="UTF-8"> <meta name="viewp
 
 # ════════════════════════════════════════════════════════════════════
 # STARTUP: Test PostgreSQL Connection
-# ════════════════════════════════════════════════════════════════════
-test_postgres_connection()
-
+# ═══════════════════════════════════════════════════════════════════
 def test_postgres_connection():
     """Test if PostgreSQL connection works."""
     print("\n" + "="*50)
