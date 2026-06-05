@@ -1609,7 +1609,6 @@ class Handler(BaseHTTPRequestHandler):
                 traceback.print_exc()
                 self._json({"status": "error", "message": str(e)}, 500)
             return
-                
                 # Check if name already exists (optional)
                 existing = load_user_memory(aria_uid)
                 name_already_set = any(fact['content'].startswith('Name:') for fact in existing.get('facts', []))
