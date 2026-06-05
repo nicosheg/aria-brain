@@ -1566,22 +1566,49 @@ class Handler(BaseHTTPRequestHandler):
             return
         # ── Save name from Google login ──
         if self.path == "/set_user_name":
+            print("🔍 /set_user_name HIT")
             content_length = int(self.headers.get('Content-Length', 0))
             body = json.loads(self.rfile.read(content_length))
             email = body.get("email")
             name = body.get("name")
+            print(f"🔍 email: {email}, name: {name}")
             
             if not email or not name:
+                print("❌ Missing email or name")
                 self._json({"status": "error", "message": "Missing email or name"}, 400)
                 return
             
             try:
+                print(f"🔍 Calling generate_aria_uid({email})")
                 uid_result = generate_aria_uid(email)
+                print(f"🔍 uid_result: {uid_result}")
+                
                 if "error" in uid_result:
+                    print(f"❌ generate_aria_uid error: {uid_result['error']}")
                     self._json({"status": "error", "message": uid_result["error"]}, 500)
                     return
                 
                 aria_uid = uid_result["aria_uid"]
+                print(f"🔍 aria_uid: {aria_uid}")
+                
+                print(f"🔍 Calling save_memory_node({aria_uid}, 'fact', 'Name: {name}', 100)")
+                result = save_memory_node(aria_uid, "fact", f"Name: {name}", importance=100)
+                print(f"🔍 save_memory_node result: {result}")
+                
+                if "error" in result:
+                    print(f"❌ save_memory_node failed: {result['error']}")
+                    self._json({"status": "error", "message": "Failed to save name"}, 500)
+                    return
+                
+                print(f"✅ Success! Saved name {name} for {aria_uid}")
+                self._json({"status": "ok", "saved": name, "aria_uid": aria_uid})
+                
+            except Exception as e:
+                print(f"❌ Exception: {e}")
+                import traceback
+                traceback.print_exc()
+                self._json({"status": "error", "message": str(e)}, 500)
+            return
                 
                 # Check if name already exists (optional)
                 existing = load_user_memory(aria_uid)
