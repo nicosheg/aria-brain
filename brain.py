@@ -1331,7 +1331,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-                if self.path == "/db_test":
+        if self.path == "/db_test":
             import os, psycopg2
             db_url = os.environ.get("SUPABASE_DB_URL", "")
             if not db_url:
