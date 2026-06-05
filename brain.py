@@ -1558,7 +1558,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"error": str(e)})
             return
         # ── Save name from Google login ──
-         if self.path == "/set_user_name":
+        if self.path == "/set_user_name":
             content_length = int(self.headers.get('Content-Length', 0))
             body = json.loads(self.rfile.read(content_length))
             email = body.get("email")
