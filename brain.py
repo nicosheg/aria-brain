@@ -1526,10 +1526,24 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(msg.encode())
 
     def do_POST(self):
-        if self.path == "/test":
-            import json
-            result = save_memory_node("test_user", "fact", "Test entry", 50)
-            self._json(result)
+        if self.path == "/db_test":
+            import os, psycopg2
+            db_url = os.environ.get("SUPABASE_DB_URL", "")
+            if not db_url:
+                self._json({"error": "SUPABASE_DB_URL missing"})
+                return
+            try:
+                conn = psycopg2.connect(db_url)
+                cur = conn.cursor()
+                cur.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name='users');")
+                users_ok = cur.fetchone()[0]
+                cur.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name='memory_nodes');")
+                nodes_ok = cur.fetchone()[0]
+                cur.close()
+                conn.close()
+                self._json({"users_table": users_ok, "memory_nodes_table": nodes_ok})
+            except Exception as e:
+                self._json({"error": str(e)})
             return
         # ── Save name from Google login ──
         if self.path == "/set_user_name":
