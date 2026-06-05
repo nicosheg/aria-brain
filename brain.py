@@ -1177,10 +1177,10 @@ def ask(m, u, api):
         user_facts = ""
     
     # ── 6. Greetings & Owner check (no wait) ──────────
-    user_facts = get_user_facts(u)
+    # Extract user name from facts if present
     user_name = None
     for line in user_facts.split("\n"):
-        if line.startswith("name:"):
+        if line.lower().startswith("name:"):
             user_name = line.split(":", 1)[1].strip()
             break
     
@@ -1188,7 +1188,15 @@ def ask(m, u, api):
         if user_name:
             return f"Hey {user_name}! 👋 Welcome back. What's on your mind today?"
         else:
-            return "Hey! 👋 I'm ARIA 3.5. What should I call you?"
+            return "Hey! 👋 I'm ARIA 3.5. What's your name?"
+    
+    if any(w in m.lower() for w in ["creator", "who made you", "who built you", "owner"]):
+        if verify_owner(m):
+            global OWNER_UID
+            OWNER_UID = u
+            return "✅ OWNER VERIFIED. Welcome back, nicholas. [OWNER MODE ACTIVE]"
+        else:
+            return "ARIA 3.5 was created by Egwame Nicholas (nicosheg), a builder from Lagos, Nigeria. github.com/nicosheg 🇳🇬"
     
     # ── 7. Build prompt (wait briefly for context) ─────
     time.sleep(0.1)  # Give context thread 100ms to load
@@ -1235,8 +1243,6 @@ def ask(m, u, api):
         # Save memory in background
         save_memory(u, original_m, resp)
         cache_response(m, u, resp)
-        
-
         return resp
     
     # ── 9. Fallback to cache ──────────────────────────
