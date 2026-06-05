@@ -40,7 +40,7 @@
 <body>
 <div id="loginOverlay" class="login-overlay">
     <h1 style="color:#fff">🇳🇬 <span style="color:#00d9ff">ARIA</span></h1>
-    <button class="login-btn" onclick="signInWithGoogle()">
+    <button class="login-btn" id="googleSignInBtn">
         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20" height="20" alt="G"> Sign in with Google
     </button>
 </div>
@@ -56,8 +56,8 @@
     <div class="chat" id="chat"></div>
     <div class="inp-outer">
         <div class="inp-pill">
-            <textarea id="inp" placeholder="Talk to ARIA..." rows="1"></textarea>
-            <button class="send" id="sendBtn">Send</button>
+            <textarea id="inp" placeholder="Talk to ARIA..." rows="1" disabled></textarea>
+            <button class="send" id="sendBtn" disabled>Send</button>
         </div>
     </div>
     <div class="ftr" id="ftr">⭐ Rate ARIA's last response</div>
@@ -87,7 +87,7 @@
     let currentUser = null;
     let lastRatingBar = null;
 
-    marked.setOptions({breaks:true,gfm:true});
+    marked.setOptions({breaks:true, gfm:true});
 
     function now() {
         return new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
@@ -114,7 +114,6 @@
         row.appendChild(timestamp);
         if (sender === "aria" && rate) {
             const rateRow = document.createElement("div");
-            rateRow.className = "rate-row";
             rateRow.style.display = "flex";
             rateRow.style.gap = "8px";
             rateRow.style.marginTop = "8px";
@@ -169,54 +168,64 @@
         }
     }
 
+    function enableChat(enable) {
+        inp.disabled = !enable;
+        sendBtn.disabled = !enable;
+        if (enable) inp.focus();
+    }
+
     function signInWithGoogle() {
         const provider = new firebase.auth.GoogleAuthProvider();
         auth.signInWithPopup(provider).catch(console.error);
     }
 
+    // Attach sign-in handler to button
+    document.getElementById("googleSignInBtn").onclick = signInWithGoogle;
+
     auth.onAuthStateChanged(async (user) => {
-    if (user) {
-        currentUser = user;
-        loginOverlay.style.display = "none";
-        appDiv.style.display = "flex";
-        userInfoDiv.style.display = "flex";
-        userAvatar.src = user.photoURL || "";
-        userNameSpan.innerText = user.displayName || user.email;
-        
-        // Send name to backend
-        try {
-            await fetch("/set_user_name", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({
-                    user_id: user.uid,
-                    email: user.email,
-                    name: user.displayName || user.email.split("@")[0]
-                })
-            });
-        } catch(e) {
-            console.log("Failed to send name:", e);
-        }
-        
-        enableChat(true);
-    } else {
-        currentUser = null;
-        loginOverlay.style.display = "flex";
-        appDiv.style.display = "none";
-        enableChat(false);
-    }
-    });
+        if (user) {
+            currentUser = user;
+            loginOverlay.style.display = "none";
+            appDiv.style.display = "flex";
+            userInfoDiv.style.display = "flex";
+            userAvatar.src = user.photoURL || "";
+            userNameSpan.innerText = user.displayName || user.email;
+            
+            // Send name to backend
+            try {
+                await fetch("/set_user_name", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({
+                        user_id: user.uid,
+                        email: user.email,
+                        name: user.displayName || user.email.split("@")[0]
+                    })
+                });
+            } catch(e) {
+                console.log("Failed to send name:", e);
+            }
+            
+            enableChat(true);
         } else {
             currentUser = null;
             loginOverlay.style.display = "flex";
             appDiv.style.display = "none";
+            enableChat(false);
         }
     });
 
     logoutBtn.onclick = () => auth.signOut();
     sendBtn.onclick = sendMessage;
-    inp.addEventListener("keypress", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
-    document.getElementById("ftr").onclick = () => { if (lastRatingBar) lastRatingBar.scrollIntoView({behavior:"smooth"}); };
+    inp.addEventListener("keypress", (e) => {
+        if (e.key === "Enter" && !e.shiftKey && currentUser) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+    document.getElementById("ftr").onclick = () => {
+        if (lastRatingBar) lastRatingBar.scrollIntoView({behavior:"smooth"});
+    };
 </script>
 </body>
 </html>
