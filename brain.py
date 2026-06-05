@@ -1130,10 +1130,15 @@ def ask(m, u, api):
             context_result["data"] = get_context(u)
     threading.Thread(target=load_context, daemon=True).start()
     
-    # ── 5. Get persistent facts (synchronous but fast) ──
+    # ── 5. Get persistent facts from PostgreSQL ──
     try:
-        user_facts = get_user_facts(u)
-    except NameError:
+        user_memory = load_user_memory(u)
+        if user_memory["facts"]:
+            user_facts = "\n".join([f"- {f['content']}" for f in user_memory["facts"]])
+        else:
+            user_facts = ""
+    except Exception as e:
+        print(f"Memory load error: {e}")
         user_facts = ""
     
     # ── 6. Greetings & Owner check (no wait) ──────────
