@@ -1272,6 +1272,54 @@ HTML = """<!DOCTYPE html> <html> <head> <meta charset="UTF-8"> <meta name="viewp
 #  All routes ARIA responds to.
 #  To add a new endpoint: add an elif self.path=="/yourpath" block.
 # ════════════════════════════════════════════════════════════════════
+
+# ════════════════════════════════════════════════════════════════════
+# STARTUP: Test PostgreSQL Connection
+# ════════════════════════════════════════════════════════════════════
+test_postgres_connection()
+
+def test_postgres_connection():
+    """Test if PostgreSQL connection works."""
+    print("\n" + "="*50)
+    print("🧪 TESTING POSTGRESQL CONNECTION")
+    print("="*50)
+    
+    import os
+    db_url = os.environ.get("SUPABASE_DB_URL", "")
+    
+    if not db_url:
+        print("❌ SUPABASE_DB_URL is NOT set in environment")
+        print("   Add it to Render → Environment tab")
+        return False
+    
+    print(f"✅ SUPABASE_DB_URL is set")
+    print(f"   URL: {db_url[:50]}...{db_url[-10:]}")
+    
+    try:
+        import psycopg2
+        print("✅ psycopg2 library imported")
+        conn = psycopg2.connect(db_url)
+        print("✅ Connected to PostgreSQL!")
+        cur = conn.cursor()
+        cur.execute("SELECT 1")
+        result = cur.fetchone()
+        print(f"✅ Query works! Result: {result}")
+        cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='public'")
+        tables = cur.fetchall()
+        print(f"✅ Tables found: {[t[0] for t in tables]}")
+        cur.close()
+        conn.close()
+        print("✅ ALL TESTS PASSED!")
+        print("="*50 + "\n")
+        return True
+    except ImportError:
+        print("❌ psycopg2 not installed – add 'psycopg2-binary' to requirements.txt")
+        return False
+    except Exception as e:
+        print(f"❌ CONNECTION FAILED: {e}")
+        print("="*50 + "\n")
+        return False
+
 class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
