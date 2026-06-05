@@ -147,25 +147,28 @@
     }
 
     async function sendMessage() {
-        const msg = inp.value.trim();
-        if (!msg || !currentUser) return;
-        addMsg(msg, "user");
-        inp.value = "";
-        inp.style.height = "auto";
-        const loadingMsg = addMsg("...", "aria", false);
-        try {
-            const res = await fetch("/chat", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({message: msg, user_id: currentUser.uid})
-            });
-            const data = await res.json();
-            loadingMsg.remove();
-            addMsg(data.reply || "No response", "aria", true);
-        } catch(e) {
-            loadingMsg.remove();
-            addMsg("Connection error. Try again.", "aria", false);
-        }
+    const msg = inp.value.trim();
+    if (!msg || !currentUser) return;
+    addMsg(msg, "user");
+    inp.value = "";
+    inp.style.height = "auto";
+    const loadingMsg = addMsg("...", "aria", false);
+    try {
+        const res = await fetch("/chat", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                message: msg,
+                user_id: currentUser.uid,
+                email: localStorage.getItem("user_email")  // ← THIS LINE WAS MISSING
+            })
+        });
+        const data = await res.json();
+        loadingMsg.remove();
+        addMsg(data.reply || "No response", "aria", true);
+    } catch(e) {
+        loadingMsg.remove();
+        addMsg("Connection error. Try again.", "aria", false);
     }
 
     function enableChat(enable) {
