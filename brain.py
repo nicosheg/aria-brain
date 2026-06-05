@@ -1525,6 +1525,13 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
+    def _body(self):
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            return json.loads(self.rfile.read(length))
+        except:
+            return {}
+
     def _json(self, data, status=200):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
