@@ -1156,14 +1156,12 @@ def ask(m, u, api):
         prefix = get_stage_prefix(stage)
         return f"{prefix}\n\n{kb_result['answer']}\n\n[🧠 {kb_result['confidence']}% confidence]"
     
-    # ── 4. Start async context load (parallel with API) ──
-    context_result = {"data": ""}
-    def load_context():
-        if is_new_session(u):
-            context_result["data"] = get_full_history(u)
-        else:
-            context_result["data"] = get_context(u)
-    threading.Thread(target=load_context, daemon=True).start()
+    # ── 4. Load conversation history (synchronous) ──
+    if is_new_session(u):
+        cx = get_full_history(u)
+    else:
+        cx = get_context(u)
+    print(f"DEBUG: Context loaded: {len(cx)} chars for user {u}")
     
     # ── 5. Get persistent facts from PostgreSQL ──
     try:
