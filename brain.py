@@ -197,6 +197,34 @@ def save_memory_node(aria_uid, node_type, content, importance=50):
     except Exception as e:
         return {"error": str(e)}
 
+def load_user_memory(aria_uid, limit=10):
+    """Load all memory nodes for a user, sorted by importance."""
+    result = {"facts": [], "context": [], "decisions": [], "outcomes": []}
+    global _postgres_pool
+    if not _postgres_pool:
+        init_result = init_postgres()
+        if "error" in init_result:
+            return result
+    try:
+        conn = _postgres_pool.getconn()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT node_type, content, importance
+            FROM memory_nodes
+            WHERE aria_uid = %s
+            ORDER BY importance DESC
+            LIMIT %s
+        """, (aria_uid, limit))
+        rows = cur.fetchall()
+        for node_type, content, importance in rows:
+            result[node_type + "s"].append({"content": content, "importance": importance})
+        cur.close()
+        _postgres_pool.putconn(conn)
+        return result
+    except Exception as e:
+        print(f"load_user_memory error: {e}")
+        return result
+
 
 # ════════════════════════════════════════════════════════════════════
 # [S3] API KEYS & OWNER CONFIG
