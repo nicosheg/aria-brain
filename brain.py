@@ -1161,7 +1161,8 @@ def ask(m, u, api):
         cx = get_full_history(u)
     else:
         cx = get_context(u)
-    print(f"DEBUG: Context loaded: {len(cx)} chars for user {u}")
+    print(f"🔍 CONTEXT LENGTH: {len(cx)} characters")
+    print(f"🔍 CONTEXT PREVIEW: {cx[:200] if cx else 'EMPTY'}")
     
     # ── 5. Get persistent facts from PostgreSQL ──
     try:
