@@ -1447,6 +1447,11 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(msg.encode())
 
     def do_POST(self):
+        if self.path == "/test_db":
+            import json
+            result = save_memory_node("test_user", "fact", "Test entry", 50)
+            self._json(result)
+            return
         # ── Save name from Google login ──
         if self.path == "/set_user_name":
             content_length = int(self.headers.get('Content-Length', 0))
