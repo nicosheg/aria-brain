@@ -1447,74 +1447,82 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(msg.encode())
 
     def do_POST(self):
-        # ── Save name from Google login ──
-        if self.path == "/set_user_name":
-            content_length = int(self.headers.get('Content-Length', 0))
-            body = json.loads(self.rfile.read(content_length))
-            uid = body.get("user_id")
-            name = body.get("name")
+    # ── Save name from Google login ──
+    if self.path == "/set_user_name":
+        content_length = int(self.headers.get('Content-Length', 0))
+        body = json.loads(self.rfile.read(content_length))
+        uid = body.get("user_id")
+        name = body.get("name")
+        email = body.get("email", "")
+        
+        if uid and name:
+            # Ensure user exists in PostgreSQL
+            try:
+                conn = _postgres_pool.getconn()
+                cur = conn.cursor()
+                cur.execute(
+                    "INSERT INTO users (aria_uid, email) VALUES (%s, %s) ON CONFLICT (aria_uid) DO NOTHING",
+                    (uid, email)
+                )
+                conn.commit()
+                cur.close()
+                _postgres_pool.putconn(conn)
+            except Exception as e:
+                print(f"User insert error: {e}")
             
-            if uid and name:
-                # Save to PostgreSQL
-                result = save_memory_node(uid, "fact", f"Name: {name}", importance=100)
-                if "error" in result:
-                    print(f"Failed to save name: {result['error']}")
-                self._json({"status": "ok", "saved": name})
-            else:
-                self._json({"status": "error", "message": "Missing user_id or name"}, 400)
-            return
-
-        # ── Get body for other endpoints ──
-        data = self._body()
-
-        # ── /chat ──────────────────────────────────
-        if self.path == "/chat":
-            m = data.get("message", "").strip()
-            u = data.get("user_id", "default_user").strip()
-            if not m:
-                self._json({"reply": "Say something!"})
-                return
-            reply = ask(m, u, 'groq') or ask(m, u, 'deepseek') or ask(m, u, 'gemini')
-            if not reply:
-                reply = "I'm thinking slower than usual. Give me a moment? 🤔"
-            self._json({"reply": reply})
-
-        # ── /feedback ─────────────────────────────
-        elif self.path == "/feedback":
-            u = data.get("user_id", "default_user")
-            score = data.get("score", 0)
-            if db:
-                try:
-                    docs = list(db.collection("aria_learning")
-                               .where("user_id", "==", u)
-                               .order_by("timestamp", direction=firestore.Query.DESCENDING)
-                               .limit(1).stream())
-                    if docs:
-                        last = docs[0].to_dict()
-                        q = last.get("user_message", "")
-                        a = last.get("aria_response", "")
-                        learn_from_rating(u, score, q, a)
-                        extract_behavior_pattern(q, a, score)
-                        weight = 1 if score >= 4 else -1 if score <= 2 else 0
-                        docs[0].reference.update({
-                            "feedback_score": score,
-                            "feedback_weight": weight,
-                            "execution_status": "rated"
-                        })
-                except:
-                    pass
-            self._json({"status": "Feedback recorded", "score": score})
-
+            # Save the name fact
+            result = save_memory_node(uid, "fact", f"Name: {name}", importance=100)
+            if "error" in result:
+                print(f"Failed to save name: {result['error']}")
+            self._json({"status": "ok", "saved": name})
         else:
-            self.send_response(404)
-            self.end_headers()
+            self._json({"status": "error", "message": "Missing user_id or name"}, 400)
+        return
 
-    def _body(self):
-        try:
-            length = int(self.headers.get("Content-Length", 0))
-            return json.loads(self.rfile.read(length))
-        except:
-            return {}
+    # ── Get body for other endpoints ──
+    data = self._body()
+
+    # ── /chat ──────────────────────────────────
+    if self.path == "/chat":
+        m = data.get("message", "").strip()
+        u = data.get("user_id", "default_user").strip()
+        if not m:
+            self._json({"reply": "Say something!"})
+            return
+        reply = ask(m, u, 'groq') or ask(m, u, 'deepseek') or ask(m, u, 'gemini')
+        if not reply:
+            reply = "I'm thinking slower than usual. Give me a moment? 🤔"
+        self._json({"reply": reply})
+
+    # ── /feedback ─────────────────────────────
+    elif self.path == "/feedback":
+        u = data.get("user_id", "default_user")
+        score = data.get("score", 0)
+        if db:
+            try:
+                docs = list(db.collection("aria_learning")
+                           .where("user_id", "==", u)
+                           .order_by("timestamp", direction=firestore.Query.DESCENDING)
+                           .limit(1).stream())
+                if docs:
+                    last = docs[0].to_dict()
+                    q = last.get("user_message", "")
+                    a = last.get("aria_response", "")
+                    learn_from_rating(u, score, q, a)
+                    extract_behavior_pattern(q, a, score)
+                    weight = 1 if score >= 4 else -1 if score <= 2 else 0
+                    docs[0].reference.update({
+                        "feedback_score": score,
+                        "feedback_weight": weight,
+                        "execution_status": "rated"
+                    })
+            except:
+                pass
+        self._json({"status": "Feedback recorded", "score": score})
+
+    else:
+        self.send_response(404)
+        self.end_headers()
 
     def _json(self, data, status=200):
         self.send_response(status)
