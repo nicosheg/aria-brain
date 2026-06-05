@@ -1236,14 +1236,6 @@ def ask(m, u, api):
         save_memory(u, original_m, resp)
         cache_response(m, u, resp)
         
-        # Extract and save name if provided
-        # Skip cache for name‑related messages to avoid stale answers
-        import re
-        if re.search(r'\b(name|call me|i am)\b', m.lower()):
-            cached = None
-
-        # Extract and save name if provided (PostgreSQL version)
-        name_match = None
         # Explicit patterns (reject noise)
         patterns = [
             r'(?:my name is|call me|i am)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)',
