@@ -147,28 +147,29 @@
     }
 
     async function sendMessage() {
-    const msg = inp.value.trim();
-    if (!msg || !currentUser) return;
-    addMsg(msg, "user");
-    inp.value = "";
-    inp.style.height = "auto";
-    const loadingMsg = addMsg("...", "aria", false);
-    try {
-        const res = await fetch("/chat", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({
-                message: msg,
-                user_id: currentUser.uid,
-                email: localStorage.getItem("user_email")  // ← THIS LINE WAS MISSING
-            })
-        });
-        const data = await res.json();
-        loadingMsg.remove();
-        addMsg(data.reply || "No response", "aria", true);
-    } catch(e) {
-        loadingMsg.remove();
-        addMsg("Connection error. Try again.", "aria", false);
+        const msg = inp.value.trim();
+        if (!msg || !currentUser) return;
+        addMsg(msg, "user");
+        inp.value = "";
+        inp.style.height = "auto";
+        const loadingMsg = addMsg("...", "aria", false);
+        try {
+            const res = await fetch("/chat", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    message: msg,
+                    user_id: currentUser.uid,
+                    email: localStorage.getItem("user_email")
+                })
+            });
+            const data = await res.json();
+            loadingMsg.remove();
+            addMsg(data.reply || "No response", "aria", true);
+        } catch(e) {
+            loadingMsg.remove();
+            addMsg("Connection error. Try again.", "aria", false);
+        }
     }
 
     function enableChat(enable) {
@@ -182,54 +183,48 @@
         auth.signInWithPopup(provider).catch(console.error);
     }
 
-    // Attach sign-in handler to button
     document.getElementById("googleSignInBtn").onclick = signInWithGoogle;
 
     auth.onAuthStateChanged(async (user) => {
-    if (user) {
-        currentUser = user;
-        loginOverlay.style.display = "none";
-        appDiv.style.display = "flex";
-        userInfoDiv.style.display = "flex";
-        userAvatar.src = user.photoURL || "";
-        userNameSpan.innerText = user.displayName || user.email;
-        
-        // Send name to backend and get aria_uid
-        try {
-            const nameRes = await fetch("/set_user_name", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({
-                    user_id: user.uid,
-                    email: user.email,
-                    name: user.displayName || user.email.split("@")[0]
-                })
-            });
+        if (user) {
+            currentUser = user;
+            loginOverlay.style.display = "none";
+            appDiv.style.display = "flex";
+            userInfoDiv.style.display = "flex";
+            userAvatar.src = user.photoURL || "";
+            userNameSpan.innerText = user.displayName || user.email;
             
-            const nameData = await nameRes.json();
-            
-            // Store aria_uid and email in localStorage for /chat calls
-            if (nameData.aria_uid) {
-                localStorage.setItem("aria_uid", nameData.aria_uid);
-                localStorage.setItem("user_email", user.email);
-                console.log("✅ User data stored. ARIA UID:", nameData.aria_uid);
-            } else {
-                console.log("⚠️ No aria_uid returned. Using Firebase UID.");
+            try {
+                const nameRes = await fetch("/set_user_name", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({
+                        user_id: user.uid,
+                        email: user.email,
+                        name: user.displayName || user.email.split("@")[0]
+                    })
+                });
+                const nameData = await nameRes.json();
+                if (nameData.aria_uid) {
+                    localStorage.setItem("aria_uid", nameData.aria_uid);
+                    localStorage.setItem("user_email", user.email);
+                    console.log("✅ User data stored. ARIA UID:", nameData.aria_uid);
+                } else {
+                    console.log("⚠️ No aria_uid returned. Using Firebase UID.");
+                    localStorage.setItem("user_email", user.email);
+                }
+            } catch(e) {
+                console.log("Failed to send name:", e);
                 localStorage.setItem("user_email", user.email);
             }
-        } catch(e) {
-            console.log("Failed to send name:", e);
-            localStorage.setItem("user_email", user.email);
+            enableChat(true);
+        } else {
+            currentUser = null;
+            loginOverlay.style.display = "flex";
+            appDiv.style.display = "none";
+            enableChat(false);
         }
-        
-        enableChat(true);
-    } else {
-        currentUser = null;
-        loginOverlay.style.display = "flex";
-        appDiv.style.display = "none";
-        enableChat(false);
-    }
-});
+    });
 
     logoutBtn.onclick = () => auth.signOut();
     sendBtn.onclick = sendMessage;
