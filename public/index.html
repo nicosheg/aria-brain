@@ -183,37 +183,50 @@
     document.getElementById("googleSignInBtn").onclick = signInWithGoogle;
 
     auth.onAuthStateChanged(async (user) => {
-        if (user) {
-            currentUser = user;
-            loginOverlay.style.display = "none";
-            appDiv.style.display = "flex";
-            userInfoDiv.style.display = "flex";
-            userAvatar.src = user.photoURL || "";
-            userNameSpan.innerText = user.displayName || user.email;
+    if (user) {
+        currentUser = user;
+        loginOverlay.style.display = "none";
+        appDiv.style.display = "flex";
+        userInfoDiv.style.display = "flex";
+        userAvatar.src = user.photoURL || "";
+        userNameSpan.innerText = user.displayName || user.email;
+        
+        // Send name to backend and get aria_uid
+        try {
+            const nameRes = await fetch("/set_user_name", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    user_id: user.uid,
+                    email: user.email,
+                    name: user.displayName || user.email.split("@")[0]
+                })
+            });
             
-            // Send name to backend
-            try {
-                await fetch("/set_user_name", {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({
-                        user_id: user.uid,
-                        email: user.email,
-                        name: user.displayName || user.email.split("@")[0]
-                    })
-                });
-            } catch(e) {
-                console.log("Failed to send name:", e);
+            const nameData = await nameRes.json();
+            
+            // Store aria_uid and email in localStorage for /chat calls
+            if (nameData.aria_uid) {
+                localStorage.setItem("aria_uid", nameData.aria_uid);
+                localStorage.setItem("user_email", user.email);
+                console.log("✅ User data stored. ARIA UID:", nameData.aria_uid);
+            } else {
+                console.log("⚠️ No aria_uid returned. Using Firebase UID.");
+                localStorage.setItem("user_email", user.email);
             }
-            
-            enableChat(true);
-        } else {
-            currentUser = null;
-            loginOverlay.style.display = "flex";
-            appDiv.style.display = "none";
-            enableChat(false);
+        } catch(e) {
+            console.log("Failed to send name:", e);
+            localStorage.setItem("user_email", user.email);
         }
-    });
+        
+        enableChat(true);
+    } else {
+        currentUser = null;
+        loginOverlay.style.display = "flex";
+        appDiv.style.display = "none";
+        enableChat(false);
+    }
+});
 
     logoutBtn.onclick = () => auth.signOut();
     sendBtn.onclick = sendMessage;
