@@ -1570,33 +1570,67 @@ class Handler(BaseHTTPRequestHandler):
             return
         # ── Save name from Google login ──
         if self.path == "/set_user_name":
-            content_length = int(self.headers.get('Content-Length', 0))
-            body = json.loads(self.rfile.read(content_length))
-            email = body.get("email")
-            name = body.get("name")
-            
-            if not email or not name:
-                self._json({"status": "error", "message": "Missing email or name"}, 400)
+        """
+        Save user's name on login (once per user).
+        """
+        content_length = int(self.headers.get('Content-Length', 0))
+        body = json.loads(self.rfile.read(content_length))
+        email = body.get("email")
+        name = body.get("name")
+        
+        if not email or not name:
+            self._json({"status": "error", "message": "Missing email or name"}, 400)
+            return
+        
+        try:
+            # Convert email to aria_uid
+            uid_result = generate_aria_uid(email)
+            if "error" in uid_result:
+                self._json({"status": "error", "message": uid_result["error"]}, 500)
                 return
             
+            aria_uid = uid_result["aria_uid"]
+            
+            # DELETE old name facts for this user (prevent duplicates)
             try:
-                uid_result = generate_aria_uid(email)
-                if "error" in uid_result:
-                    self._json({"status": "error", "message": uid_result["error"]}, 500)
-                    return
-                
-                aria_uid = uid_result["aria_uid"]
-                result = save_memory_node(aria_uid, "fact", f"Name: {name}", importance=100)
-                
-                if "error" in result:
-                    self._json({"status": "error", "message": "Failed to save name"}, 500)
-                    return
-                
-                self._json({"status": "ok", "saved": name, "aria_uid": aria_uid})
-                
-            except Exception as e:
-                self._json({"status": "error", "message": str(e)}, 500)
-            return
+                conn = _postgres_pool.getconn()
+                cur = conn.cursor()
+                cur.execute(
+                    "DELETE FROM memory_nodes WHERE aria_uid = %s AND node_type = 'fact' AND content LIKE 'Name:%'",
+                    (aria_uid,)
+                )
+                conn.commit()
+                cur.close()
+                _postgres_pool.putconn(conn)
+                print(f"✅ Deleted old name facts for {aria_uid}")
+            except Exception as del_err:
+                print(f"⚠️ Warning: could not delete old name: {del_err}")
+            
+            # SAVE new name
+            result = save_memory_node(
+                aria_uid=aria_uid,
+                node_type="fact",
+                content=f"Name: {name}",
+                importance=100
+            )
+            
+            if "error" in result:
+                print(f"❌ Failed to save name: {result['error']}")
+                self._json({"status": "error", "message": "Failed to save name"}, 500)
+                return
+            
+            # Return aria_uid so frontend can store it
+            self._json({
+                "status": "ok",
+                "saved": name,
+                "aria_uid": aria_uid
+            })
+            
+        except Exception as e:
+            print(f"❌ Error in /set_user_name: {e}")
+            self._json({"status": "error", "message": str(e)}, 500)
+        
+        return
         # ── Get body for other endpoints ──
         data = self._body()
 
