@@ -1331,6 +1331,25 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+                if self.path == "/db_test":
+            import os, psycopg2
+            db_url = os.environ.get("SUPABASE_DB_URL", "")
+            if not db_url:
+                self._json({"error": "SUPABASE_DB_URL missing"})
+                return
+            try:
+                conn = psycopg2.connect(db_url)
+                cur = conn.cursor()
+                cur.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name='users');")
+                users_ok = cur.fetchone()[0]
+                cur.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name='memory_nodes');")
+                nodes_ok = cur.fetchone()[0]
+                cur.close()
+                conn.close()
+                self._json({"users_table": users_ok, "memory_nodes_table": nodes_ok})
+            except Exception as e:
+                self._json({"error": str(e)})
+            return
         print("Has _json?", hasattr(self, "_json"))
         if self.path == "/ping":
             self.send_response(200)
