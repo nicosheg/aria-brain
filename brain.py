@@ -119,6 +119,56 @@ def init_postgres():
     except Exception as e:
         return {"error": str(e)}
 
+def generate_aria_uid(email):
+    """Generate or retrieve existing ARIA UID for an email.
+    
+    Usage:
+        result = generate_aria_uid("nicholas@example.com")
+        print(result)  # {"aria_uid": "aria000000000001"}
+    
+    Returns:
+        dict with 'aria_uid' or 'error'
+    """
+    global _postgres_pool
+    
+    if not _postgres_pool:
+        init_result = init_postgres()
+        if "error" in init_result:
+            return {"error": init_result["error"]}
+    
+    try:
+        conn = _postgres_pool.getconn()
+        cur = conn.cursor()
+        
+        # Check if email already exists
+        cur.execute("SELECT aria_uid FROM users WHERE email = %s", (email,))
+        existing = cur.fetchone()
+        
+        if existing:
+            _postgres_pool.putconn(conn)
+            return {"aria_uid": existing[0]}
+        
+        # Generate new sequential UID
+        cur.execute("SELECT COUNT(*) FROM users")
+        count = cur.fetchone()[0]
+        next_num = count + 1
+        new_uid = f"aria{next_num:012d}"
+        
+        # Save to database
+        cur.execute(
+            "INSERT INTO users (aria_uid, email) VALUES (%s, %s)",
+            (new_uid, email)
+        )
+        conn.commit()
+        
+        cur.close()
+        _postgres_pool.putconn(conn)
+        
+        return {"aria_uid": new_uid}
+        
+    except Exception as e:
+        return {"error": str(e)}
+
 
 # ════════════════════════════════════════════════════════════════════
 # [S3] API KEYS & OWNER CONFIG
