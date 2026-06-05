@@ -186,45 +186,44 @@
     document.getElementById("googleSignInBtn").onclick = signInWithGoogle;
 
     auth.onAuthStateChanged(async (user) => {
-        if (user) {
-            currentUser = user;
-            loginOverlay.style.display = "none";
-            appDiv.style.display = "flex";
-            userInfoDiv.style.display = "flex";
-            userAvatar.src = user.photoURL || "";
-            userNameSpan.innerText = user.displayName || user.email;
-            
-            try {
-                const nameRes = await fetch("/set_user_name", {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({
-                        user_id: user.uid,
-                        email: user.email,
-                        name: user.displayName || user.email.split("@")[0]
-                    })
-                });
-                const nameData = await nameRes.json();
-                if (nameData.aria_uid) {
-                    localStorage.setItem("aria_uid", nameData.aria_uid);
-                    localStorage.setItem("user_email", user.email);
-                    console.log("✅ User data stored. ARIA UID:", nameData.aria_uid);
-                } else {
-                    console.log("⚠️ No aria_uid returned. Using Firebase UID.");
-                    localStorage.setItem("user_email", user.email);
-                }
-            } catch(e) {
-                console.log("Failed to send name:", e);
-                localStorage.setItem("user_email", user.email);
+    if (user) {
+        currentUser = user;
+        // ✅ Store email immediately (critical for /chat requests)
+        localStorage.setItem("user_email", user.email);
+        
+        loginOverlay.style.display = "none";
+        appDiv.style.display = "flex";
+        userInfoDiv.style.display = "flex";
+        userAvatar.src = user.photoURL || "";
+        userNameSpan.innerText = user.displayName || user.email;
+        
+        try {
+            const nameRes = await fetch("/set_user_name", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    user_id: user.uid,
+                    email: user.email,
+                    name: user.displayName || user.email.split("@")[0]
+                })
+            });
+            const nameData = await nameRes.json();
+            if (nameData.aria_uid) {
+                localStorage.setItem("aria_uid", nameData.aria_uid);
+                console.log("✅ ARIA UID stored:", nameData.aria_uid);
             }
-            enableChat(true);
-        } else {
-            currentUser = null;
-            loginOverlay.style.display = "flex";
-            appDiv.style.display = "none";
-            enableChat(false);
+        } catch(e) {
+            console.log("Failed to send name:", e);
         }
-    });
+        
+        enableChat(true);
+    } else {
+        currentUser = null;
+        loginOverlay.style.display = "flex";
+        appDiv.style.display = "none";
+        enableChat(false);
+    }
+});
 
     logoutBtn.onclick = () => auth.signOut();
     sendBtn.onclick = sendMessage;
