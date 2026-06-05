@@ -1237,22 +1237,44 @@ def ask(m, u, api):
         cache_response(m, u, resp)
         
         # Extract and save name if provided
-        # Skip cache for name-related questions
+        # Skip cache for name‑related messages to avoid stale answers
         import re
         if re.search(r'\b(name|call me|i am)\b', m.lower()):
-        cached = None
-        import re
-        name_match = re.search(r'(?:my name is|call me|i am) (\w+)', original_m, re.IGNORECASE)
+            cached = None
+
+        # Extract and save name if provided (PostgreSQL version)
+        name_match = None
+        # Explicit patterns (reject noise)
+        patterns = [
+            r'(?:my name is|call me|i am)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)',
+            r'^([A-Z][a-z]+)$'   # single capitalized word
+        ]
+        for pat in patterns:
+            match = re.search(pat, original_m.strip(), re.IGNORECASE)
+            if match:
+                name_match = match
+                break
+
         if name_match:
-            try:
-                save_user_fact(u, "name", name_match.group(1))
-                # ── DEBUG ──
-                print(f"DEBUG: Attempted to save name: {name_match.group(1)} for user {u}")
-                verify_facts = get_user_facts(u)
-                print(f"DEBUG: User facts after save: {verify_facts}")
-            except NameError:
-                print("DEBUG: save_user_fact function not found")
-                pass
+            potential_name = name_match.group(1).strip()
+            noise_words = ['again', 'please', 'thanks', 'hello', 'hi', 'hey', 'ok', 'yes', 'no', 'test', 'working']
+            if potential_name.lower() not in noise_words and len(potential_name) >= 2:
+                try:
+                    # Delete any existing name fact for this user first (to keep one)
+                    if _postgres_pool:
+                        conn = _postgres_pool.getconn()
+                        cur = conn.cursor()
+                        cur.execute(
+                            "DELETE FROM memory_nodes WHERE aria_uid = %s AND node_type = 'fact' AND content LIKE 'Name:%'",
+                            (u,)
+                        )
+                        conn.commit()
+                        cur.close()
+                        _postgres_pool.putconn(conn)
+                    # Save new name
+                    save_memory_node(u, "fact", f"Name: {potential_name.capitalize()}", importance=100)
+                except Exception as e:
+                    print(f"Failed to save name: {e}")
 
         return resp
     
