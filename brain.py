@@ -47,19 +47,77 @@ except:
     db = None
 
 # ════════════════════════════════════════════════════════════════════
-# [S2.5] SUPABASE SETUP (for user profiles & facts)
+# [S2.5] POSTGRESQL (SUPABASE) SETUP
 # ════════════════════════════════════════════════════════════════════
-from supabase import create_client, Client
 
-supabase_url = os.environ.get("SUPABASE_URL", "")
-supabase_key = os.environ.get("SUPABASE_PUBLISHABLE_KEY", "")
-supabase: Client = None
-if supabase_url and supabase_key:
+import psycopg2
+from psycopg2 import pool
+import os
+
+_postgres_pool = None
+
+def init_postgres():
+    """Create PostgreSQL connection pool and tables if they don't exist.
+    
+    Usage:
+        result = init_postgres()
+        print(result)  # {"status": "connected"} or {"error": "..."}
+    
+    Returns:
+        dict with 'status' or 'error'
+    """
+    global _postgres_pool
+    
+    # Get Supabase connection string from environment
+    db_url = os.environ.get("SUPABASE_DB_URL", "")
+    if not db_url:
+        return {"error": "SUPABASE_DB_URL not set in environment"}
+    
     try:
-        supabase = create_client(supabase_url, supabase_key)
-        print("✅ Supabase connected")
+        # Create connection pool (5 connections max)
+        _postgres_pool = psycopg2.pool.SimpleConnectionPool(
+            1, 5, db_url
+        )
+        
+        # Get a connection to create tables
+        conn = _postgres_pool.getconn()
+        cur = conn.cursor()
+        
+        # Create users table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                aria_uid TEXT PRIMARY KEY,
+                email TEXT UNIQUE,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        
+        # Create memory_nodes table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS memory_nodes (
+                node_id SERIAL PRIMARY KEY,
+                aria_uid TEXT REFERENCES users(aria_uid),
+                node_type TEXT CHECK (node_type IN ('fact', 'context', 'decision', 'outcome')),
+                content TEXT,
+                importance INTEGER DEFAULT 50,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        
+        # Create index for faster lookups
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_memory_nodes_aria_uid 
+            ON memory_nodes(aria_uid)
+        """)
+        
+        conn.commit()
+        cur.close()
+        _postgres_pool.putconn(conn)
+        
+        return {"status": "connected"}
+        
     except Exception as e:
-        print(f"⚠️ Supabase init error: {e}")
+        return {"error": str(e)}
 
 
 # ════════════════════════════════════════════════════════════════════
