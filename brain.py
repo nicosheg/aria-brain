@@ -703,38 +703,20 @@ def is_new_session(u):
 
 
 def save_memory(u, m, r):
-    """Save conversation with full messages + extract facts"""
-    if not db: return
+def save_memory(u, m, r):
+    """Save conversation to Firestore for history (no fact extraction)."""
+    if not db:
+        return
     try:
         data = {
-            "user_message": m,           # FULL message (not truncated)
-            "aria_response": r,          # FULL response (not truncated)
+            "user_message": m,
+            "aria_response": r,
             "timestamp": datetime.now().isoformat(),
             "mode": detect_mode(m, u)
         }
-        
-        # Extract facts automatically
-        import re
-        
-        # Name extraction: "my name is X" or "call me X"
-        name_match = re.search(r'(?:name|call me|i am|i\'m|am) (\w+)', m, re.IGNORECASE)
-        if name_match:
-            save_user_fact(u, "name", name_match.group(1))
-        
-        # Color extraction: "favorite color is X"
-        color_match = re.search(r'(?:favorite|love|like|color|is) (red|blue|green|yellow|black|white|orange|purple|pink)', m, re.IGNORECASE)
-        if color_match:
-            save_user_fact(u, "favorite_color", color_match.group(1))
-        
-        # Goal extraction: "building X" or "want to Y"
-        if any(w in m.lower() for w in ["building", "making", "want to", "goal", "trying"]):
-            goal_match = re.search(r'(?:building|making|want to|goal|trying) ([^.!?]+)', m, re.IGNORECASE)
-            if goal_match:
-                save_user_fact(u, "goal", goal_match.group(1)[:200])
-        
         db.collection("users").document(u).collection("memory").add(data)
-    except:
-        pass
+    except Exception as e:
+        print(f"Save memory error: {e}")
 
 def get_learning_insights(u):
     """Get patterns ARIA learned from this specific user"""
