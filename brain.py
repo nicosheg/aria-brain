@@ -1451,33 +1451,45 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/set_user_name":
             content_length = int(self.headers.get('Content-Length', 0))
             body = json.loads(self.rfile.read(content_length))
-            uid = body.get("user_id")
             email = body.get("email")
             name = body.get("name")
             
-            if uid and name:
-                # Ensure user exists in PostgreSQL
-                if _postgres_pool:
-                    try:
-                        conn = _postgres_pool.getconn()
-                        cur = conn.cursor()
-                        cur.execute(
-                            "INSERT INTO users (aria_uid, email) VALUES (%s, %s) ON CONFLICT (aria_uid) DO NOTHING",
-                            (uid, email)
-                        )
-                        conn.commit()
-                        cur.close()
-                        _postgres_pool.putconn(conn)
-                    except Exception as e:
-                        print(f"User insert error: {e}")
+            if not email or not name:
+                self._json({"status": "error", "message": "Missing email or name"}, 400)
+                return
+            
+            try:
+                # Convert email to aria00001
+                uid_result = generate_aria_uid(email)
+                if "error" in uid_result:
+                    self._json({"status": "error", "message": uid_result["error"]}, 500)
+                    return
                 
-                # Save the name fact
-                result = save_memory_node(uid, "fact", f"Name: {name}", importance=100)
+                aria_uid = uid_result["aria_uid"]
+                
+                # Save name under aria_uid
+                result = save_memory_node(
+                    aria_uid=aria_uid,
+                    node_type="fact",
+                    content=f"Name: {name}",
+                    importance=100
+                )
+                
                 if "error" in result:
                     print(f"Failed to save name: {result['error']}")
-                self._json({"status": "ok", "saved": name})
-            else:
-                self._json({"status": "error", "message": "Missing user_id or name"}, 400)
+                    self._json({"status": "error", "message": "Failed to save name"}, 500)
+                    return
+                
+                self._json({
+                    "status": "ok",
+                    "saved": name,
+                    "aria_uid": aria_uid
+                })
+                
+            except Exception as e:
+                print(f"Error in /set_user_name: {e}")
+                self._json({"status": "error", "message": str(e)}, 500)
+            
             return
 
         # ── Get body for other endpoints ──
