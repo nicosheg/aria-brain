@@ -1459,7 +1459,6 @@ class Handler(BaseHTTPRequestHandler):
                 return
             
             try:
-                # Convert email to aria00001
                 uid_result = generate_aria_uid(email)
                 if "error" in uid_result:
                     self._json({"status": "error", "message": uid_result["error"]}, 500)
@@ -1467,31 +1466,26 @@ class Handler(BaseHTTPRequestHandler):
                 
                 aria_uid = uid_result["aria_uid"]
                 
-                # Save name under aria_uid
-                result = save_memory_node(
-                    aria_uid=aria_uid,
-                    node_type="fact",
-                    content=f"Name: {name}",
-                    importance=100
-                )
+                # Check if name already exists (optional)
+                existing = load_user_memory(aria_uid)
+                name_already_set = any(fact['content'].startswith('Name:') for fact in existing.get('facts', []))
                 
-                if "error" in result:
-                    print(f"Failed to save name: {result['error']}")
-                    self._json({"status": "error", "message": "Failed to save name"}, 500)
-                    return
+                if not name_already_set:
+                    result = save_memory_node(aria_uid, "fact", f"Name: {name}", importance=100)
+                    if "error" in result:
+                        print(f"Failed to save name: {result['error']}")
+                        self._json({"status": "error", "message": "Failed to save name"}, 500)
+                        return
+                    print(f"✅ Saved Google name: {name} for {aria_uid}")
+                else:
+                    print(f"ℹ️ Name already exists for {aria_uid}, skipping")
                 
-                self._json({
-                    "status": "ok",
-                    "saved": name,
-                    "aria_uid": aria_uid
-                })
+                self._json({"status": "ok", "saved": name, "aria_uid": aria_uid})
                 
             except Exception as e:
                 print(f"Error in /set_user_name: {e}")
                 self._json({"status": "error", "message": str(e)}, 500)
-            
             return
-
         # ── Get body for other endpoints ──
         data = self._body()
 
