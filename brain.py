@@ -1498,14 +1498,34 @@ class Handler(BaseHTTPRequestHandler):
         # ── /chat ──────────────────────────────────
         if self.path == "/chat":
             m = data.get("message", "").strip()
-            u = data.get("user_id", "default_user").strip()
+            email = data.get("email", "").strip()
+            firebase_uid = data.get("user_id", "").strip()
+            
             if not m:
                 self._json({"reply": "Say something!"})
                 return
-            reply = ask(m, u, 'groq') or ask(m, u, 'deepseek') or ask(m, u, 'gemini')
-            if not reply:
-                reply = "I'm thinking slower than usual. Give me a moment? 🤔"
-            self._json({"reply": reply})
+            
+            try:
+                # Convert email to aria00001
+                if email:
+                    uid_result = generate_aria_uid(email)
+                    if "error" in uid_result:
+                        u = firebase_uid
+                    else:
+                        u = uid_result["aria_uid"]
+                else:
+                    u = firebase_uid
+                
+                reply = ask(m, u, 'groq') or ask(m, u, 'deepseek') or ask(m, u, 'gemini')
+                if not reply:
+                    reply = "I'm thinking slower than usual. Give me a moment? 🤔"
+                self._json({"reply": reply})
+                
+            except Exception as e:
+                print(f"Error in /chat: {e}")
+                self._json({"error": str(e)}, 500)
+            
+            return
 
         # ── /feedback ─────────────────────────────
         elif self.path == "/feedback":
