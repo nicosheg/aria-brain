@@ -1236,37 +1236,6 @@ def ask(m, u, api):
         save_memory(u, original_m, resp)
         cache_response(m, u, resp)
         
-        # Explicit patterns (reject noise)
-        patterns = [
-            r'(?:my name is|call me|i am)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)',
-            r'^([A-Z][a-z]+)$'   # single capitalized word
-        ]
-        for pat in patterns:
-            match = re.search(pat, original_m.strip(), re.IGNORECASE)
-            if match:
-                name_match = match
-                break
-
-        if name_match:
-            potential_name = name_match.group(1).strip()
-            noise_words = ['again', 'please', 'thanks', 'hello', 'hi', 'hey', 'ok', 'yes', 'no', 'test', 'working']
-            if potential_name.lower() not in noise_words and len(potential_name) >= 2:
-                try:
-                    # Delete any existing name fact for this user first (to keep one)
-                    if _postgres_pool:
-                        conn = _postgres_pool.getconn()
-                        cur = conn.cursor()
-                        cur.execute(
-                            "DELETE FROM memory_nodes WHERE aria_uid = %s AND node_type = 'fact' AND content LIKE 'Name:%'",
-                            (u,)
-                        )
-                        conn.commit()
-                        cur.close()
-                        _postgres_pool.putconn(conn)
-                    # Save new name
-                    save_memory_node(u, "fact", f"Name: {potential_name.capitalize()}", importance=100)
-                except Exception as e:
-                    print(f"Failed to save name: {e}")
 
         return resp
     
