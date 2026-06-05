@@ -34,6 +34,39 @@ import psycopg2
 from psycopg2 import pool
 from pattern_miner import mine_patterns
 
+# ════════════════════════════════════════════════════════════════════
+# SUPABASE CONNECTION TEST (runs once at startup)
+# ════════════════════════════════════════════════════════════════════
+import os
+print("\n" + "="*50)
+print("🔍 TESTING SUPABASE CONNECTION")
+print("="*50)
+
+# Check env vars
+db_url = os.environ.get("SUPABASE_DB_URL", "")
+if not db_url:
+    print("❌ SUPABASE_DB_URL not set")
+else:
+    print(f"✅ SUPABASE_DB_URL found (starts with: {db_url[:30]}...)")
+
+# Try to connect
+try:
+    import psycopg2
+    print("✅ psycopg2 imported")
+    conn = psycopg2.connect(db_url)
+    print("✅ Connected to Supabase!")
+    cur = conn.cursor()
+    cur.execute("SELECT 1")
+    row = cur.fetchone()
+    print(f"✅ Query successful: {row}")
+    cur.close()
+    conn.close()
+    print("✅ All database tests passed")
+except ImportError:
+    print("❌ psycopg2 not installed – add to requirements.txt")
+except Exception as e:
+    print(f"❌ Connection failed: {e}")
+print("="*50 + "\n")
 
 # ════════════════════════════════════════════════════════════════════
 # [S2] FIREBASE SETUP
