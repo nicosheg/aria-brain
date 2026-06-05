@@ -1237,6 +1237,10 @@ def ask(m, u, api):
         cache_response(m, u, resp)
         
         # Extract and save name if provided
+        # Skip cache for name-related questions
+        import re
+        if re.search(r'\b(name|call me|i am)\b', m.lower()):
+        cached = None
         import re
         name_match = re.search(r'(?:my name is|call me|i am) (\w+)', original_m, re.IGNORECASE)
         if name_match:
