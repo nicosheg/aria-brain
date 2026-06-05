@@ -1578,6 +1578,48 @@ class Handler(BaseHTTPRequestHandler):
                 
                 # Delete old name facts (prevent duplicates)
                 try:
+    def do_POST(self):
+        if self.path == "/db_test":
+            import os, psycopg2
+            db_url = os.environ.get("SUPABASE_DB_URL", "")
+            if not db_url:
+                self._json({"error": "SUPABASE_DB_URL missing"})
+                return
+            try:
+                conn = psycopg2.connect(db_url)
+                cur = conn.cursor()
+                cur.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name='users');")
+                users_ok = cur.fetchone()[0]
+                cur.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name='memory_nodes');")
+                nodes_ok = cur.fetchone()[0]
+                cur.close()
+                conn.close()
+                self._json({"users_table": users_ok, "memory_nodes_table": nodes_ok})
+            except Exception as e:
+                self._json({"error": str(e)})
+            return
+
+        # ── Save name from Google login ──
+        if self.path == "/set_user_name":
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = json.loads(self.rfile.read(content_length))
+            email = body.get("email")
+            name = body.get("name")
+            
+            if not email or not name:
+                self._json({"status": "error", "message": "Missing email or name"}, 400)
+                return
+            
+            try:
+                uid_result = generate_aria_uid(email)
+                if "error" in uid_result:
+                    self._json({"status": "error", "message": uid_result["error"]}, 500)
+                    return
+                
+                aria_uid = uid_result["aria_uid"]
+                
+                # Delete old name facts (prevent duplicates)
+                try:
                     conn = _postgres_pool.getconn()
                     cur = conn.cursor()
                     cur.execute(
@@ -1602,19 +1644,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._json({"status": "error", "message": str(e)}, 500)
                 return
-            
-            # Return aria_uid so frontend can store it
-            self._json({
-                "status": "ok",
-                "saved": name,
-                "aria_uid": aria_uid
-            })
-            
-        except Exception as e:
-            print(f"❌ Error in /set_user_name: {e}")
-            self._json({"status": "error", "message": str(e)}, 500)
-        
-        return
+
         # ── Get body for other endpoints ──
         data = self._body()
 
@@ -1629,7 +1659,6 @@ class Handler(BaseHTTPRequestHandler):
                 return
             
             try:
-                # Convert email to aria00001
                 if email:
                     uid_result = generate_aria_uid(email)
                     if "error" in uid_result:
@@ -1643,11 +1672,9 @@ class Handler(BaseHTTPRequestHandler):
                 if not reply:
                     reply = "I'm thinking slower than usual. Give me a moment? 🤔"
                 self._json({"reply": reply})
-                
             except Exception as e:
                 print(f"Error in /chat: {e}")
                 self._json({"error": str(e)}, 500)
-            
             return
 
         # ── /feedback ─────────────────────────────
