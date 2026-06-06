@@ -1421,6 +1421,17 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path.startswith("/seed"):
             self.seed_aria_lessons()
             return
+                elif self.path.startswith("/check_user"):
+            from urllib.parse import urlparse, parse_qs
+            parsed = urlparse(self.path)
+            params = parse_qs(parsed.query)
+            email = params.get("email", [""])[0].strip().lower()
+            if not email:
+                self._json({"error": "Missing email"})
+                return
+            uid_result = generate_aria_uid(email)
+            self._json(uid_result)
+            return
 
         else:
             self.send_response(404)
