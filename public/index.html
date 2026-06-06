@@ -2,11 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>ARIA — Your AI. Your Life. Your Future.</title>
-  <!-- Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
-  <!-- Firebase SDKs (for auth - kept but UI is exact match) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>ARIA — Personal Intelligence System</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <style>
@@ -18,34 +17,40 @@
     }
 
     body {
-      background: #000000;
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro', Roboto, sans-serif;
-      overflow-x: hidden;
+      background: #050816;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      color: #F8FAFC;
       min-height: 100vh;
+      overflow-x: hidden;
     }
 
-    /* Cosmic background container */
+    /* Deep cosmic background */
     .cosmic-bg {
       position: fixed;
       inset: 0;
-      background: radial-gradient(ellipse at 30% 40%, #02040a 0%, #000000 100%);
+      background: radial-gradient(ellipse at 30% 40%, #0B1120 0%, #050816 100%);
       z-index: 0;
     }
 
-    /* Milky way galaxy cloud diagonal (top-left to bottom-right) */
+    /* Milky way galaxy cloud (top-left to bottom-right) */
     .milky-way {
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: radial-gradient(ellipse at 15% 20%, rgba(120, 80, 180, 0.15) 0%, rgba(50, 40, 80, 0.05) 40%, transparent 70%);
-      transform: rotate(25deg) scale(1.5);
+      top: -15%;
+      left: -15%;
+      width: 140%;
+      height: 140%;
+      background: linear-gradient(125deg,
+        rgba(60, 80, 140, 0.15) 0%,
+        rgba(90, 70, 160, 0.1) 30%,
+        rgba(30, 40, 80, 0.05) 60%,
+        transparent 85%);
+      transform: rotate(28deg);
       pointer-events: none;
       z-index: 0;
+      filter: blur(50px);
     }
 
-    /* Starfield container */
+    /* Starfield – many faint stars */
     .starfield {
       position: fixed;
       inset: 0;
@@ -54,7 +59,6 @@
       pointer-events: none;
       z-index: 0;
     }
-
     .star {
       position: absolute;
       background: white;
@@ -62,325 +66,189 @@
       opacity: 0;
       animation: twinkle linear infinite;
     }
-
     @keyframes twinkle {
-      0% { opacity: 0; transform: scale(0.8); }
-      50% { opacity: 1; transform: scale(1); }
-      100% { opacity: 0; transform: scale(0.8); }
+      0% { opacity: 0; transform: scale(0.6); }
+      50% { opacity: 0.9; transform: scale(1); }
+      100% { opacity: 0; transform: scale(0.6); }
     }
 
-    /* Nebula dust top-left */
+    /* Nebula dust top‑left corner */
     .nebula-dust {
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 300px;
-      height: 300px;
-      background: radial-gradient(circle, rgba(100, 70, 160, 0.12) 0%, transparent 70%);
+      top: -100px;
+      left: -100px;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(110, 90, 180, 0.08) 0%, transparent 70%);
       pointer-events: none;
       z-index: 0;
-      filter: blur(40px);
+      filter: blur(70px);
     }
 
-    /* Main content - z-index above background */
+    /* Main container – responsive, centered */
     .app-container {
       position: relative;
       z-index: 2;
-      max-width: 430px;
+      max-width: 560px;
       margin: 0 auto;
       min-height: 100vh;
-      padding: 20px 20px 12px;
+      padding: 20px 24px 24px;
       display: flex;
       flex-direction: column;
+      background: transparent;
     }
 
-    /* ═══════════════════════════════════════════════════════════════════
-       HEADER SECTION
-    ═══════════════════════════════════════════════════════════════════ */
+    /* Header – only name badge, no icons */
     .header {
       display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 24px;
-    }
-
-    .title-section {
-      position: relative;
-    }
-
-    /* Constellation ring behind ARIA text */
-    .constellation-ring {
-      position: absolute;
-      top: -8px;
-      left: -12px;
-      width: 52px;
-      height: 52px;
-    }
-
-    .constellation-ring svg {
-      width: 100%;
-      height: 100%;
-      stroke: rgba(255, 255, 255, 0.15);
-      stroke-width: 0.8;
-      fill: none;
-    }
-
-    .main-title {
-      font-size: 28px;
-      font-weight: 700;
-      letter-spacing: 3px;
-      color: white;
-      line-height: 1.1;
-      position: relative;
-    }
-
-    .subtitle {
-      font-size: 10px;
-      font-weight: 400;
-      letter-spacing: 0.8px;
-      color: #94A3B8;
-      margin-top: 4px;
-    }
-
-    /* Right icons row */
-    .icon-row {
-      display: flex;
-      gap: 16px;
+      justify-content: flex-end;
       align-items: center;
+      margin-bottom: 28px;
+    }
+    .user-badge {
+      background: rgba(255, 255, 255, 0.05);
+      border: 0.5px solid rgba(255, 255, 255, 0.1);
+      border-radius: 40px;
+      padding: 6px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #E2E8F0;
+      backdrop-filter: blur(6px);
     }
 
-    .icon-btn {
-      background: transparent;
-      border: none;
-      cursor: pointer;
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .icon-btn svg {
-      width: 20px;
-      height: 20px;
-      stroke: white;
-      stroke-width: 1.5;
-      fill: none;
-    }
-
-    .notif-dot {
-      position: absolute;
-      top: -2px;
-      right: -4px;
-      width: 8px;
-      height: 8px;
-      background: #A78BFA;
-      border-radius: 50%;
-      box-shadow: 0 0 4px #A78BFA;
-    }
-
-    .lang-badge {
-      background: rgba(0, 0, 0, 0.6);
-      border: 0.5px solid rgba(255, 255, 255, 0.3);
-      border-radius: 30px;
-      width: 36px;
-      height: 36px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      font-weight: 600;
-      color: white;
-      letter-spacing: 0.5px;
-    }
-
-    /* ═══════════════════════════════════════════════════════════════════
-       WELCOME BANNER
-    ═══════════════════════════════════════════════════════════════════ */
+    /* Welcome banner – dynamic user name */
     .welcome-card {
-      background: rgba(10, 12, 25, 0.8);
-      border: 0.5px solid rgba(255, 255, 255, 0.08);
-      border-radius: 24px;
-      padding: 16px 18px;
+      background: rgba(17, 24, 39, 0.55);
+      backdrop-filter: blur(8px);
+      border-radius: 28px;
+      padding: 16px 20px;
       display: flex;
       align-items: center;
       gap: 14px;
-      backdrop-filter: blur(4px);
       margin-bottom: 8px;
+      border: 0.5px solid rgba(255, 255, 255, 0.05);
     }
-
     .welcome-icon {
-      width: 48px;
-      height: 48px;
-      background: rgba(0, 0, 0, 0.5);
+      width: 44px;
+      height: 44px;
+      background: rgba(96, 165, 250, 0.1);
       border-radius: 30px;
       display: flex;
       align-items: center;
       justify-content: center;
     }
-
     .welcome-icon svg {
-      width: 24px;
-      height: 24px;
+      width: 22px;
+      height: 22px;
       stroke: #60A5FA;
       fill: none;
       stroke-width: 1.5;
     }
-
-    .welcome-icon svg use {
-      /* three glowing blue stars */
-    }
-
     .welcome-text {
       flex: 1;
     }
-
     .welcome-greeting {
       font-size: 16px;
-      font-weight: 600;
+      font-weight: 500;
       color: white;
       line-height: 1.4;
     }
-
     .welcome-greeting span {
-      font-weight: 700;
+      font-weight: 600;
+      color: #A78BFA;
     }
-
     .timestamp {
-      font-size: 12px;
-      color: #55657E;
-      margin-left: 4px;
-      margin-top: 4px;
+      font-size: 11px;
+      color: #6A7A9A;
+      margin-left: 8px;
+      margin-bottom: 20px;
     }
 
-    /* ═══════════════════════════════════════════════════════════════════
-       FEATURE CARDS GRID (4 equal cards)
-    ═══════════════════════════════════════════════════════════════════ */
+    /* Compact 3‑card grid (Memory, Education, Income) */
     .cards-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 12px;
-      margin: 20px 0;
+      margin: 16px 0 20px;
     }
-
     .feature-card {
-      background: rgba(20, 22, 40, 0.5);
+      background: rgba(18, 25, 45, 0.6);
       backdrop-filter: blur(8px);
       border-radius: 20px;
-      padding: 16px 10px 12px;
+      padding: 14px 10px 10px;
       display: flex;
       flex-direction: column;
-      position: relative;
-      transition: all 0.2s ease;
+      transition: all 0.2s;
       border: 0.5px solid rgba(255, 255, 255, 0.05);
     }
-
-    /* Card specific accent glows */
-    .card-memory { box-shadow: 0 0 12px rgba(167, 139, 250, 0.15); }
-    .card-education { box-shadow: 0 0 12px rgba(96, 165, 250, 0.15); }
-    .card-income { box-shadow: 0 0 12px rgba(16, 185, 129, 0.15); }
-    .card-decisions { box-shadow: 0 0 12px rgba(245, 158, 11, 0.15); }
+    /* Subtle glows (reduced) */
+    .card-memory { box-shadow: 0 0 6px rgba(167, 139, 250, 0.12); }
+    .card-education { box-shadow: 0 0 6px rgba(96, 165, 250, 0.12); }
+    .card-income { box-shadow: 0 0 6px rgba(16, 185, 129, 0.12); }
 
     .card-icon {
-      width: 40px;
-      height: 40px;
-      border-radius: 20px;
+      width: 36px;
+      height: 36px;
+      border-radius: 18px;
       display: flex;
       align-items: center;
       justify-content: center;
       margin-bottom: 12px;
     }
-
-    .card-memory .card-icon { background: rgba(167, 139, 250, 0.15); }
-    .card-education .card-icon { background: rgba(96, 165, 250, 0.15); }
-    .card-income .card-icon { background: rgba(16, 185, 129, 0.15); }
-    .card-decisions .card-icon { background: rgba(245, 158, 11, 0.15); }
+    .card-memory .card-icon { background: rgba(167, 139, 250, 0.12); }
+    .card-education .card-icon { background: rgba(96, 165, 250, 0.12); }
+    .card-income .card-icon { background: rgba(16, 185, 129, 0.12); }
 
     .card-icon svg {
-      width: 20px;
-      height: 20px;
+      width: 18px;
+      height: 18px;
       fill: none;
       stroke-width: 1.5;
     }
     .card-memory .card-icon svg { stroke: #A78BFA; }
     .card-education .card-icon svg { stroke: #60A5FA; }
     .card-income .card-icon svg { stroke: #10B981; }
-    .card-decisions .card-icon svg { stroke: #F59E0B; }
 
     .card-title {
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
       color: white;
       margin-bottom: 4px;
     }
-
     .card-desc {
-      font-size: 10px;
+      font-size: 9px;
       color: #9CA3AF;
       line-height: 1.3;
       margin-bottom: 12px;
     }
-
     .card-arrow {
       align-self: flex-end;
       margin-top: auto;
       opacity: 0.5;
     }
-
     .card-arrow svg {
-      width: 12px;
-      height: 12px;
+      width: 10px;
+      height: 10px;
       stroke: #9CA3AF;
-      stroke-width: 1.5;
-      fill: none;
     }
 
-    /* ═══════════════════════════════════════════════════════════════════
-       DECORATIVE CENTER TEXT DIVIDER
-    ═══════════════════════════════════════════════════════════════════ */
-    .center-divider {
-      text-align: center;
-      margin: 16px 0 24px;
-    }
-
-    .divider-text {
-      font-size: 10px;
-      font-weight: 500;
-      letter-spacing: 2px;
-      color: #60A5FA;
-      text-transform: uppercase;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .divider-star {
-      font-size: 10px;
-      color: #60A5FA;
-    }
-
-    /* ═══════════════════════════════════════════════════════════════════
-       CONSOLE INPUT BAR
-    ═══════════════════════════════════════════════════════════════════ */
+    /* Input bar – perfect */
     .input-capsule {
-      background: #05070F;
-      border: 1.5px solid #3B82F6;
+      background: #0A0F1A;
+      border: 1.2px solid #3B82F6;
       border-radius: 50px;
-      padding: 8px 12px 8px 18px;
+      padding: 8px 14px 8px 20px;
       display: flex;
       align-items: center;
       gap: 12px;
-      margin-bottom: 24px;
-      box-shadow: 0 0 8px rgba(59, 130, 246, 0.2);
+      margin: 10px 0 24px;
+      box-shadow: 0 0 8px rgba(59, 130, 246, 0.15);
     }
-
     .input-icon-left svg {
       width: 18px;
       height: 18px;
       stroke: #60A5FA;
-      fill: none;
-      stroke-width: 1.5;
     }
-
     .input-field {
       flex: 1;
       background: transparent;
@@ -391,12 +259,10 @@
       outline: none;
       padding: 8px 0;
     }
-
     .input-field::placeholder {
       color: #334155;
       font-weight: 400;
     }
-
     .send-circle {
       width: 36px;
       height: 36px;
@@ -408,136 +274,76 @@
       justify-content: center;
       cursor: pointer;
     }
-
     .send-circle svg {
       width: 16px;
       height: 16px;
       stroke: #3B82F6;
       stroke-width: 2;
-      fill: none;
     }
 
-    /* ═══════════════════════════════════════════════════════════════════
-       PERSISTENT NAVIGATION DOCK
-    ═══════════════════════════════════════════════════════════════════ */
-    .bottom-nav {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
-      padding: 12px 0 0;
-      border-top: 0.5px solid rgba(255, 255, 255, 0.06);
+    /* Footer – personal credit */
+    .footer-note {
+      text-align: center;
+      padding: 16px 0 8px;
+      font-size: 10px;
+      letter-spacing: 0.5px;
+      color: #4A5A7A;
+      border-top: 0.5px solid rgba(255, 255, 255, 0.05);
       margin-top: auto;
     }
 
-    .nav-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      cursor: pointer;
-      background: transparent;
-      border: none;
-      padding: 4px 0;
-      transition: opacity 0.2s;
-    }
-
-    .nav-icon {
-      width: 24px;
-      height: 24px;
-    }
-
-    .nav-icon svg {
-      width: 100%;
-      height: 100%;
-      fill: none;
-      stroke: #6B7280;
-      stroke-width: 1.5;
-    }
-
-    .nav-item.active .nav-icon svg {
-      stroke: #3B82F6;
-    }
-
-    .nav-label {
-      font-size: 10px;
-      font-weight: 500;
-      color: #6B7280;
-      letter-spacing: 0.3px;
-    }
-
-    .nav-item.active .nav-label {
-      color: #3B82F6;
-    }
-
-    .active-dot {
-      width: 4px;
-      height: 4px;
-      background: #3B82F6;
-      border-radius: 2px;
-      margin-top: 2px;
-    }
-
-    /* Utility */
-    .hidden {
-      display: none;
-    }
-
-    /* Chat view (minimal, but required for functionality) */
+    /* Chat overlay (clean, minimal) */
     .chat-view {
       position: fixed;
       inset: 0;
-      background: #000000;
+      background: #050816;
       z-index: 100;
       padding: 20px;
       display: none;
       flex-direction: column;
     }
-
     .chat-view.active {
       display: flex;
     }
-
     .chat-header {
       display: flex;
       align-items: center;
       gap: 16px;
       margin-bottom: 20px;
     }
-
     .back-btn {
       background: transparent;
       border: none;
       color: white;
-      font-size: 24px;
+      font-size: 26px;
       cursor: pointer;
     }
-
     .messages-area {
       flex: 1;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
       gap: 16px;
+      margin-bottom: 16px;
     }
-
     .message {
       max-width: 80%;
     }
-
     .message.user {
       align-self: flex-end;
     }
-
     .message.aria {
       align-self: flex-start;
     }
-
     .message-bubble {
       padding: 10px 14px;
       border-radius: 20px;
       font-size: 14px;
-      background: rgba(255,255,255,0.05);
+      background: rgba(255, 255, 255, 0.05);
       color: white;
+    }
+    .message.user .message-bubble {
+      background: rgba(96, 165, 250, 0.2);
     }
   </style>
 </head>
@@ -548,156 +354,72 @@
 <div class="nebula-dust"></div>
 <div class="starfield" id="starfield"></div>
 
-<!-- Main UI (exact spec) -->
 <div class="app-container" id="mainUI">
-  <!-- HEADER -->
+  <!-- Header: only user name badge -->
   <div class="header">
-    <div class="title-section">
-      <div class="constellation-ring">
-        <svg viewBox="0 0 60 60">
-          <circle cx="30" cy="30" r="20" stroke="rgba(255,255,255,0.2)" fill="none" stroke-width="0.5"/>
-          <circle cx="20" cy="18" r="1.5" fill="white" opacity="0.4"/>
-          <circle cx="40" cy="22" r="1" fill="white" opacity="0.3"/>
-          <circle cx="25" cy="40" r="1.5" fill="white" opacity="0.5"/>
-          <line x1="20" y1="18" x2="40" y2="22" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
-          <line x1="20" y1="18" x2="25" y2="40" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
-        </svg>
-      </div>
-      <div class="main-title">ARIA</div>
-      <div class="subtitle">Your AI. Your Life. Your Future.</div>
-    </div>
-    <div class="icon-row">
-      <button class="icon-btn" id="searchBtn">
-        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-      </button>
-      <button class="icon-btn" id="sparkleBtn">
-        <svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
-      </button>
-      <button class="icon-btn" id="notifBtn">
-        <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        <div class="notif-dot"></div>
-      </button>
-      <div class="lang-badge">EN</div>
-    </div>
+    <div class="user-badge" id="userBadge">—</div>
   </div>
 
-  <!-- WELCOME BANNER -->
+  <!-- Welcome banner (dynamic name) -->
   <div class="welcome-card">
     <div class="welcome-icon">
-      <svg viewBox="0 0 24 24">
-        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-      </svg>
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
     </div>
     <div class="welcome-text">
-      <div class="welcome-greeting">Hey <span id="userName">Egwame Nicholas</span>, welcome back.</div>
+      <div class="welcome-greeting">Hey <span id="userNameDisplay">friend</span>, welcome back.</div>
     </div>
   </div>
-  <div class="timestamp" id="timestamp">06:16 PM</div>
+  <div class="timestamp" id="timestamp">—</div>
 
-  <!-- FEATURE CARDS GRID (4 cards) -->
+  <!-- 3 compact cards (Memory, Education, Income) -->
   <div class="cards-grid">
-    <!-- Card 1: Memory -->
     <div class="feature-card card-memory" data-pillar="Memory">
-      <div class="card-icon">
-        <svg viewBox="0 0 24 24"><path d="M12 2a9 9 0 1 0 0 18A9 9 0 0 0 12 2z"/><path d="M8 12s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/></svg>
-      </div>
+      <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M12 2a9 9 0 1 0 0 18A9 9 0 0 0 12 2z"/><path d="M8 12s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/></svg></div>
       <div class="card-title">Memory</div>
       <div class="card-desc">Your memories, organized.</div>
       <div class="card-arrow"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
     </div>
-    <!-- Card 2: Education -->
     <div class="feature-card card-education" data-pillar="Education">
-      <div class="card-icon">
-        <svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
-      </div>
+      <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
       <div class="card-title">Education</div>
       <div class="card-desc">Learn, grow, and master.</div>
       <div class="card-arrow"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
     </div>
-    <!-- Card 3: Income -->
     <div class="feature-card card-income" data-pillar="Income">
-      <div class="card-icon">
-        <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-      </div>
+      <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
       <div class="card-title">Income</div>
       <div class="card-desc">Track, plan, and grow.</div>
       <div class="card-arrow"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
     </div>
-    <!-- Card 4: Decisions -->
-    <div class="feature-card card-decisions" data-pillar="Decisions">
-      <div class="card-icon">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-      </div>
-      <div class="card-title">Decisions</div>
-      <div class="card-desc">Get clarity. Make better calls.</div>
-      <div class="card-arrow"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
-    </div>
   </div>
 
-  <!-- DECORATIVE CENTER TEXT DIVIDER -->
-  <div class="center-divider">
-    <div class="divider-text">
-      <span class="divider-star">✦</span> ONE AI. EVERY PART OF YOUR LIFE. <span class="divider-star">✦</span>
-    </div>
-  </div>
-
-  <!-- CONSOLE INPUT BAR -->
+  <!-- Input bar -->
   <div class="input-capsule">
-    <div class="input-icon-left">
-      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-    </div>
-    <input type="text" class="input-field" id="mainInput" placeholder="Message ARIA...">
-    <div class="send-circle" id="sendBtn">
-      <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-    </div>
+    <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+    <input type="text" class="input-field" id="mainInput" placeholder="Chat Aria...">
+    <div class="send-circle" id="sendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
   </div>
 
-  <!-- PERSISTENT NAVIGATION DOCK -->
-  <div class="bottom-nav">
-    <div class="nav-item active" data-tab="chat">
-      <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
-      <div class="nav-label">Chat</div>
-      <div class="active-dot"></div>
-    </div>
-    <div class="nav-item" data-tab="memory">
-      <div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg></div>
-      <div class="nav-label">Memory</div>
-    </div>
-    <div class="nav-item" data-tab="insights">
-      <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div>
-      <div class="nav-label">Insights</div>
-    </div>
-    <div class="nav-item" data-tab="learn">
-      <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
-      <div class="nav-label">Learn</div>
-    </div>
-    <div class="nav-item" data-tab="profile">
-      <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-      <div class="nav-label">Profile</div>
-    </div>
-  </div>
+  <!-- Footer -->
+  <div class="footer-note">By MrNicosh Eg</div>
 </div>
 
-<!-- Chat View (functional) -->
+<!-- Chat overlay -->
 <div id="chatView" class="chat-view">
   <div class="chat-header">
     <button class="back-btn" id="closeChatBtn">←</button>
-    <div style="color:white; font-weight:500;">ARIA</div>
+    <div style="font-weight:500;">ARIA</div>
   </div>
   <div class="messages-area" id="messagesArea"></div>
-  <div class="input-capsule" style="margin-top: auto;">
-    <div class="input-icon-left">
-      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-    </div>
-    <input type="text" class="input-field" id="chatInput" placeholder="Message ARIA...">
-    <div class="send-circle" id="chatSendBtn">
-      <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-    </div>
+  <div class="input-capsule" style="margin-bottom: 0;">
+    <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+    <input type="text" class="input-field" id="chatInput" placeholder="Chat Aria...">
+    <div class="send-circle" id="chatSendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
   </div>
 </div>
 
 <script>
-  // Firebase config (kept for auth, UI unchanged)
+  // Firebase config (unchanged, works with your backend)
   const firebaseConfig = {
     apiKey: "AIzaSyAfrs67qWlU8FjsjqHwNeivGgm7x_vHdJY",
     authDomain: "fiducia-148b9.firebaseapp.com",
@@ -711,108 +433,118 @@
 
   let currentUser = null;
 
-  // Update timestamp
+  // Update timestamp (Lagos time)
   function updateTimestamp() {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos' });
-    document.getElementById('timestamp').textContent = timeStr;
+    const el = document.getElementById('timestamp');
+    if (el) el.textContent = timeStr;
   }
   updateTimestamp();
   setInterval(updateTimestamp, 60000);
 
-  // Starfield generator
+  // Starfield generator (faint, scattered)
   const starfield = document.getElementById('starfield');
-  for (let i = 0; i < 180; i++) {
+  for (let i = 0; i < 280; i++) {
     const star = document.createElement('div');
     star.className = 'star';
     star.style.left = Math.random() * 100 + '%';
     star.style.top = Math.random() * 100 + '%';
-    star.style.width = (Math.random() * 2 + 0.5) + 'px';
+    star.style.width = (Math.random() * 2 + 0.4) + 'px';
     star.style.height = star.style.width;
-    star.style.animationDuration = (Math.random() * 4 + 2) + 's';
-    star.style.animationDelay = (Math.random() * 5) + 's';
+    star.style.animationDuration = (Math.random() * 5 + 2) + 's';
+    star.style.animationDelay = (Math.random() * 6) + 's';
     starfield.appendChild(star);
   }
 
-  // Navigation
-  const navItems = document.querySelectorAll('.nav-item');
-  navItems.forEach(item => {
-    item.addEventListener('click', () => {
-      navItems.forEach(nav => nav.classList.remove('active'));
-      item.classList.add('active');
-    });
-  });
-
-  // Card clicks (pillars)
-  document.querySelectorAll('.feature-card').forEach(card => {
-    card.addEventListener('click', () => {
-      document.getElementById('mainUI').style.display = 'none';
-      document.getElementById('chatView').classList.add('active');
-      addMessage(`Let's talk about ${card.querySelector('.card-title').textContent}. How can I help?`, 'aria');
-    });
-  });
-
-  // Input focus to chat
+  // UI elements
+  const mainUI = document.getElementById('mainUI');
+  const chatView = document.getElementById('chatView');
   const mainInput = document.getElementById('mainInput');
-  mainInput.addEventListener('focus', () => {
-    document.getElementById('mainUI').style.display = 'none';
-    document.getElementById('chatView').classList.add('active');
-  });
-
-  document.getElementById('closeChatBtn').addEventListener('click', () => {
-    document.getElementById('chatView').classList.remove('active');
-    document.getElementById('mainUI').style.display = 'flex';
-  });
-
-  // Messaging functions
-  const messagesArea = document.getElementById('messagesArea');
   const chatInput = document.getElementById('chatInput');
-  const chatSendBtn = document.getElementById('chatSendBtn');
+  const messagesArea = document.getElementById('messagesArea');
+  const userNameSpan = document.getElementById('userNameDisplay');
+  const userBadge = document.getElementById('userBadge');
 
+  // Open chat when focusing the main input or clicking a card
+  function openChat() {
+    mainUI.style.display = 'none';
+    chatView.classList.add('active');
+    if (messagesArea.children.length === 0 && currentUser) {
+      addMessage(`Hey ${currentUser.displayName?.split(' ')[0] || 'friend'}. I'm ARIA. Your memory is intact. What would you like to explore?`, 'aria');
+    }
+    chatInput.focus();
+  }
+
+  function closeChat() {
+    mainUI.style.display = 'flex';
+    chatView.classList.remove('active');
+    messagesArea.innerHTML = '';
+  }
+
+  // Add message to chat
   function addMessage(text, sender) {
     const div = document.createElement('div');
     div.className = `message ${sender}`;
-    div.innerHTML = `<div class="message-bubble">${text}</div>`;
+    div.innerHTML = `<div class="message-bubble">${text.replace(/\n/g, '<br>')}</div>`;
     messagesArea.appendChild(div);
     messagesArea.scrollTop = messagesArea.scrollHeight;
   }
 
-  async function sendMessage() {
-    const msg = chatInput.value.trim();
-    if (!msg || !currentUser) return;
-    addMessage(msg, 'user');
-    chatInput.value = '';
+  // Send message to backend
+  async function sendToAria(message, inputElement) {
+    if (!currentUser) return;
+    addMessage(message, 'user');
+    inputElement.value = '';
     try {
       const res = await fetch('/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: msg,
+          message: message,
           user_id: currentUser.uid,
           email: currentUser.email.toLowerCase()
         })
       });
       const data = await res.json();
-      addMessage(data.reply || 'No response', 'aria');
+      if (data.error) addMessage(`Error: ${data.error}`, 'aria');
+      else addMessage(data.reply || '...', 'aria');
     } catch(e) {
-      addMessage('Connection error. Try again.', 'aria');
+      addMessage('Connection uncertain. Please try again.', 'aria');
     }
   }
 
-  chatSendBtn.addEventListener('click', sendMessage);
+  function sendFromChat() {
+    const msg = chatInput.value.trim();
+    if (!msg) return;
+    sendToAria(msg, chatInput);
+  }
+
+  // Event listeners
+  mainInput.addEventListener('focus', openChat);
+  document.querySelectorAll('.feature-card').forEach(card => {
+    card.addEventListener('click', () => {
+      openChat();
+      addMessage(`Let's talk about ${card.querySelector('.card-title').textContent}. How can I help?`, 'aria');
+    });
+  });
+  document.getElementById('closeChatBtn').addEventListener('click', closeChat);
+  document.getElementById('chatSendBtn').addEventListener('click', sendFromChat);
   chatInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      sendMessage();
+      sendFromChat();
     }
   });
 
-  // Auth
+  // Firebase auth
   auth.onAuthStateChanged(async (user) => {
     if (user) {
       currentUser = user;
-      const name = user.displayName || user.email.split('@')[0];
-      document.getElementById('userName').textContent = name;
+      const displayName = user.displayName || user.email.split('@')[0];
+      userNameSpan.textContent = displayName;
+      userBadge.textContent = displayName;
+      // Register the user with backend
       try {
         await fetch('/set_user_name', {
           method: 'POST',
@@ -820,14 +552,24 @@
           body: JSON.stringify({
             user_id: user.uid,
             email: user.email.toLowerCase(),
-            name: name
+            name: displayName
           })
         });
-      } catch(e) {}
+      } catch(e) { console.warn(e); }
     } else {
       window.location.href = '/login.html';
     }
   });
+
+  // Auto-resize for mobile, ensure chat input is clean
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 600) {
+      document.querySelector('.app-container').style.maxWidth = '560px';
+    } else {
+      document.querySelector('.app-container').style.maxWidth = '100%';
+    }
+  });
+  window.dispatchEvent(new Event('resize'));
 </script>
 </body>
 </html>
