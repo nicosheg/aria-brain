@@ -2,10 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>ARIA — Personal Intelligence System</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <title>ARIA — Your AI. Your Life. Your Future.</title>
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+  <!-- Firebase SDKs (for auth - kept but UI is exact match) -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <style>
@@ -17,285 +18,510 @@
     }
 
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: #0A0A12;
-      color: #E8EDF2;
-      height: 100vh;
-      overflow: hidden;
-      font-weight: 400;
-      letter-spacing: -0.01em;
+      background: #000000;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro', Roboto, sans-serif;
+      overflow-x: hidden;
+      min-height: 100vh;
     }
 
-    /* Deep cosmic background */
+    /* Cosmic background container */
     .cosmic-bg {
       position: fixed;
       inset: 0;
-      background: radial-gradient(ellipse at 40% 50%, #0F0F1A 0%, #05050A 100%);
-      z-index: -2;
+      background: radial-gradient(ellipse at 30% 40%, #02040a 0%, #000000 100%);
+      z-index: 0;
     }
 
-    /* Starfield canvas - ultra subtle */
-    #starCanvas {
+    /* Milky way galaxy cloud diagonal (top-left to bottom-right) */
+    .milky-way {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(ellipse at 15% 20%, rgba(120, 80, 180, 0.15) 0%, rgba(50, 40, 80, 0.05) 40%, transparent 70%);
+      transform: rotate(25deg) scale(1.5);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Starfield container */
+    .starfield {
       position: fixed;
       inset: 0;
       width: 100%;
       height: 100%;
-      z-index: -1;
-      pointer-events: none;
-      opacity: 0.7;
-    }
-
-    /* Subtle nebula breath */
-    .nebula-breath {
-      position: fixed;
-      width: 100%;
-      height: 100%;
-      background: radial-gradient(circle at 30% 50%, rgba(167, 139, 250, 0.03) 0%, transparent 60%);
       pointer-events: none;
       z-index: 0;
-      animation: breath 24s infinite alternate;
     }
 
-    @keyframes breath {
-      0% { opacity: 0.3; transform: scale(1); }
-      100% { opacity: 0.8; transform: scale(1.05); }
+    .star {
+      position: absolute;
+      background: white;
+      border-radius: 50%;
+      opacity: 0;
+      animation: twinkle linear infinite;
     }
 
-    /* Main container */
-    .aria-container {
+    @keyframes twinkle {
+      0% { opacity: 0; transform: scale(0.8); }
+      50% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0; transform: scale(0.8); }
+    }
+
+    /* Nebula dust top-left */
+    .nebula-dust {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(circle, rgba(100, 70, 160, 0.12) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+      filter: blur(40px);
+    }
+
+    /* Main content - z-index above background */
+    .app-container {
       position: relative;
       z-index: 2;
-      max-width: 560px;
+      max-width: 430px;
       margin: 0 auto;
-      height: 100vh;
+      min-height: 100vh;
+      padding: 20px 20px 12px;
       display: flex;
       flex-direction: column;
-      background: transparent;
     }
 
-    /* Header - minimal */
+    /* ═══════════════════════════════════════════════════════════════════
+       HEADER SECTION
+    ═══════════════════════════════════════════════════════════════════ */
     .header {
       display: flex;
       justify-content: space-between;
-      align-items: baseline;
-      padding: 24px 24px 8px;
-      flex-shrink: 0;
+      align-items: flex-start;
+      margin-bottom: 24px;
     }
 
-    .mark {
-      font-size: 11px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: #7A8AA4;
-      font-weight: 400;
+    .title-section {
+      position: relative;
     }
 
-    .user-context {
-      font-size: 12px;
-      color: #A78BFA;
-      opacity: 0.7;
-      background: transparent;
+    /* Constellation ring behind ARIA text */
+    .constellation-ring {
+      position: absolute;
+      top: -8px;
+      left: -12px;
+      width: 52px;
+      height: 52px;
     }
 
-    /* Main scroll area */
-    .intelligence-layer {
-      flex: 1;
-      overflow-y: auto;
-      padding: 8px 24px 24px;
-      scrollbar-width: thin;
-      display: flex;
-      flex-direction: column;
-      gap: 28px;
+    .constellation-ring svg {
+      width: 100%;
+      height: 100%;
+      stroke: rgba(255, 255, 255, 0.15);
+      stroke-width: 0.8;
+      fill: none;
     }
 
-    .intelligence-layer::-webkit-scrollbar {
-      width: 3px;
-    }
-    .intelligence-layer::-webkit-scrollbar-thumb {
-      background: #2A2A3A;
-      border-radius: 3px;
-    }
-
-    /* Hero greeting - focus, not cards */
-    .hero-greeting {
-      animation: fadeUp 0.7s ease;
-    }
-
-    .greeting-line {
+    .main-title {
       font-size: 28px;
-      font-weight: 500;
-      letter-spacing: -0.02em;
-      line-height: 1.2;
-      margin-bottom: 12px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      color: white;
+      line-height: 1.1;
+      position: relative;
     }
 
-    .greeting-line span {
-      color: #A78BFA;
-      font-weight: 500;
-    }
-
-    .status-summary {
-      font-size: 15px;
-      color: #9AA6BB;
-      line-height: 1.5;
-      margin-bottom: 8px;
-    }
-
-    .focus-question {
-      font-size: 17px;
-      color: #C0C8D6;
-      margin-top: 20px;
+    .subtitle {
+      font-size: 10px;
       font-weight: 400;
-      border-left: 2px solid rgba(167, 139, 250, 0.4);
-      padding-left: 14px;
+      letter-spacing: 0.8px;
+      color: #94A3B8;
+      margin-top: 4px;
     }
 
-    /* Portal cards - small, inviting */
-    .portals {
+    /* Right icons row */
+    .icon-row {
       display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin-top: 12px;
+      gap: 16px;
+      align-items: center;
     }
 
-    .portal {
-      background: rgba(255, 255, 255, 0.02);
-      border: 0.5px solid rgba(255, 255, 255, 0.06);
-      border-radius: 80px;
-      padding: 8px 18px;
-      font-size: 13px;
-      font-weight: 400;
-      color: #BCC6D4;
-      cursor: pointer;
-      transition: all 0.2s;
-      backdrop-filter: blur(4px);
-    }
-
-    .portal:hover {
-      background: rgba(167, 139, 250, 0.1);
-      border-color: rgba(167, 139, 250, 0.3);
-      color: #E8EDF2;
-      transform: translateY(-1px);
-    }
-
-    /* Memory nodes (future stars) */
-    .memory-traces {
-      margin-top: 20px;
-      font-size: 11px;
-      color: #5A6A86;
-      letter-spacing: 0.3px;
-      border-top: 0.5px solid rgba(255,255,255,0.05);
-      padding-top: 20px;
-    }
-
-    /* Input area - connection point */
-    .input-connection {
-      padding: 12px 24px 24px;
-      flex-shrink: 0;
-      background: transparent;
-    }
-
-    .connection-field {
-      background: rgba(20, 22, 36, 0.6);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 0.5px solid rgba(255, 255, 255, 0.08);
-      border-radius: 44px;
-      padding: 8px 8px 8px 22px;
-      display: flex;
-      align-items: flex-end;
-      gap: 10px;
-      transition: border-color 0.2s;
-    }
-
-    .connection-field:focus-within {
-      border-color: rgba(167, 139, 250, 0.3);
-    }
-
-    .input-icon {
-      font-size: 18px;
-      opacity: 0.5;
-    }
-
-    #intentInput {
-      flex: 1;
+    .icon-btn {
       background: transparent;
       border: none;
-      color: #E8EDF2;
-      font-family: inherit;
-      font-size: 15px;
-      font-weight: 400;
-      resize: none;
-      outline: none;
-      min-height: 46px;
-      line-height: 1.4;
-    }
-
-    #intentInput::placeholder {
-      color: #5A6A86;
-      font-weight: 300;
-    }
-
-    .send-connection {
-      background: rgba(167, 139, 250, 0.5);
-      border: none;
-      border-radius: 40px;
-      width: 40px;
-      height: 40px;
       cursor: pointer;
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: background 0.2s;
     }
 
-    .send-connection:hover {
+    .icon-btn svg {
+      width: 20px;
+      height: 20px;
+      stroke: white;
+      stroke-width: 1.5;
+      fill: none;
+    }
+
+    .notif-dot {
+      position: absolute;
+      top: -2px;
+      right: -4px;
+      width: 8px;
+      height: 8px;
       background: #A78BFA;
+      border-radius: 50%;
+      box-shadow: 0 0 4px #A78BFA;
     }
 
-    /* Chat view - minimal, disappears */
-    .chat-layer {
-      display: none;
-      flex-direction: column;
-      height: 100%;
-    }
-
-    .chat-layer.active {
-      display: flex;
-    }
-
-    .chat-header {
-      padding: 20px 24px 12px;
+    .lang-badge {
+      background: rgba(0, 0, 0, 0.6);
+      border: 0.5px solid rgba(255, 255, 255, 0.3);
+      border-radius: 30px;
+      width: 36px;
+      height: 36px;
       display: flex;
       align-items: center;
-      gap: 16px;
-      border-bottom: 0.5px solid rgba(255,255,255,0.05);
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: white;
+      letter-spacing: 0.5px;
     }
 
-    .chat-back {
-      background: rgba(255,255,255,0.05);
-      width: 32px;
-      height: 32px;
+    /* ═══════════════════════════════════════════════════════════════════
+       WELCOME BANNER
+    ═══════════════════════════════════════════════════════════════════ */
+    .welcome-card {
+      background: rgba(10, 12, 25, 0.8);
+      border: 0.5px solid rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      backdrop-filter: blur(4px);
+      margin-bottom: 8px;
+    }
+
+    .welcome-icon {
+      width: 48px;
+      height: 48px;
+      background: rgba(0, 0, 0, 0.5);
+      border-radius: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .welcome-icon svg {
+      width: 24px;
+      height: 24px;
+      stroke: #60A5FA;
+      fill: none;
+      stroke-width: 1.5;
+    }
+
+    .welcome-icon svg use {
+      /* three glowing blue stars */
+    }
+
+    .welcome-text {
+      flex: 1;
+    }
+
+    .welcome-greeting {
+      font-size: 16px;
+      font-weight: 600;
+      color: white;
+      line-height: 1.4;
+    }
+
+    .welcome-greeting span {
+      font-weight: 700;
+    }
+
+    .timestamp {
+      font-size: 12px;
+      color: #55657E;
+      margin-left: 4px;
+      margin-top: 4px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       FEATURE CARDS GRID (4 equal cards)
+    ═══════════════════════════════════════════════════════════════════ */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin: 20px 0;
+    }
+
+    .feature-card {
+      background: rgba(20, 22, 40, 0.5);
+      backdrop-filter: blur(8px);
+      border-radius: 20px;
+      padding: 16px 10px 12px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      transition: all 0.2s ease;
+      border: 0.5px solid rgba(255, 255, 255, 0.05);
+    }
+
+    /* Card specific accent glows */
+    .card-memory { box-shadow: 0 0 12px rgba(167, 139, 250, 0.15); }
+    .card-education { box-shadow: 0 0 12px rgba(96, 165, 250, 0.15); }
+    .card-income { box-shadow: 0 0 12px rgba(16, 185, 129, 0.15); }
+    .card-decisions { box-shadow: 0 0 12px rgba(245, 158, 11, 0.15); }
+
+    .card-icon {
+      width: 40px;
+      height: 40px;
       border-radius: 20px;
       display: flex;
       align-items: center;
       justify-content: center;
+      margin-bottom: 12px;
+    }
+
+    .card-memory .card-icon { background: rgba(167, 139, 250, 0.15); }
+    .card-education .card-icon { background: rgba(96, 165, 250, 0.15); }
+    .card-income .card-icon { background: rgba(16, 185, 129, 0.15); }
+    .card-decisions .card-icon { background: rgba(245, 158, 11, 0.15); }
+
+    .card-icon svg {
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke-width: 1.5;
+    }
+    .card-memory .card-icon svg { stroke: #A78BFA; }
+    .card-education .card-icon svg { stroke: #60A5FA; }
+    .card-income .card-icon svg { stroke: #10B981; }
+    .card-decisions .card-icon svg { stroke: #F59E0B; }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: white;
+      margin-bottom: 4px;
+    }
+
+    .card-desc {
+      font-size: 10px;
+      color: #9CA3AF;
+      line-height: 1.3;
+      margin-bottom: 12px;
+    }
+
+    .card-arrow {
+      align-self: flex-end;
+      margin-top: auto;
+      opacity: 0.5;
+    }
+
+    .card-arrow svg {
+      width: 12px;
+      height: 12px;
+      stroke: #9CA3AF;
+      stroke-width: 1.5;
+      fill: none;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       DECORATIVE CENTER TEXT DIVIDER
+    ═══════════════════════════════════════════════════════════════════ */
+    .center-divider {
+      text-align: center;
+      margin: 16px 0 24px;
+    }
+
+    .divider-text {
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 2px;
+      color: #60A5FA;
+      text-transform: uppercase;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .divider-star {
+      font-size: 10px;
+      color: #60A5FA;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       CONSOLE INPUT BAR
+    ═══════════════════════════════════════════════════════════════════ */
+    .input-capsule {
+      background: #05070F;
+      border: 1.5px solid #3B82F6;
+      border-radius: 50px;
+      padding: 8px 12px 8px 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      box-shadow: 0 0 8px rgba(59, 130, 246, 0.2);
+    }
+
+    .input-icon-left svg {
+      width: 18px;
+      height: 18px;
+      stroke: #60A5FA;
+      fill: none;
+      stroke-width: 1.5;
+    }
+
+    .input-field {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      padding: 8px 0;
+    }
+
+    .input-field::placeholder {
+      color: #334155;
+      font-weight: 400;
+    }
+
+    .send-circle {
+      width: 36px;
+      height: 36px;
+      background: transparent;
+      border: 1px solid #1E40AF;
+      border-radius: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
-      font-size: 18px;
+    }
+
+    .send-circle svg {
+      width: 16px;
+      height: 16px;
+      stroke: #3B82F6;
+      stroke-width: 2;
+      fill: none;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       PERSISTENT NAVIGATION DOCK
+    ═══════════════════════════════════════════════════════════════════ */
+    .bottom-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding: 12px 0 0;
+      border-top: 0.5px solid rgba(255, 255, 255, 0.06);
+      margin-top: auto;
+    }
+
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      background: transparent;
+      border: none;
+      padding: 4px 0;
+      transition: opacity 0.2s;
+    }
+
+    .nav-icon {
+      width: 24px;
+      height: 24px;
+    }
+
+    .nav-icon svg {
+      width: 100%;
+      height: 100%;
+      fill: none;
+      stroke: #6B7280;
+      stroke-width: 1.5;
+    }
+
+    .nav-item.active .nav-icon svg {
+      stroke: #3B82F6;
+    }
+
+    .nav-label {
+      font-size: 10px;
+      font-weight: 500;
+      color: #6B7280;
+      letter-spacing: 0.3px;
+    }
+
+    .nav-item.active .nav-label {
+      color: #3B82F6;
+    }
+
+    .active-dot {
+      width: 4px;
+      height: 4px;
+      background: #3B82F6;
+      border-radius: 2px;
+      margin-top: 2px;
+    }
+
+    /* Utility */
+    .hidden {
+      display: none;
+    }
+
+    /* Chat view (minimal, but required for functionality) */
+    .chat-view {
+      position: fixed;
+      inset: 0;
+      background: #000000;
+      z-index: 100;
+      padding: 20px;
+      display: none;
+      flex-direction: column;
+    }
+
+    .chat-view.active {
+      display: flex;
+    }
+
+    .chat-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .back-btn {
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
     }
 
     .messages-area {
       flex: 1;
       overflow-y: auto;
-      padding: 20px 24px;
       display: flex;
       flex-direction: column;
       gap: 16px;
     }
 
     .message {
-      max-width: 85%;
-      animation: fadeUp 0.3s ease;
+      max-width: 80%;
     }
 
     .message.user {
@@ -307,154 +533,171 @@
     }
 
     .message-bubble {
-      padding: 10px 16px;
-      border-radius: 22px;
+      padding: 10px 14px;
+      border-radius: 20px;
       font-size: 14px;
-      line-height: 1.45;
-      font-weight: 400;
-    }
-
-    .user .message-bubble {
-      background: rgba(167, 139, 250, 0.2);
-      border: 0.5px solid rgba(167, 139, 250, 0.2);
-      border-bottom-right-radius: 6px;
-    }
-
-    .aria .message-bubble {
-      background: rgba(255, 255, 255, 0.04);
-      border: 0.5px solid rgba(255, 255, 255, 0.06);
-      border-bottom-left-radius: 6px;
-    }
-
-    .message-time {
-      font-size: 9px;
-      color: #5A6A86;
-      margin-top: 5px;
-      padding: 0 6px;
-    }
-
-    .typing-thought {
-      display: flex;
-      gap: 4px;
-      padding: 8px 0;
-    }
-    .typing-dot {
-      width: 5px;
-      height: 5px;
-      background: #A78BFA;
-      border-radius: 50%;
-      opacity: 0.4;
-      animation: pulseDot 1.4s infinite;
-    }
-    @keyframes pulseDot {
-      0%, 100% { opacity: 0.2; transform: scale(0.8);}
-      50% { opacity: 0.8; transform: scale(1);}
-    }
-
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* Login overlay - minimal */
-    .login-universe {
-      position: fixed;
-      inset: 0;
-      background: #05050A;
-      backdrop-filter: blur(20px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-    }
-
-    .login-portal {
-      text-align: center;
-      padding: 32px;
-    }
-
-    .login-portal .brand {
-      font-size: 36px;
-      font-weight: 500;
-      letter-spacing: 4px;
-      margin-bottom: 40px;
-    }
-
-    .google-connect {
       background: rgba(255,255,255,0.05);
-      border: 0.5px solid rgba(255,255,255,0.1);
-      border-radius: 44px;
-      padding: 12px 28px;
-      font-size: 14px;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 12px;
+      color: white;
     }
   </style>
 </head>
 <body>
 
 <div class="cosmic-bg"></div>
-<canvas id="starCanvas"></canvas>
-<div class="nebula-breath"></div>
+<div class="milky-way"></div>
+<div class="nebula-dust"></div>
+<div class="starfield" id="starfield"></div>
 
-<div id="loginOverlay" class="login-universe">
-  <div class="login-portal">
-    <div class="brand">ARIA</div>
-    <button class="google-connect" id="googleSigninBtn">
-      <span>🔗</span> connect with Google
-    </button>
-  </div>
-</div>
-
-<div id="ariaApp" style="display: none;">
-<div class="aria-container">
+<!-- Main UI (exact spec) -->
+<div class="app-container" id="mainUI">
+  <!-- HEADER -->
   <div class="header">
-    <div class="mark">PERSONAL INTELLIGENCE SYSTEM</div>
-    <div class="user-context" id="userIdentity"></div>
-  </div>
-
-  <!-- Home intelligence layer -->
-  <div id="homeLayer" class="intelligence-layer">
-    <div class="hero-greeting">
-      <div class="greeting-line" id="greetingText">Good evening, <span>Nicholas</span>.</div>
-      <div class="status-summary" id="statusSummary">loading your universe...</div>
-      <div class="focus-question">What would you like to explore today?</div>
-    </div>
-
-    <div class="portals">
-      <div class="portal" data-pillar="Memory">🧠 Memory</div>
-      <div class="portal" data-pillar="Education">📖 Education</div>
-      <div class="portal" data-pillar="Income">💰 Income</div>
-      <div class="portal" data-pillar="Decisions">⚖️ Decisions</div>
-    </div>
-
-    <div class="memory-traces" id="memoryTraces">
-      ✦ memory constellation forming ✦
-    </div>
-  </div>
-
-  <!-- Chat layer (appears when needed) -->
-  <div id="chatLayer" class="chat-layer">
-    <div class="chat-header">
-      <div class="chat-back" id="closeChatBtn">←</div>
-      <div style="font-size: 13px; opacity:0.7;">intelligence stream</div>
-    </div>
-    <div class="messages-area" id="messagesArea"></div>
-    <div class="input-connection">
-      <div class="connection-field">
-        <span class="input-icon">✦</span>
-        <textarea id="chatIntent" rows="1" placeholder="What's on your mind?"></textarea>
-        <button class="send-connection" id="sendChatBtn">→</button>
+    <div class="title-section">
+      <div class="constellation-ring">
+        <svg viewBox="0 0 60 60">
+          <circle cx="30" cy="30" r="20" stroke="rgba(255,255,255,0.2)" fill="none" stroke-width="0.5"/>
+          <circle cx="20" cy="18" r="1.5" fill="white" opacity="0.4"/>
+          <circle cx="40" cy="22" r="1" fill="white" opacity="0.3"/>
+          <circle cx="25" cy="40" r="1.5" fill="white" opacity="0.5"/>
+          <line x1="20" y1="18" x2="40" y2="22" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
+          <line x1="20" y1="18" x2="25" y2="40" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
+        </svg>
       </div>
+      <div class="main-title">ARIA</div>
+      <div class="subtitle">Your AI. Your Life. Your Future.</div>
+    </div>
+    <div class="icon-row">
+      <button class="icon-btn" id="searchBtn">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      </button>
+      <button class="icon-btn" id="sparkleBtn">
+        <svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
+      </button>
+      <button class="icon-btn" id="notifBtn">
+        <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <div class="notif-dot"></div>
+      </button>
+      <div class="lang-badge">EN</div>
+    </div>
+  </div>
+
+  <!-- WELCOME BANNER -->
+  <div class="welcome-card">
+    <div class="welcome-icon">
+      <svg viewBox="0 0 24 24">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+      </svg>
+    </div>
+    <div class="welcome-text">
+      <div class="welcome-greeting">Hey <span id="userName">Egwame Nicholas</span>, welcome back.</div>
+    </div>
+  </div>
+  <div class="timestamp" id="timestamp">06:16 PM</div>
+
+  <!-- FEATURE CARDS GRID (4 cards) -->
+  <div class="cards-grid">
+    <!-- Card 1: Memory -->
+    <div class="feature-card card-memory" data-pillar="Memory">
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2a9 9 0 1 0 0 18A9 9 0 0 0 12 2z"/><path d="M8 12s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/></svg>
+      </div>
+      <div class="card-title">Memory</div>
+      <div class="card-desc">Your memories, organized.</div>
+      <div class="card-arrow"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
+    </div>
+    <!-- Card 2: Education -->
+    <div class="feature-card card-education" data-pillar="Education">
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+      </div>
+      <div class="card-title">Education</div>
+      <div class="card-desc">Learn, grow, and master.</div>
+      <div class="card-arrow"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
+    </div>
+    <!-- Card 3: Income -->
+    <div class="feature-card card-income" data-pillar="Income">
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      </div>
+      <div class="card-title">Income</div>
+      <div class="card-desc">Track, plan, and grow.</div>
+      <div class="card-arrow"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
+    </div>
+    <!-- Card 4: Decisions -->
+    <div class="feature-card card-decisions" data-pillar="Decisions">
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+      </div>
+      <div class="card-title">Decisions</div>
+      <div class="card-desc">Get clarity. Make better calls.</div>
+      <div class="card-arrow"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
+    </div>
+  </div>
+
+  <!-- DECORATIVE CENTER TEXT DIVIDER -->
+  <div class="center-divider">
+    <div class="divider-text">
+      <span class="divider-star">✦</span> ONE AI. EVERY PART OF YOUR LIFE. <span class="divider-star">✦</span>
+    </div>
+  </div>
+
+  <!-- CONSOLE INPUT BAR -->
+  <div class="input-capsule">
+    <div class="input-icon-left">
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    </div>
+    <input type="text" class="input-field" id="mainInput" placeholder="Message ARIA...">
+    <div class="send-circle" id="sendBtn">
+      <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+    </div>
+  </div>
+
+  <!-- PERSISTENT NAVIGATION DOCK -->
+  <div class="bottom-nav">
+    <div class="nav-item active" data-tab="chat">
+      <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+      <div class="nav-label">Chat</div>
+      <div class="active-dot"></div>
+    </div>
+    <div class="nav-item" data-tab="memory">
+      <div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg></div>
+      <div class="nav-label">Memory</div>
+    </div>
+    <div class="nav-item" data-tab="insights">
+      <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div>
+      <div class="nav-label">Insights</div>
+    </div>
+    <div class="nav-item" data-tab="learn">
+      <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
+      <div class="nav-label">Learn</div>
+    </div>
+    <div class="nav-item" data-tab="profile">
+      <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+      <div class="nav-label">Profile</div>
     </div>
   </div>
 </div>
+
+<!-- Chat View (functional) -->
+<div id="chatView" class="chat-view">
+  <div class="chat-header">
+    <button class="back-btn" id="closeChatBtn">←</button>
+    <div style="color:white; font-weight:500;">ARIA</div>
+  </div>
+  <div class="messages-area" id="messagesArea"></div>
+  <div class="input-capsule" style="margin-top: auto;">
+    <div class="input-icon-left">
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    </div>
+    <input type="text" class="input-field" id="chatInput" placeholder="Message ARIA...">
+    <div class="send-circle" id="chatSendBtn">
+      <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+    </div>
+  </div>
 </div>
 
 <script>
-  // Firebase config
+  // Firebase config (kept for auth, UI unchanged)
   const firebaseConfig = {
     apiKey: "AIzaSyAfrs67qWlU8FjsjqHwNeivGgm7x_vHdJY",
     authDomain: "fiducia-148b9.firebaseapp.com",
@@ -467,117 +710,101 @@
   const auth = firebase.auth();
 
   let currentUser = null;
-  let typingDiv = null;
 
-  // DOM elements
-  const loginOverlay = document.getElementById('loginOverlay');
-  const ariaApp = document.getElementById('ariaApp');
-  const homeLayer = document.getElementById('homeLayer');
-  const chatLayer = document.getElementById('chatLayer');
+  // Update timestamp
+  function updateTimestamp() {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos' });
+    document.getElementById('timestamp').textContent = timeStr;
+  }
+  updateTimestamp();
+  setInterval(updateTimestamp, 60000);
+
+  // Starfield generator
+  const starfield = document.getElementById('starfield');
+  for (let i = 0; i < 180; i++) {
+    const star = document.createElement('div');
+    star.className = 'star';
+    star.style.left = Math.random() * 100 + '%';
+    star.style.top = Math.random() * 100 + '%';
+    star.style.width = (Math.random() * 2 + 0.5) + 'px';
+    star.style.height = star.style.width;
+    star.style.animationDuration = (Math.random() * 4 + 2) + 's';
+    star.style.animationDelay = (Math.random() * 5) + 's';
+    starfield.appendChild(star);
+  }
+
+  // Navigation
+  const navItems = document.querySelectorAll('.nav-item');
+  navItems.forEach(item => {
+    item.addEventListener('click', () => {
+      navItems.forEach(nav => nav.classList.remove('active'));
+      item.classList.add('active');
+    });
+  });
+
+  // Card clicks (pillars)
+  document.querySelectorAll('.feature-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.getElementById('mainUI').style.display = 'none';
+      document.getElementById('chatView').classList.add('active');
+      addMessage(`Let's talk about ${card.querySelector('.card-title').textContent}. How can I help?`, 'aria');
+    });
+  });
+
+  // Input focus to chat
+  const mainInput = document.getElementById('mainInput');
+  mainInput.addEventListener('focus', () => {
+    document.getElementById('mainUI').style.display = 'none';
+    document.getElementById('chatView').classList.add('active');
+  });
+
+  document.getElementById('closeChatBtn').addEventListener('click', () => {
+    document.getElementById('chatView').classList.remove('active');
+    document.getElementById('mainUI').style.display = 'flex';
+  });
+
+  // Messaging functions
   const messagesArea = document.getElementById('messagesArea');
-  const chatIntent = document.getElementById('chatIntent');
-  const userIdentitySpan = document.getElementById('userIdentity');
-
-  function updateGreeting(name) {
-    const hour = new Date().getHours();
-    let greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-    document.getElementById('greetingText').innerHTML = `${greeting}, <span>${name}</span>.`;
-    document.getElementById('statusSummary').innerHTML = `Your memory is intact. 3 learning journeys active · 2 emerging opportunities`;
-    userIdentitySpan.textContent = name;
-  }
-
-  function showTyping() {
-    if (typingDiv) return;
-    typingDiv = document.createElement('div');
-    typingDiv.className = 'message aria';
-    typingDiv.innerHTML = `<div class="message-bubble"><div class="typing-thought"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
-    messagesArea.appendChild(typingDiv);
-    messagesArea.scrollTop = messagesArea.scrollHeight;
-  }
-
-  function hideTyping() {
-    if (typingDiv) { typingDiv.remove(); typingDiv = null; }
-  }
+  const chatInput = document.getElementById('chatInput');
+  const chatSendBtn = document.getElementById('chatSendBtn');
 
   function addMessage(text, sender) {
     const div = document.createElement('div');
     div.className = `message ${sender}`;
-    const bubble = document.createElement('div');
-    bubble.className = 'message-bubble';
-    if (sender === 'aria') bubble.innerHTML = marked.parse(text);
-    else bubble.textContent = text;
-    const timeDiv = document.createElement('div');
-    timeDiv.className = 'message-time';
-    timeDiv.textContent = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-    div.appendChild(bubble);
-    div.appendChild(timeDiv);
+    div.innerHTML = `<div class="message-bubble">${text}</div>`;
     messagesArea.appendChild(div);
     messagesArea.scrollTop = messagesArea.scrollHeight;
-    return div;
   }
 
-  async function sendToAria(messageText) {
-    if (!currentUser) return;
-    showTyping();
+  async function sendMessage() {
+    const msg = chatInput.value.trim();
+    if (!msg || !currentUser) return;
+    addMessage(msg, 'user');
+    chatInput.value = '';
     try {
       const res = await fetch('/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: messageText,
+          message: msg,
           user_id: currentUser.uid,
           email: currentUser.email.toLowerCase()
         })
       });
       const data = await res.json();
-      hideTyping();
-      if (data.error) addMessage(`error: ${data.error}`, 'aria');
-      else addMessage(data.reply || '…', 'aria');
+      addMessage(data.reply || 'No response', 'aria');
     } catch(e) {
-      hideTyping();
-      addMessage(`connection uncertain: ${e.message}`, 'aria');
+      addMessage('Connection error. Try again.', 'aria');
     }
   }
 
-  async function sendMessage() {
-    const msg = chatIntent.value.trim();
-    if (!msg) return;
-    addMessage(msg, 'user');
-    chatIntent.value = '';
-    chatIntent.style.height = 'auto';
-    await sendToAria(msg);
-  }
-
-  function openChatWithContext(context) {
-    homeLayer.style.display = 'none';
-    chatLayer.classList.add('active');
-    messagesArea.innerHTML = '';
-    addMessage(`I'm here, ${currentUser?.displayName?.split(' ')[0] || 'friend'}.`, 'aria');
-    addMessage(`You wanted to explore ${context}. What would you like to know?`, 'aria');
-    chatIntent.focus();
-  }
-
-  function closeChat() {
-    homeLayer.style.display = 'flex';
-    chatLayer.classList.remove('active');
-    messagesArea.innerHTML = '';
-  }
-
-  // Portal click handlers
-  document.querySelectorAll('.portal').forEach(el => {
-    el.addEventListener('click', () => openChatWithContext(el.textContent.trim()));
-  });
-  document.getElementById('closeChatBtn').onclick = closeChat;
-  document.getElementById('sendChatBtn').onclick = sendMessage;
-  chatIntent.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+  chatSendBtn.addEventListener('click', sendMessage);
+  chatInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
       e.preventDefault();
       sendMessage();
     }
-  });
-  chatIntent.addEventListener('input', function() {
-    this.style.height = 'auto';
-    this.style.height = Math.min(this.scrollHeight, 100) + 'px';
   });
 
   // Auth
@@ -585,74 +812,22 @@
     if (user) {
       currentUser = user;
       const name = user.displayName || user.email.split('@')[0];
-      await fetch('/set_user_name', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: user.uid,
-          email: user.email.toLowerCase(),
-          name: name
-        })
-      }).catch(e=>console.log);
-      loginOverlay.style.display = 'none';
-      ariaApp.style.display = 'block';
-      updateGreeting(name);
+      document.getElementById('userName').textContent = name;
+      try {
+        await fetch('/set_user_name', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: user.uid,
+            email: user.email.toLowerCase(),
+            name: name
+          })
+        });
+      } catch(e) {}
     } else {
-      loginOverlay.style.display = 'flex';
-      ariaApp.style.display = 'none';
+      window.location.href = '/login.html';
     }
   });
-
-  document.getElementById('googleSigninBtn').onclick = () => {
-    const provider = new firebase.auth.GoogleAuthProvider();
-    auth.signInWithPopup(provider);
-  };
-
-  // Starfield – ultra subtle
-  const canvas = document.getElementById('starCanvas');
-  const ctxCanvas = canvas.getContext('2d');
-  let stars = [];
-  let starTime = 0;
-
-  function resizeStars() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    stars = [];
-    const starCount = Math.floor((canvas.width * canvas.height) / 7000);
-    for (let i = 0; i < starCount; i++) {
-      stars.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        radius: Math.random() * 1.2 + 0.3,
-        alpha: Math.random() * 0.5 + 0.1,
-        driftX: (Math.random() - 0.5) * 0.2,
-        driftY: (Math.random() - 0.5) * 0.2,
-        speed: 0.002 + Math.random() * 0.005
-      });
-    }
-  }
-
-  function drawStars() {
-    if (!ctxCanvas) return;
-    ctxCanvas.clearRect(0, 0, canvas.width, canvas.height);
-    ctxCanvas.fillStyle = 'transparent';
-    ctxCanvas.fillRect(0, 0, canvas.width, canvas.height);
-    starTime += 0.01;
-    for (let s of stars) {
-      let x = s.x + Math.sin(starTime * s.speed) * 0.5;
-      let y = s.y + Math.cos(starTime * s.speed * 0.7) * 0.3;
-      let twinkle = 0.5 + 0.5 * Math.sin(starTime * s.speed + s.alpha * 10);
-      ctxCanvas.beginPath();
-      ctxCanvas.arc(x, y, s.radius, 0, Math.PI*2);
-      ctxCanvas.fillStyle = `rgba(255, 245, 240, ${s.alpha * (0.6 + twinkle * 0.4)})`;
-      ctxCanvas.fill();
-    }
-    requestAnimationFrame(drawStars);
-  }
-
-  window.addEventListener('resize', () => { resizeStars(); });
-  resizeStars();
-  drawStars();
 </script>
 </body>
 </html>
