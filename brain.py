@@ -153,7 +153,6 @@ def init_postgres():
         return {"error": str(e)}
 
 def generate_aria_uid(email):
-def generate_aria_uid(email):
     """Get or create aria_uid for a normalized email."""
     global _postgres_pool
     if not _postgres_pool:
@@ -194,17 +193,19 @@ def generate_aria_uid(email):
             _postgres_pool.putconn(conn)
 
 def save_memory_node(aria_uid, node_type, content, importance=50):
-    """Save a memory node (fact, context, decision, outcome)."""
     valid_types = ["fact", "context", "decision", "outcome"]
     if node_type not in valid_types:
         return {"error": f"node_type must be one of: {valid_types}"}
     if importance < 0 or importance > 100:
         return {"error": "importance must be between 0 and 100"}
+    
     global _postgres_pool
     if not _postgres_pool:
         init_result = init_postgres()
         if "error" in init_result:
             return {"error": init_result["error"]}
+    
+    conn = None
     try:
         conn = _postgres_pool.getconn()
         cur = conn.cursor()
@@ -215,20 +216,22 @@ def save_memory_node(aria_uid, node_type, content, importance=50):
         """, (aria_uid, node_type, content, importance))
         node_id = cur.fetchone()[0]
         conn.commit()
-        cur.close()
-        _postgres_pool.putconn(conn)
         return {"node_id": node_id, "status": "saved"}
     except Exception as e:
         return {"error": str(e)}
+    finally:
+        if conn:
+            _postgres_pool.putconn(conn)
 
 def load_user_memory(aria_uid, limit=10):
-    """Load all memory nodes for a user, sorted by importance."""
     result = {"facts": [], "context": [], "decisions": [], "outcomes": []}
     global _postgres_pool
     if not _postgres_pool:
         init_result = init_postgres()
         if "error" in init_result:
             return result
+    
+    conn = None
     try:
         conn = _postgres_pool.getconn()
         cur = conn.cursor()
@@ -241,13 +244,15 @@ def load_user_memory(aria_uid, limit=10):
         """, (aria_uid, limit))
         rows = cur.fetchall()
         for node_type, content, importance in rows:
-            result[node_type + "s"].append({"content": content, "importance": importance})
-        cur.close()
-        _postgres_pool.putconn(conn)
+            key = node_type + "s"
+            result[key].append({"content": content, "importance": importance})
         return result
     except Exception as e:
         print(f"load_user_memory error: {e}")
         return result
+    finally:
+        if conn:
+            _postgres_pool.putconn(conn)
 
 
 # ════════════════════════════════════════════════════════════════════
