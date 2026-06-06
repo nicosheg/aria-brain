@@ -1441,10 +1441,6 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(404)
         self.end_headers()
 
-        else:
-            self.send_response(404)
-            self.end_headers()
-
     def seed_aria_lessons(self):
         SEED_KEY = "aria_seed_nicholas_2026"
         query = self.path.split("?key=")[-1] if "?key=" in self.path else ""
