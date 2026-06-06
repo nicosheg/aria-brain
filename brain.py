@@ -155,27 +155,30 @@ def init_postgres():
         return {"error": str(e)}
 
 def generate_aria_uid(email):
-    """Generate or retrieve existing ARIA UID for an email."""
+    """Generate or retrieve existing ARIA UID for an email (case‑insensitive)."""
     global _postgres_pool
     if not _postgres_pool:
         init_result = init_postgres()
         if "error" in init_result:
             return {"error": init_result["error"]}
+    
+    # Normalize email: lowercase and strip whitespace
+    email = email.strip().lower()
+    
     try:
         conn = _postgres_pool.getconn()
         cur = conn.cursor()
-        # Check if email already exists
         cur.execute("SELECT aria_uid FROM users WHERE email = %s", (email,))
         existing = cur.fetchone()
         if existing:
             _postgres_pool.putconn(conn)
             return {"aria_uid": existing[0]}
-        # Generate new sequential UID
+        
+        # Generate new UID
         cur.execute("SELECT COUNT(*) FROM users")
         count = cur.fetchone()[0]
         next_num = count + 1
         new_uid = f"aria{next_num:012d}"
-        # Insert with conflict on email (ensure email uniqueness)
         cur.execute(
             "INSERT INTO users (aria_uid, email) VALUES (%s, %s) ON CONFLICT (email) DO NOTHING",
             (new_uid, email)
@@ -183,8 +186,9 @@ def generate_aria_uid(email):
         conn.commit()
         cur.close()
         _postgres_pool.putconn(conn)
-        # Fetch the final UID (in case of race condition)
-        return generate_aria_uid(email)  # recursive lookup
+        
+        # Recursive call to get the UID (in case of race condition)
+        return generate_aria_uid(email)
     except Exception as e:
         return {"error": str(e)}
 
