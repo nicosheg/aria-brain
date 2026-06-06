@@ -162,19 +162,20 @@ def generate_aria_uid(email):
         if "error" in init_result:
             return {"error": init_result["error"]}
     
-    # Normalize email: lowercase and strip whitespace
+    # Normalize email
     email = email.strip().lower()
     
     try:
         conn = _postgres_pool.getconn()
         cur = conn.cursor()
+        # Check if email already exists
         cur.execute("SELECT aria_uid FROM users WHERE email = %s", (email,))
         existing = cur.fetchone()
         if existing:
             _postgres_pool.putconn(conn)
             return {"aria_uid": existing[0]}
         
-        # Generate new UID
+        # Generate new sequential UID
         cur.execute("SELECT COUNT(*) FROM users")
         count = cur.fetchone()[0]
         next_num = count + 1
