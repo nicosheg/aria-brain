@@ -1575,27 +1575,29 @@ class Handler(BaseHTTPRequestHandler):
         # ── /chat ──────────────────────────────────
         if self.path == "/chat":
             m = data.get("message", "").strip()
-            email = data.get("email", "").strip()
-            firebase_uid = data.get("user_id", "").strip()
+            email = data.get("email", "").strip().lower()
             
             if not m:
                 self._json({"reply": "Say something!"})
                 return
             
+            if not email:
+                self._json({"error": "Missing email. Please sign out and back in."}, 400)
+                return
+            
             try:
-                if email:
-                    uid_result = generate_aria_uid(email)
-                    if "error" in uid_result:
-                        u = firebase_uid
-                    else:
-                        u = uid_result["aria_uid"]
-                else:
-                    u = firebase_uid
+                uid_result = generate_aria_uid(email)
+                if "error" in uid_result:
+                    self._json({"error": uid_result["error"]}, 500)
+                    return
+                
+                u = uid_result["aria_uid"]
                 
                 reply = ask(m, u, 'groq') or ask(m, u, 'deepseek') or ask(m, u, 'gemini')
                 if not reply:
                     reply = "I'm thinking slower than usual. Give me a moment? 🤔"
                 self._json({"reply": reply})
+                
             except Exception as e:
                 print(f"Error in /chat: {e}")
                 self._json({"error": str(e)}, 500)
