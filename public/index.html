@@ -154,13 +154,17 @@
         inp.style.height = "auto";
         const loadingMsg = addMsg("...", "aria", false);
         try {
+            const email = localStorage.getItem("user_email");
+            if (!email) {
+                throw new Error("User email not found. Please sign out and back in.");
+            }
             const res = await fetch("/chat", {
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
                 body: JSON.stringify({
                     message: msg,
                     user_id: currentUser.uid,
-                    email: localStorage.getItem("user_email")
+                    email: email
                 })
             });
             const data = await res.json();
@@ -168,7 +172,7 @@
             addMsg(data.reply || "No response", "aria", true);
         } catch(e) {
             loadingMsg.remove();
-            addMsg("Connection error. Try again.", "aria", false);
+            addMsg("Connection error: " + e.message, "aria", false);
         }
     }
 
@@ -186,44 +190,48 @@
     document.getElementById("googleSignInBtn").onclick = signInWithGoogle;
 
     auth.onAuthStateChanged(async (user) => {
-    if (user) {
-        currentUser = user;
-        // ✅ Store email immediately (critical for /chat requests)
-        localStorage.setItem("user_email", user.email);
-        
-        loginOverlay.style.display = "none";
-        appDiv.style.display = "flex";
-        userInfoDiv.style.display = "flex";
-        userAvatar.src = user.photoURL || "";
-        userNameSpan.innerText = user.displayName || user.email;
-        
-        try {
-            const nameRes = await fetch("/set_user_name", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({
-                    user_id: user.uid,
-                    email: user.email,
-                    name: user.displayName || user.email.split("@")[0]
-                })
-            });
-            const nameData = await nameRes.json();
-            if (nameData.aria_uid) {
-                localStorage.setItem("aria_uid", nameData.aria_uid);
-                console.log("✅ ARIA UID stored:", nameData.aria_uid);
+        if (user) {
+            currentUser = user;
+            // ✅ Store email immediately for later /chat requests
+            localStorage.setItem("user_email", user.email);
+            
+            loginOverlay.style.display = "none";
+            appDiv.style.display = "flex";
+            userInfoDiv.style.display = "flex";
+            userAvatar.src = user.photoURL || "";
+            userNameSpan.innerText = user.displayName || user.email;
+            
+            try {
+                const nameRes = await fetch("/set_user_name", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({
+                        user_id: user.uid,
+                        email: user.email,
+                        name: user.displayName || user.email.split("@")[0]
+                    })
+                });
+                const nameData = await nameRes.json();
+                if (nameData.aria_uid) {
+                    localStorage.setItem("aria_uid", nameData.aria_uid);
+                    console.log("✅ ARIA UID stored:", nameData.aria_uid);
+                } else {
+                    console.log("⚠️ No aria_uid returned");
+                }
+            } catch(e) {
+                console.log("Failed to send name:", e);
             }
-        } catch(e) {
-            console.log("Failed to send name:", e);
+            enableChat(true);
+        } else {
+            currentUser = null;
+            loginOverlay.style.display = "flex";
+            appDiv.style.display = "none";
+            enableChat(false);
+            // Clear stored email on logout
+            localStorage.removeItem("user_email");
+            localStorage.removeItem("aria_uid");
         }
-        
-        enableChat(true);
-    } else {
-        currentUser = null;
-        loginOverlay.style.display = "flex";
-        appDiv.style.display = "none";
-        enableChat(false);
-    }
-});
+    });
 
     logoutBtn.onclick = () => auth.signOut();
     sendBtn.onclick = sendMessage;
