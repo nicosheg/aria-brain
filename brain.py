@@ -1527,7 +1527,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/set_user_name":
             content_length = int(self.headers.get('Content-Length', 0))
             body = json.loads(self.rfile.read(content_length))
-            email = body.get("email")
+            email = body.get("email", "").strip().lower()
             name = body.get("name")
             
             if not email or not name:
@@ -1542,7 +1542,7 @@ class Handler(BaseHTTPRequestHandler):
                 
                 aria_uid = uid_result["aria_uid"]
                 
-                # Delete old name facts (prevent duplicates)
+                # Delete old name facts for this user (prevent duplicates)
                 try:
                     conn = _postgres_pool.getconn()
                     cur = conn.cursor()
