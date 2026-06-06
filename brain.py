@@ -712,8 +712,8 @@ def save_memory(u, m, r):
         return
     try:
         data = {
-            "m": m,     # ✅ matches get_context's dt.get('m','')
-            "r": r,     # ✅ matches get_context's dt.get('r','')
+            "m": m,          # ✅ matches get_context's dt.get('m','')
+            "r": r,          # ✅ matches dt.get('r','')
             "t": datetime.now().isoformat(),
             "mo": detect_mode(m, u)
         }
