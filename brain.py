@@ -701,18 +701,16 @@ def is_new_session(u):
         return diff > 1800  # New session if >30 mins
     except: return False
 
-
 def save_memory(u, m, r):
-def save_memory(u, m, r):
-    """Save conversation to Firestore for history (no fact extraction)."""
+    """Save conversation to Firestore for history (field names match get_context)."""
     if not db:
         return
     try:
         data = {
-            "user_message": m,
-            "aria_response": r,
-            "timestamp": datetime.now().isoformat(),
-            "mode": detect_mode(m, u)
+            "m": m,     # ✅ matches get_context's dt.get('m','')
+            "r": r,     # ✅ matches get_context's dt.get('r','')
+            "t": datetime.now().isoformat(),
+            "mo": detect_mode(m, u)
         }
         db.collection("users").document(u).collection("memory").add(data)
     except Exception as e:
