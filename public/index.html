@@ -154,10 +154,8 @@
         inp.style.height = "auto";
         const loadingMsg = addMsg("...", "aria", false);
         try {
-            const email = localStorage.getItem("user_email");
-            if (!email) {
-                throw new Error("User email not found. Please sign out and back in.");
-            }
+            // ✅ Always use the email directly from the Firebase user object
+            const email = currentUser.email.toLowerCase();
             const res = await fetch("/chat", {
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
@@ -169,7 +167,11 @@
             });
             const data = await res.json();
             loadingMsg.remove();
-            addMsg(data.reply || "No response", "aria", true);
+            if (data.error) {
+                addMsg("Error: " + data.error, "aria", false);
+            } else {
+                addMsg(data.reply || "No response", "aria", true);
+            }
         } catch(e) {
             loadingMsg.remove();
             addMsg("Connection error: " + e.message, "aria", false);
@@ -192,17 +194,15 @@
     auth.onAuthStateChanged(async (user) => {
         if (user) {
             currentUser = user;
-            // Store normalized email (lowercase) for cross-device consistency
-            localStorage.setItem("user_email", user.email.toLowerCase());
-            
             loginOverlay.style.display = "none";
             appDiv.style.display = "flex";
             userInfoDiv.style.display = "flex";
             userAvatar.src = user.photoURL || "";
             userNameSpan.innerText = user.displayName || user.email;
             
+            // Register the user's name (idempotent)
             try {
-                const nameRes = await fetch("/set_user_name", {
+                await fetch("/set_user_name", {
                     method: "POST",
                     headers: {"Content-Type": "application/json"},
                     body: JSON.stringify({
@@ -211,15 +211,8 @@
                         name: user.displayName || user.email.split("@")[0]
                     })
                 });
-                const nameData = await nameRes.json();
-                if (nameData.aria_uid) {
-                    localStorage.setItem("aria_uid", nameData.aria_uid);
-                    console.log("✅ ARIA UID stored:", nameData.aria_uid);
-                } else {
-                    console.log("⚠️ No aria_uid returned");
-                }
             } catch(e) {
-                console.log("Failed to send name:", e);
+                console.log("Failed to register name:", e);
             }
             enableChat(true);
         } else {
@@ -227,9 +220,6 @@
             loginOverlay.style.display = "flex";
             appDiv.style.display = "none";
             enableChat(false);
-            // Clear stored session data
-            localStorage.removeItem("user_email");
-            localStorage.removeItem("aria_uid");
         }
     });
 
