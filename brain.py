@@ -110,9 +110,7 @@ def init_postgres():
     
     try:
         # Create connection pool (5 connections max)
-        _postgres_pool = psycopg2.pool.SimpleConnectionPool(
-            1, 5, db_url
-        )
+        _postgres_pool = psycopg2.pool.SimpleConnectionPool(2, 10, db_url, keepalives=1, keepalives_idle=5, keepalives_interval=2, keepalives_count=2)
         
         # Get a connection to create tables
         conn = _postgres_pool.getconn()
