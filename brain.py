@@ -153,27 +153,24 @@ def init_postgres():
         return {"error": str(e)}
 
 def generate_aria_uid(email):
-    """Generate or retrieve existing ARIA UID for an email (case‑insensitive)."""
+def generate_aria_uid(email):
+    """Get or create aria_uid for a normalized email."""
     global _postgres_pool
     if not _postgres_pool:
         init_result = init_postgres()
         if "error" in init_result:
             return {"error": init_result["error"]}
     
-    # Normalize email
     email = email.strip().lower()
-    
+    conn = None
     try:
         conn = _postgres_pool.getconn()
         cur = conn.cursor()
-        # Check if email already exists
         cur.execute("SELECT aria_uid FROM users WHERE email = %s", (email,))
         existing = cur.fetchone()
         if existing:
-            _postgres_pool.putconn(conn)
             return {"aria_uid": existing[0]}
-        
-        # Generate new sequential UID
+        # Insert new user
         cur.execute("SELECT COUNT(*) FROM users")
         count = cur.fetchone()[0]
         next_num = count + 1
@@ -183,13 +180,18 @@ def generate_aria_uid(email):
             (new_uid, email)
         )
         conn.commit()
-        cur.close()
-        _postgres_pool.putconn(conn)
-        
-        # Recursive call to get the UID (in case of race condition)
-        return generate_aria_uid(email)
+        # Fetch again in case of race condition
+        cur.execute("SELECT aria_uid FROM users WHERE email = %s", (email,))
+        row = cur.fetchone()
+        if row:
+            return {"aria_uid": row[0]}
+        else:
+            return {"error": "Failed to create or retrieve UID"}
     except Exception as e:
         return {"error": str(e)}
+    finally:
+        if conn:
+            _postgres_pool.putconn(conn)
 
 def save_memory_node(aria_uid, node_type, content, importance=50):
     """Save a memory node (fact, context, decision, outcome)."""
