@@ -9,449 +9,148 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      -webkit-tap-highlight-color: transparent;
-    }
-
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body {
       background: #03050A;
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-family: 'Inter', sans-serif;
       color: #F8FAFC;
       min-height: 100vh;
       overflow-x: hidden;
     }
-
-    .cosmic-bg {
-      position: fixed;
-      inset: 0;
-      background: radial-gradient(ellipse at 30% 40%, #0B1120 0%, #03050A 100%);
-      z-index: 0;
-    }
-
-    /* Milky way galaxy – dense diagonal */
+    .cosmic-bg { position: fixed; inset: 0; background: radial-gradient(ellipse at 30% 40%, #0B1120 0%, #03050A 100%); z-index: 0; }
     .milky-way {
-      position: fixed;
-      top: -20%;
-      left: -10%;
-      width: 140%;
-      height: 140%;
-      background: radial-gradient(ellipse at 35% 35%, 
-        rgba(80, 70, 150, 0.25) 0%,
-        rgba(100, 80, 180, 0.15) 20%,
-        rgba(60, 50, 120, 0.08) 50%,
-        transparent 80%);
-      transform: rotate(32deg);
-      pointer-events: none;
-      z-index: 0;
-      filter: blur(45px);
+      position: fixed; top: -20%; left: -10%; width: 140%; height: 140%;
+      background: radial-gradient(ellipse at 35% 35%, rgba(80,70,150,0.25) 0%, rgba(100,80,180,0.15) 20%, rgba(60,50,120,0.08) 50%, transparent 80%);
+      transform: rotate(32deg); pointer-events: none; z-index: 0; filter: blur(45px);
     }
-
-    .starfield {
-      position: fixed;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      z-index: 0;
-    }
+    .starfield { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
     .star {
-      position: absolute;
-      background: white;
-      border-radius: 50%;
-      opacity: 0;
+      position: absolute; background: white; border-radius: 50%; opacity: 0;
       animation: slowTwinkle linear infinite;
     }
-    @keyframes slowTwinkle {
-      0% { opacity: 0; transform: scale(0.6); }
-      40% { opacity: 0.9; transform: scale(1); }
-      100% { opacity: 0; transform: scale(0.6); }
-    }
+    @keyframes slowTwinkle { 0% { opacity: 0; transform: scale(0.6); } 40% { opacity: 0.9; transform: scale(1); } 100% { opacity: 0; transform: scale(0.6); } }
     .shooting-star {
-      position: absolute;
-      width: 2px;
-      height: 2px;
-      background: white;
-      box-shadow: 0 0 6px rgba(255,255,240,0.8);
-      border-radius: 50%;
-      opacity: 0;
+      position: absolute; width: 2px; height: 2px; background: white; box-shadow: 0 0 6px rgba(255,255,240,0.8); border-radius: 50%; opacity: 0;
       animation: shoot 6s linear infinite;
     }
-    @keyframes shoot {
-      0% { transform: translate(0, 0); opacity: 0; }
-      10% { opacity: 1; }
-      30% { transform: translate(-80px, 80px); opacity: 0; }
-      100% { transform: translate(-200px, 200px); opacity: 0; }
-    }
-
-    .nebula-dust {
-      position: fixed;
-      top: -120px;
-      left: -120px;
-      width: 400px;
-      height: 400px;
-      background: radial-gradient(circle, rgba(90, 70, 160, 0.08) 0%, transparent 70%);
-      pointer-events: none;
-      z-index: 0;
-      filter: blur(80px);
-    }
+    @keyframes shoot { 0% { transform: translate(0,0); opacity:0; } 10% { opacity:1; } 30% { transform: translate(-80px,80px); opacity:0; } 100% { transform: translate(-200px,200px); opacity:0; } }
+    .nebula-dust { position: fixed; top: -120px; left: -120px; width: 400px; height: 400px; background: radial-gradient(circle, rgba(90,70,160,0.08) 0%, transparent 70%); pointer-events: none; z-index: 0; filter: blur(80px); }
 
     .app-container {
-      position: relative;
-      z-index: 2;
-      max-width: 620px;
-      margin: 0 auto;
-      min-height: 100vh;
-      padding: 20px 24px 24px;
-      display: flex;
-      flex-direction: column;
-      background: transparent;
+      position: relative; z-index: 2; max-width: 620px; margin: 0 auto; min-height: 100vh;
+      display: flex; flex-direction: column; background: transparent; padding: 20px 24px 16px;
     }
-
-    /* Header with user badge + tiny sign out button */
-    .header {
-      display: flex;
-      justify-content: flex-end;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 28px;
-    }
+    .header { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 28px; }
     .user-badge {
-      background: rgba(255, 255, 255, 0.04);
-      border: 0.5px solid rgba(255, 255, 255, 0.1);
-      border-radius: 40px;
-      padding: 6px 14px;
-      font-size: 13px;
-      font-weight: 500;
-      color: #E2E8F0;
-      backdrop-filter: blur(6px);
+      background: rgba(255,255,255,0.04); border: 0.5px solid rgba(255,255,255,0.1); border-radius: 40px;
+      padding: 6px 14px; font-size: 13px; font-weight: 500; color: #E2E8F0; backdrop-filter: blur(6px);
     }
     .signout-btn {
-      background: rgba(255, 255, 255, 0.04);
-      border: 0.5px solid rgba(255, 255, 255, 0.1);
-      border-radius: 40px;
-      width: 32px;
-      height: 32px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      font-size: 14px;
-      transition: all 0.2s;
-      color: #94A3B8;
+      background: rgba(255,255,255,0.04); border: 0.5px solid rgba(255,255,255,0.1); border-radius: 40px;
+      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer;
+      font-size: 14px; transition: all 0.2s; color: #94A3B8;
     }
-    .signout-btn:hover {
-      background: rgba(255, 255, 255, 0.08);
-      color: #F8FAFC;
-      border-color: rgba(255, 255, 255, 0.2);
-    }
+    .signout-btn:hover { background: rgba(255,255,255,0.08); color: #F8FAFC; border-color: rgba(255,255,255,0.2); }
 
-    /* Welcome banner */
     .welcome-card {
-      background: rgba(17, 24, 39, 0.45);
-      backdrop-filter: blur(10px);
-      border-radius: 28px;
-      padding: 14px 18px;
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      margin-bottom: 8px;
-      border: 0.5px solid rgba(255, 255, 255, 0.05);
+      background: rgba(17,24,39,0.45); backdrop-filter: blur(10px); border-radius: 28px; padding: 14px 18px;
+      display: flex; align-items: center; gap: 14px; margin-bottom: 8px; border: 0.5px solid rgba(255,255,255,0.05);
     }
     .welcome-icon {
-      width: 46px;
-      height: 46px;
-      background: rgba(96, 165, 250, 0.08);
-      border-radius: 30px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 3px;
+      width: 46px; height: 46px; background: rgba(96,165,250,0.08); border-radius: 30px;
+      display: flex; align-items: center; justify-content: center; gap: 3px;
     }
-    .welcome-icon svg {
-      width: 14px;
-      height: 14px;
-      stroke: #60A5FA;
-      fill: none;
-      stroke-width: 1.2;
-      filter: drop-shadow(0 0 2px #60A5FA);
-    }
-    .welcome-text {
-      flex: 1;
-    }
-    .welcome-greeting {
-      font-size: 16px;
-      font-weight: 500;
-      color: white;
-      line-height: 1.4;
-    }
-    .welcome-greeting span {
-      font-weight: 600;
-      color: #A78BFA;
-    }
-    .timestamp {
-      font-size: 10px;
-      color: #6A7A9A;
-      margin-left: 8px;
-      margin-bottom: 16px;
-    }
+    .welcome-icon svg { width: 14px; height: 14px; stroke: #60A5FA; fill: none; stroke-width: 1.2; filter: drop-shadow(0 0 2px #60A5FA); }
+    .welcome-text { flex: 1; }
+    .welcome-greeting { font-size: 16px; font-weight: 500; color: white; line-height: 1.4; }
+    .welcome-greeting span { font-weight: 600; color: #A78BFA; }
+    .timestamp { font-size: 10px; color: #6A7A9A; margin-left: 8px; margin-bottom: 16px; }
 
-    /* 3 compact cards */
-    .cards-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin: 12px 0 8px;
-    }
+    .cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0 8px; }
     .feature-card {
-      background: rgba(18, 25, 45, 0.5);
-      backdrop-filter: blur(6px);
-      border-radius: 18px;
-      padding: 10px 8px 8px;
-      display: flex;
-      flex-direction: column;
-      transition: all 0.2s;
-      border: 0.5px solid rgba(255, 255, 255, 0.05);
+      background: rgba(18,25,45,0.5); backdrop-filter: blur(6px); border-radius: 18px;
+      padding: 10px 8px 8px; display: flex; flex-direction: column; transition: all 0.2s;
+      border: 0.5px solid rgba(255,255,255,0.05);
     }
-    .card-memory { box-shadow: 0 0 6px rgba(167, 139, 250, 0.1); }
-    .card-education { box-shadow: 0 0 6px rgba(96, 165, 250, 0.1); }
-    .card-income { box-shadow: 0 0 6px rgba(16, 185, 129, 0.1); }
-
+    .card-memory { box-shadow: 0 0 6px rgba(167,139,250,0.1); }
+    .card-education { box-shadow: 0 0 6px rgba(96,165,250,0.1); }
+    .card-income { box-shadow: 0 0 6px rgba(16,185,129,0.1); }
     .card-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      width: 32px; height: 32px; border-radius: 16px; display: flex; align-items: center; justify-content: center;
       margin-bottom: 8px;
     }
-    .card-memory .card-icon { background: rgba(167, 139, 250, 0.12); }
-    .card-education .card-icon { background: rgba(96, 165, 250, 0.12); }
-    .card-income .card-icon { background: rgba(16, 185, 129, 0.12); }
-
-    .card-icon svg {
-      width: 16px;
-      height: 16px;
-      fill: none;
-      stroke-width: 1.5;
-    }
+    .card-memory .card-icon { background: rgba(167,139,250,0.12); }
+    .card-education .card-icon { background: rgba(96,165,250,0.12); }
+    .card-income .card-icon { background: rgba(16,185,129,0.12); }
+    .card-icon svg { width: 16px; height: 16px; fill: none; stroke-width: 1.5; }
     .card-memory .card-icon svg { stroke: #A78BFA; }
     .card-education .card-icon svg { stroke: #60A5FA; }
     .card-income .card-icon svg { stroke: #10B981; }
+    .card-title { font-size: 12px; font-weight: 600; color: white; margin-bottom: 2px; }
+    .card-desc { font-size: 8px; color: #9CA3AF; line-height: 1.2; margin-bottom: 8px; }
+    .card-arrow { align-self: flex-end; margin-top: auto; opacity: 0.4; }
+    .card-arrow svg { width: 8px; height: 8px; stroke: #9CA3AF; }
 
-    .card-title {
-      font-size: 12px;
-      font-weight: 600;
-      color: white;
-      margin-bottom: 2px;
-    }
-    .card-desc {
-      font-size: 8px;
-      color: #9CA3AF;
-      line-height: 1.2;
-      margin-bottom: 8px;
-    }
-    .card-arrow {
-      align-self: flex-end;
-      margin-top: auto;
-      opacity: 0.4;
-    }
-    .card-arrow svg {
-      width: 8px;
-      height: 8px;
-      stroke: #9CA3AF;
-    }
+    .divider { text-align: center; margin: 16px 0 12px; }
+    .divider-text { font-size: 9px; letter-spacing: 1.5px; color: #60A5FA; display: inline-flex; align-items: center; gap: 8px; }
 
-    .divider {
-      text-align: center;
-      margin: 16px 0 12px;
-    }
-    .divider-text {
-      font-size: 9px;
-      letter-spacing: 1.5px;
-      color: #60A5FA;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
+    .spacer { flex: 1; min-height: 40px; }
 
     .input-capsule {
-      background: #0A0F1A;
-      border: 1px solid #3B82F6;
-      border-radius: 50px;
-      padding: 8px 14px 8px 20px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin: 12px 0 28px;
-      box-shadow: 0 0 8px rgba(59, 130, 246, 0.1);
+      background: #0A0F1A; border: 1px solid #3B82F6; border-radius: 50px; padding: 8px 14px 8px 20px;
+      display: flex; align-items: center; gap: 10px; margin: 12px 0 12px; box-shadow: 0 0 8px rgba(59,130,246,0.1);
     }
-    .input-icon-left svg {
-      width: 16px;
-      height: 16px;
-      stroke: #60A5FA;
-    }
+    .input-icon-left svg { width: 16px; height: 16px; stroke: #60A5FA; }
     .input-field {
-      flex: 1;
-      background: transparent;
-      border: none;
-      color: white;
-      font-size: 14px;
-      font-family: inherit;
-      outline: none;
-      padding: 8px 0;
+      flex: 1; background: transparent; border: none; color: white; font-size: 14px; outline: none; padding: 8px 0;
     }
-    .input-field::placeholder {
-      color: #334155;
-      font-weight: 400;
-    }
+    .input-field::placeholder { color: #334155; font-weight: 400; }
     .send-circle {
-      width: 34px;
-      height: 34px;
-      background: transparent;
-      border: 1px solid #1E40AF;
-      border-radius: 30px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
+      width: 34px; height: 34px; background: transparent; border: 1px solid #1E40AF; border-radius: 30px;
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
     }
-    .send-circle svg {
-      width: 14px;
-      height: 14px;
-      stroke: #3B82F6;
-      stroke-width: 2;
-    }
+    .send-circle svg { width: 14px; height: 14px; stroke: #3B82F6; stroke-width: 2; }
 
     .footer-note {
-      text-align: center;
-      padding: 16px 0 20px;
-      font-size: 11px;
-      letter-spacing: 0.8px;
-      color: #5A6E8E;
-      border-top: 0.5px solid rgba(255, 255, 255, 0.06);
-      margin-top: auto;
+      text-align: center; padding: 8px 0 20px; font-size: 11px; letter-spacing: 0.8px;
+      color: #5A6E8E; border-top: 0.5px solid rgba(255,255,255,0.06);
     }
 
-    /* Chat overlay */
+    /* Chat overlay styles (continued in part 2) */
     .chat-view {
-      position: fixed;
-      inset: 0;
-      background: #03050A;
-      z-index: 100;
-      padding: 20px;
-      display: none;
-      flex-direction: column;
+      position: fixed; inset: 0; background: #03050A; z-index: 100; padding: 20px;
+      display: none; flex-direction: column;
     }
-    .chat-view.active {
-      display: flex;
-    }
-    .chat-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 20px;
-    }
-    .back-btn {
-      background: transparent;
-      border: none;
-      color: white;
-      font-size: 26px;
-      cursor: pointer;
-    }
-    .chat-actions {
-      display: flex;
-      gap: 12px;
-    }
-    .chat-action {
-      background: transparent;
-      border: none;
-      font-size: 18px;
-      cursor: pointer;
-      filter: drop-shadow(0 0 3px currentColor);
-      transition: 0.1s;
-    }
+    .chat-view.active { display: flex; }
+    .chat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .back-btn { background: transparent; border: none; color: white; font-size: 26px; cursor: pointer; }
+    .chat-actions { display: flex; gap: 12px; }
+    .chat-action { background: transparent; border: none; font-size: 18px; cursor: pointer; filter: drop-shadow(0 0 3px currentColor); transition: 0.1s; }
     .chat-action.copy { color: #60A5FA; }
     .chat-action.speak { color: #A78BFA; }
-    .messages-area {
-      flex: 1;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      margin-bottom: 16px;
-    }
-    .message {
-      max-width: 80%;
-      animation: fadeUp 0.2s ease;
-    }
-    .message.user {
-      align-self: flex-end;
-    }
-    .message.aria {
-      align-self: flex-start;
-    }
-    .message-bubble {
-      padding: 10px 14px;
-      border-radius: 20px;
-      font-size: 14px;
-      background: rgba(255, 255, 255, 0.05);
-      color: white;
-      position: relative;
-    }
-    .message.user .message-bubble {
-      background: rgba(96, 165, 250, 0.15);
-      border: 0.5px solid rgba(96, 165, 250, 0.3);
-    }
-    .message-actions {
-      display: flex;
-      gap: 10px;
-      margin-top: 6px;
-      opacity: 0;
-      transition: 0.2s;
-    }
-    .message:hover .message-actions {
-      opacity: 0.7;
-    }
-    .message-action {
-      background: transparent;
-      border: none;
-      font-size: 12px;
-      cursor: pointer;
-      color: #9CA3AF;
-    }
-    .message-action:hover {
-      color: #60A5FA;
-    }
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
+    .messages-area { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; }
+    .message { max-width: 80%; animation: fadeUp 0.2s ease; }
+    .message.user { align-self: flex-end; }
+    .message.aria { align-self: flex-start; }
+    .message-bubble { padding: 10px 14px; border-radius: 20px; font-size: 14px; background: rgba(255,255,255,0.05); color: white; }
+    .message.user .message-bubble { background: rgba(96,165,250,0.15); border: 0.5px solid rgba(96,165,250,0.3); }
+    .message-actions { display: flex; gap: 10px; margin-top: 6px; opacity: 0; transition: 0.2s; }
+    .message:hover .message-actions { opacity: 0.7; }
+    .message-action { background: transparent; border: none; font-size: 12px; cursor: pointer; color: #9CA3AF; }
+    .message-action:hover { color: #60A5FA; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
     @media (max-width: 640px) {
-      .app-container {
-        padding: 16px 16px 20px;
-      }
-      .cards-grid {
-        gap: 8px;
-      }
-      .feature-card {
-        padding: 8px 6px 6px;
-      }
-      .card-title {
-        font-size: 11px;
-      }
-      .card-desc {
-        font-size: 7px;
-      }
+      .app-container { padding: 16px 16px 12px; }
+      .cards-grid { gap: 8px; }
+      .feature-card { padding: 8px 6px 6px; }
+      .card-title { font-size: 11px; }
+      .card-desc { font-size: 7px; }
+      .spacer { min-height: 20px; }
     }
   </style>
 </head>
 <body>
-
 <div class="cosmic-bg"></div>
 <div class="milky-way"></div>
 <div class="nebula-dust"></div>
@@ -462,7 +161,6 @@
     <div class="user-badge" id="userBadge">—</div>
     <button class="signout-btn" id="signoutBtn" title="Sign out">⏻</button>
   </div>
-
   <div class="welcome-card">
     <div class="welcome-icon">
       <svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
@@ -500,16 +198,18 @@
     <div class="divider-text">💫 ONE AI. EVERY PART OF YOUR LIFE. 💫</div>
   </div>
 
+  <div class="spacer"></div>
+
   <div class="input-capsule">
     <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
     <input type="text" class="input-field" id="mainInput" placeholder="Chat Aria...">
     <div class="send-circle" id="sendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
   </div>
-
   <div class="footer-note">By MrNicosh Eg</div>
 </div>
 
-<div id="chatView" class="chat-view">
+<!-- Part 1 ends here. Part 2 begins with the chat overlay and JavaScript. -->
+  <div id="chatView" class="chat-view">
   <div class="chat-header">
     <button class="back-btn" id="closeChatBtn">←</button>
     <div class="chat-actions">
@@ -526,7 +226,6 @@
 </div>
 
 <script>
-  // Firebase config
   const firebaseConfig = {
     apiKey: "AIzaSyAfrs67qWlU8FjsjqHwNeivGgm7x_vHdJY",
     authDomain: "fiducia-148b9.firebaseapp.com",
@@ -537,11 +236,9 @@
   };
   firebase.initializeApp(firebaseConfig);
   const auth = firebase.auth();
-
   let currentUser = null;
   let lastAriaMessage = null;
 
-  // Time
   function updateTimestamp() {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos' });
@@ -551,11 +248,8 @@
   updateTimestamp();
   setInterval(updateTimestamp, 60000);
 
-  // Starfield: dense cluster along diagonal (right side dense, left side sparse)
   const starfield = document.getElementById('starfield');
-  function isNearDiagonal(x, y) {
-    return (x + y) > 1.2;
-  }
+  function isNearDiagonal(x, y) { return (x + y) > 1.2; }
   for (let i = 0; i < 400; i++) {
     const star = document.createElement('div');
     star.className = 'star';
@@ -595,11 +289,7 @@
   const userNameSpan = document.getElementById('userNameDisplay');
   const userBadge = document.getElementById('userBadge');
 
-  function abbreviateName(fullName) {
-    if (!fullName) return 'User';
-    const parts = fullName.trim().split(/\s+/);
-    return parts[0];
-  }
+  function abbreviateName(fullName) { if (!fullName) return 'User'; const parts = fullName.trim().split(/\s+/); return parts[0]; }
 
   async function loadHistory(ariaUid) {
     try {
@@ -633,12 +323,7 @@
     if (sender === 'aria') {
       actions.innerHTML = `<button class="message-action copy-msg">📋 Copy</button><button class="message-action speak-msg">🔊 Speak</button>`;
       actions.querySelector('.copy-msg').onclick = () => navigator.clipboard.writeText(text);
-      actions.querySelector('.speak-msg').onclick = () => {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'en-US';
-        speechSynthesis.cancel();
-        speechSynthesis.speak(utterance);
-      };
+      actions.querySelector('.speak-msg').onclick = () => { const utterance = new SpeechSynthesisUtterance(text); utterance.lang = 'en-US'; speechSynthesis.cancel(); speechSynthesis.speak(utterance); };
     }
     div.appendChild(bubble);
     if (sender === 'aria') div.appendChild(actions);
@@ -648,18 +333,8 @@
     return div;
   }
 
-  function addTyping() {
-    const div = document.createElement('div');
-    div.className = 'message aria';
-    div.id = 'typingIndicator';
-    div.innerHTML = `<div class="message-bubble">✦ ✦ ✦</div>`;
-    messagesArea.appendChild(div);
-    messagesArea.scrollTop = messagesArea.scrollHeight;
-  }
-  function removeTyping() {
-    const t = document.getElementById('typingIndicator');
-    if (t) t.remove();
-  }
+  function addTyping() { const div = document.createElement('div'); div.className = 'message aria'; div.id = 'typingIndicator'; div.innerHTML = `<div class="message-bubble">✦ ✦ ✦</div>`; messagesArea.appendChild(div); messagesArea.scrollTop = messagesArea.scrollHeight; }
+  function removeTyping() { const t = document.getElementById('typingIndicator'); if (t) t.remove(); }
 
   async function sendToAria(message, inputElement) {
     if (!currentUser) return;
@@ -667,10 +342,45 @@
     inputElement.value = '';
     addTyping();
     try {
-      const res = await fetch('/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: message,
-          user_id: currentUser.uid,
-          email: currentUser.ema
+      const res = await fetch('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: message, user_id: currentUser.uid, email: currentUser.email.toLowerCase() }) });
+      const data = await res.json();
+      removeTyping();
+      if (data.error) addMessage(`Error: ${data.error}`, 'aria');
+      else addMessage(data.reply || '...', 'aria');
+    } catch(e) { removeTyping(); addMessage('Connection uncertain. Please try again.', 'aria'); }
+  }
+
+  function openChat() { mainUI.style.display = 'none'; chatView.classList.add('active'); if (messagesArea.children.length === 0 && currentUser) { addMessage(`Hey ${abbreviateName(currentUser.displayName || currentUser.email.split('@')[0])}. I'm ARIA. What would you like to explore?`, 'aria'); } chatInput.focus(); }
+  function closeChat() { mainUI.style.display = 'flex'; chatView.classList.remove('active'); }
+
+  async function signOut() { try { await auth.signOut(); window.location.href = '/login.html'; } catch(e) { console.error('Sign out error', e); } }
+
+  mainInput.addEventListener('focus', openChat);
+  document.querySelectorAll('.feature-card').forEach(card => { card.addEventListener('click', () => { openChat(); addMessage(`Let's talk about ${card.querySelector('.card-title').textContent}. How can I help?`, 'aria'); }); });
+  document.getElementById('closeChatBtn').addEventListener('click', closeChat);
+  document.getElementById('chatSendBtn').addEventListener('click', () => { const msg = chatInput.value.trim(); if (msg) sendToAria(msg, chatInput); });
+  chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); const msg = chatInput.value.trim(); if (msg) sendToAria(msg, chatInput); } });
+  document.getElementById('sendBtn').addEventListener('click', () => { const msg = mainInput.value.trim(); if (msg) sendToAria(msg, mainInput); });
+  mainInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); const msg = mainInput.value.trim(); if (msg) sendToAria(msg, mainInput); } });
+  document.getElementById('copyLastMsgBtn').addEventListener('click', () => { if (lastAriaMessage) navigator.clipboard.writeText(lastAriaMessage); });
+  document.getElementById('speakLastMsgBtn').addEventListener('click', () => { if (lastAriaMessage) { const utterance = new SpeechSynthesisUtterance(lastAriaMessage); utterance.lang = 'en-US'; speechSynthesis.cancel(); speechSynthesis.speak(utterance); } });
+  document.getElementById('signoutBtn').addEventListener('click', signOut);
+
+  auth.onAuthStateChanged(async (user) => {
+    if (user) {
+      currentUser = user;
+      const displayName = user.displayName || user.email.split('@')[0];
+      const shortName = abbreviateName(displayName);
+      userNameSpan.textContent = displayName;
+      userBadge.textContent = shortName;
+      try {
+        await fetch('/set_user_name', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user.uid, email: user.email.toLowerCase(), name: displayName }) });
+        const uidRes = await fetch('/check_user?email=' + encodeURIComponent(user.email.toLowerCase()));
+        const uidData = await uidRes.json();
+        if (uidData.aria_uid) loadHistory(uidData.aria_uid);
+      } catch(e) { console.warn(e); }
+    } else { window.location.href = '/login.html'; }
+  });
+</script>
+</body>
+</html>
