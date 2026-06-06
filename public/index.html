@@ -17,40 +17,38 @@
     }
 
     body {
-      background: #050816;
+      background: #03050A;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
       color: #F8FAFC;
       min-height: 100vh;
       overflow-x: hidden;
     }
 
-    /* Deep cosmic background */
     .cosmic-bg {
       position: fixed;
       inset: 0;
-      background: radial-gradient(ellipse at 30% 40%, #0B1120 0%, #050816 100%);
+      background: radial-gradient(ellipse at 30% 40%, #0B1120 0%, #03050A 100%);
       z-index: 0;
     }
 
-    /* Milky way galaxy cloud (top-left to bottom-right) */
+    /* Milky way galaxy – dense diagonal */
     .milky-way {
       position: fixed;
-      top: -15%;
-      left: -15%;
+      top: -20%;
+      left: -10%;
       width: 140%;
       height: 140%;
-      background: linear-gradient(125deg,
-        rgba(60, 80, 140, 0.15) 0%,
-        rgba(90, 70, 160, 0.1) 30%,
-        rgba(30, 40, 80, 0.05) 60%,
-        transparent 85%);
-      transform: rotate(28deg);
+      background: radial-gradient(ellipse at 35% 35%, 
+        rgba(80, 70, 150, 0.25) 0%,
+        rgba(100, 80, 180, 0.15) 20%,
+        rgba(60, 50, 120, 0.08) 50%,
+        transparent 80%);
+      transform: rotate(32deg);
       pointer-events: none;
       z-index: 0;
-      filter: blur(50px);
+      filter: blur(45px);
     }
 
-    /* Starfield – many faint stars */
     .starfield {
       position: fixed;
       inset: 0;
@@ -64,32 +62,46 @@
       background: white;
       border-radius: 50%;
       opacity: 0;
-      animation: twinkle linear infinite;
+      animation: slowTwinkle linear infinite;
     }
-    @keyframes twinkle {
+    @keyframes slowTwinkle {
       0% { opacity: 0; transform: scale(0.6); }
-      50% { opacity: 0.9; transform: scale(1); }
+      40% { opacity: 0.9; transform: scale(1); }
       100% { opacity: 0; transform: scale(0.6); }
     }
-
-    /* Nebula dust top‑left corner */
-    .nebula-dust {
-      position: fixed;
-      top: -100px;
-      left: -100px;
-      width: 400px;
-      height: 400px;
-      background: radial-gradient(circle, rgba(110, 90, 180, 0.08) 0%, transparent 70%);
-      pointer-events: none;
-      z-index: 0;
-      filter: blur(70px);
+    .shooting-star {
+      position: absolute;
+      width: 2px;
+      height: 2px;
+      background: white;
+      box-shadow: 0 0 6px rgba(255,255,240,0.8);
+      border-radius: 50%;
+      opacity: 0;
+      animation: shoot 6s linear infinite;
+    }
+    @keyframes shoot {
+      0% { transform: translate(0, 0); opacity: 0; }
+      10% { opacity: 1; }
+      30% { transform: translate(-80px, 80px); opacity: 0; }
+      100% { transform: translate(-200px, 200px); opacity: 0; }
     }
 
-    /* Main container – responsive, centered */
+    .nebula-dust {
+      position: fixed;
+      top: -120px;
+      left: -120px;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(90, 70, 160, 0.08) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+      filter: blur(80px);
+    }
+
     .app-container {
       position: relative;
       z-index: 2;
-      max-width: 560px;
+      max-width: 620px;
       margin: 0 auto;
       min-height: 100vh;
       padding: 20px 24px 24px;
@@ -98,30 +110,50 @@
       background: transparent;
     }
 
-    /* Header – only name badge, no icons */
+    /* Header with user badge + tiny sign out button */
     .header {
       display: flex;
       justify-content: flex-end;
       align-items: center;
+      gap: 8px;
       margin-bottom: 28px;
     }
     .user-badge {
-      background: rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.04);
       border: 0.5px solid rgba(255, 255, 255, 0.1);
       border-radius: 40px;
-      padding: 6px 16px;
+      padding: 6px 14px;
       font-size: 13px;
       font-weight: 500;
       color: #E2E8F0;
       backdrop-filter: blur(6px);
     }
+    .signout-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 0.5px solid rgba(255, 255, 255, 0.1);
+      border-radius: 40px;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+      color: #94A3B8;
+    }
+    .signout-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #F8FAFC;
+      border-color: rgba(255, 255, 255, 0.2);
+    }
 
-    /* Welcome banner – dynamic user name */
+    /* Welcome banner */
     .welcome-card {
-      background: rgba(17, 24, 39, 0.55);
-      backdrop-filter: blur(8px);
+      background: rgba(17, 24, 39, 0.45);
+      backdrop-filter: blur(10px);
       border-radius: 28px;
-      padding: 16px 20px;
+      padding: 14px 18px;
       display: flex;
       align-items: center;
       gap: 14px;
@@ -129,20 +161,22 @@
       border: 0.5px solid rgba(255, 255, 255, 0.05);
     }
     .welcome-icon {
-      width: 44px;
-      height: 44px;
-      background: rgba(96, 165, 250, 0.1);
+      width: 46px;
+      height: 46px;
+      background: rgba(96, 165, 250, 0.08);
       border-radius: 30px;
       display: flex;
       align-items: center;
       justify-content: center;
+      gap: 3px;
     }
     .welcome-icon svg {
-      width: 22px;
-      height: 22px;
+      width: 14px;
+      height: 14px;
       stroke: #60A5FA;
       fill: none;
-      stroke-width: 1.5;
+      stroke-width: 1.2;
+      filter: drop-shadow(0 0 2px #60A5FA);
     }
     .welcome-text {
       flex: 1;
@@ -158,50 +192,49 @@
       color: #A78BFA;
     }
     .timestamp {
-      font-size: 11px;
+      font-size: 10px;
       color: #6A7A9A;
       margin-left: 8px;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
 
-    /* Compact 3‑card grid (Memory, Education, Income) */
+    /* 3 compact cards */
     .cards-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      margin: 16px 0 20px;
+      gap: 10px;
+      margin: 12px 0 8px;
     }
     .feature-card {
-      background: rgba(18, 25, 45, 0.6);
-      backdrop-filter: blur(8px);
-      border-radius: 20px;
-      padding: 14px 10px 10px;
+      background: rgba(18, 25, 45, 0.5);
+      backdrop-filter: blur(6px);
+      border-radius: 18px;
+      padding: 10px 8px 8px;
       display: flex;
       flex-direction: column;
       transition: all 0.2s;
       border: 0.5px solid rgba(255, 255, 255, 0.05);
     }
-    /* Subtle glows (reduced) */
-    .card-memory { box-shadow: 0 0 6px rgba(167, 139, 250, 0.12); }
-    .card-education { box-shadow: 0 0 6px rgba(96, 165, 250, 0.12); }
-    .card-income { box-shadow: 0 0 6px rgba(16, 185, 129, 0.12); }
+    .card-memory { box-shadow: 0 0 6px rgba(167, 139, 250, 0.1); }
+    .card-education { box-shadow: 0 0 6px rgba(96, 165, 250, 0.1); }
+    .card-income { box-shadow: 0 0 6px rgba(16, 185, 129, 0.1); }
 
     .card-icon {
-      width: 36px;
-      height: 36px;
-      border-radius: 18px;
+      width: 32px;
+      height: 32px;
+      border-radius: 16px;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
     }
     .card-memory .card-icon { background: rgba(167, 139, 250, 0.12); }
     .card-education .card-icon { background: rgba(96, 165, 250, 0.12); }
     .card-income .card-icon { background: rgba(16, 185, 129, 0.12); }
 
     .card-icon svg {
-      width: 18px;
-      height: 18px;
+      width: 16px;
+      height: 16px;
       fill: none;
       stroke-width: 1.5;
     }
@@ -210,43 +243,55 @@
     .card-income .card-icon svg { stroke: #10B981; }
 
     .card-title {
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
       color: white;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
     }
     .card-desc {
-      font-size: 9px;
+      font-size: 8px;
       color: #9CA3AF;
-      line-height: 1.3;
-      margin-bottom: 12px;
+      line-height: 1.2;
+      margin-bottom: 8px;
     }
     .card-arrow {
       align-self: flex-end;
       margin-top: auto;
-      opacity: 0.5;
+      opacity: 0.4;
     }
     .card-arrow svg {
-      width: 10px;
-      height: 10px;
+      width: 8px;
+      height: 8px;
       stroke: #9CA3AF;
     }
 
-    /* Input bar – perfect */
+    .divider {
+      text-align: center;
+      margin: 16px 0 12px;
+    }
+    .divider-text {
+      font-size: 9px;
+      letter-spacing: 1.5px;
+      color: #60A5FA;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
     .input-capsule {
       background: #0A0F1A;
-      border: 1.2px solid #3B82F6;
+      border: 1px solid #3B82F6;
       border-radius: 50px;
       padding: 8px 14px 8px 20px;
       display: flex;
       align-items: center;
-      gap: 12px;
-      margin: 10px 0 24px;
-      box-shadow: 0 0 8px rgba(59, 130, 246, 0.15);
+      gap: 10px;
+      margin: 12px 0 28px;
+      box-shadow: 0 0 8px rgba(59, 130, 246, 0.1);
     }
     .input-icon-left svg {
-      width: 18px;
-      height: 18px;
+      width: 16px;
+      height: 16px;
       stroke: #60A5FA;
     }
     .input-field {
@@ -264,8 +309,8 @@
       font-weight: 400;
     }
     .send-circle {
-      width: 36px;
-      height: 36px;
+      width: 34px;
+      height: 34px;
       background: transparent;
       border: 1px solid #1E40AF;
       border-radius: 30px;
@@ -275,28 +320,27 @@
       cursor: pointer;
     }
     .send-circle svg {
-      width: 16px;
-      height: 16px;
+      width: 14px;
+      height: 14px;
       stroke: #3B82F6;
       stroke-width: 2;
     }
 
-    /* Footer – personal credit */
     .footer-note {
       text-align: center;
-      padding: 16px 0 8px;
-      font-size: 10px;
-      letter-spacing: 0.5px;
-      color: #4A5A7A;
-      border-top: 0.5px solid rgba(255, 255, 255, 0.05);
+      padding: 16px 0 20px;
+      font-size: 11px;
+      letter-spacing: 0.8px;
+      color: #5A6E8E;
+      border-top: 0.5px solid rgba(255, 255, 255, 0.06);
       margin-top: auto;
     }
 
-    /* Chat overlay (clean, minimal) */
+    /* Chat overlay */
     .chat-view {
       position: fixed;
       inset: 0;
-      background: #050816;
+      background: #03050A;
       z-index: 100;
       padding: 20px;
       display: none;
@@ -308,7 +352,7 @@
     .chat-header {
       display: flex;
       align-items: center;
-      gap: 16px;
+      justify-content: space-between;
       margin-bottom: 20px;
     }
     .back-btn {
@@ -318,6 +362,20 @@
       font-size: 26px;
       cursor: pointer;
     }
+    .chat-actions {
+      display: flex;
+      gap: 12px;
+    }
+    .chat-action {
+      background: transparent;
+      border: none;
+      font-size: 18px;
+      cursor: pointer;
+      filter: drop-shadow(0 0 3px currentColor);
+      transition: 0.1s;
+    }
+    .chat-action.copy { color: #60A5FA; }
+    .chat-action.speak { color: #A78BFA; }
     .messages-area {
       flex: 1;
       overflow-y: auto;
@@ -328,6 +386,7 @@
     }
     .message {
       max-width: 80%;
+      animation: fadeUp 0.2s ease;
     }
     .message.user {
       align-self: flex-end;
@@ -341,9 +400,53 @@
       font-size: 14px;
       background: rgba(255, 255, 255, 0.05);
       color: white;
+      position: relative;
     }
     .message.user .message-bubble {
-      background: rgba(96, 165, 250, 0.2);
+      background: rgba(96, 165, 250, 0.15);
+      border: 0.5px solid rgba(96, 165, 250, 0.3);
+    }
+    .message-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 6px;
+      opacity: 0;
+      transition: 0.2s;
+    }
+    .message:hover .message-actions {
+      opacity: 0.7;
+    }
+    .message-action {
+      background: transparent;
+      border: none;
+      font-size: 12px;
+      cursor: pointer;
+      color: #9CA3AF;
+    }
+    .message-action:hover {
+      color: #60A5FA;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 640px) {
+      .app-container {
+        padding: 16px 16px 20px;
+      }
+      .cards-grid {
+        gap: 8px;
+      }
+      .feature-card {
+        padding: 8px 6px 6px;
+      }
+      .card-title {
+        font-size: 11px;
+      }
+      .card-desc {
+        font-size: 7px;
+      }
     }
   </style>
 </head>
@@ -355,15 +458,16 @@
 <div class="starfield" id="starfield"></div>
 
 <div class="app-container" id="mainUI">
-  <!-- Header: only user name badge -->
   <div class="header">
     <div class="user-badge" id="userBadge">—</div>
+    <button class="signout-btn" id="signoutBtn" title="Sign out">⏻</button>
   </div>
 
-  <!-- Welcome banner (dynamic name) -->
   <div class="welcome-card">
     <div class="welcome-icon">
-      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      <svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
+      <svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
+      <svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
     </div>
     <div class="welcome-text">
       <div class="welcome-greeting">Hey <span id="userNameDisplay">friend</span>, welcome back.</div>
@@ -371,7 +475,6 @@
   </div>
   <div class="timestamp" id="timestamp">—</div>
 
-  <!-- 3 compact cards (Memory, Education, Income) -->
   <div class="cards-grid">
     <div class="feature-card card-memory" data-pillar="Memory">
       <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M12 2a9 9 0 1 0 0 18A9 9 0 0 0 12 2z"/><path d="M8 12s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/></svg></div>
@@ -393,22 +496,26 @@
     </div>
   </div>
 
-  <!-- Input bar -->
+  <div class="divider">
+    <div class="divider-text">💫 ONE AI. EVERY PART OF YOUR LIFE. 💫</div>
+  </div>
+
   <div class="input-capsule">
     <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
     <input type="text" class="input-field" id="mainInput" placeholder="Chat Aria...">
     <div class="send-circle" id="sendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
   </div>
 
-  <!-- Footer -->
   <div class="footer-note">By MrNicosh Eg</div>
 </div>
 
-<!-- Chat overlay -->
 <div id="chatView" class="chat-view">
   <div class="chat-header">
     <button class="back-btn" id="closeChatBtn">←</button>
-    <div style="font-weight:500;">ARIA</div>
+    <div class="chat-actions">
+      <button class="chat-action copy" id="copyLastMsgBtn" title="Copy last response">📋</button>
+      <button class="chat-action speak" id="speakLastMsgBtn" title="Speak last response">🔊</button>
+    </div>
   </div>
   <div class="messages-area" id="messagesArea"></div>
   <div class="input-capsule" style="margin-bottom: 0;">
@@ -419,7 +526,7 @@
 </div>
 
 <script>
-  // Firebase config (unchanged, works with your backend)
+  // Firebase config
   const firebaseConfig = {
     apiKey: "AIzaSyAfrs67qWlU8FjsjqHwNeivGgm7x_vHdJY",
     authDomain: "fiducia-148b9.firebaseapp.com",
@@ -432,8 +539,9 @@
   const auth = firebase.auth();
 
   let currentUser = null;
+  let lastAriaMessage = null;
 
-  // Update timestamp (Lagos time)
+  // Time
   function updateTimestamp() {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos' });
@@ -443,21 +551,42 @@
   updateTimestamp();
   setInterval(updateTimestamp, 60000);
 
-  // Starfield generator (faint, scattered)
+  // Starfield: dense cluster along diagonal (right side dense, left side sparse)
   const starfield = document.getElementById('starfield');
-  for (let i = 0; i < 280; i++) {
+  function isNearDiagonal(x, y) {
+    return (x + y) > 1.2;
+  }
+  for (let i = 0; i < 400; i++) {
     const star = document.createElement('div');
     star.className = 'star';
-    star.style.left = Math.random() * 100 + '%';
-    star.style.top = Math.random() * 100 + '%';
-    star.style.width = (Math.random() * 2 + 0.4) + 'px';
-    star.style.height = star.style.width;
-    star.style.animationDuration = (Math.random() * 5 + 2) + 's';
-    star.style.animationDelay = (Math.random() * 6) + 's';
+    let x = Math.random();
+    let y = Math.random();
+    if (isNearDiagonal(x, y)) {
+      star.style.left = (x * 100) + '%';
+      star.style.top = (y * 100) + '%';
+      star.style.width = (Math.random() * 1.8 + 0.3) + 'px';
+      star.style.height = star.style.width;
+      star.style.animationDuration = (Math.random() * 10 + 5) + 's';
+    } else {
+      if (Math.random() > 0.7) continue;
+      star.style.left = (x * 100) + '%';
+      star.style.top = (y * 100) + '%';
+      star.style.width = (Math.random() * 1.2 + 0.2) + 'px';
+      star.style.height = star.style.width;
+      star.style.animationDuration = (Math.random() * 12 + 6) + 's';
+    }
+    star.style.animationDelay = (Math.random() * 8) + 's';
     starfield.appendChild(star);
   }
+  for (let i = 0; i < 5; i++) {
+    const shoot = document.createElement('div');
+    shoot.className = 'shooting-star';
+    shoot.style.left = (Math.random() * 80 + 10) + '%';
+    shoot.style.top = (Math.random() * 60) + '%';
+    shoot.style.animationDelay = (Math.random() * 20) + 's';
+    starfield.appendChild(shoot);
+  }
 
-  // UI elements
   const mainUI = document.getElementById('mainUI');
   const chatView = document.getElementById('chatView');
   const mainInput = document.getElementById('mainInput');
@@ -466,36 +595,77 @@
   const userNameSpan = document.getElementById('userNameDisplay');
   const userBadge = document.getElementById('userBadge');
 
-  // Open chat when focusing the main input or clicking a card
-  function openChat() {
-    mainUI.style.display = 'none';
-    chatView.classList.add('active');
-    if (messagesArea.children.length === 0 && currentUser) {
-      addMessage(`Hey ${currentUser.displayName?.split(' ')[0] || 'friend'}. I'm ARIA. Your memory is intact. What would you like to explore?`, 'aria');
-    }
-    chatInput.focus();
+  function abbreviateName(fullName) {
+    if (!fullName) return 'User';
+    const parts = fullName.trim().split(/\s+/);
+    return parts[0];
   }
 
-  function closeChat() {
-    mainUI.style.display = 'flex';
-    chatView.classList.remove('active');
-    messagesArea.innerHTML = '';
+  async function loadHistory(ariaUid) {
+    try {
+      const res = await fetch(`/context?uid=${ariaUid}`);
+      const data = await res.json();
+      if (data.context) {
+        const lines = data.context.split('\n');
+        let current = null;
+        for (let line of lines) {
+          if (line.startsWith('User:')) {
+            if (current) addMessage(current.trim(), 'aria');
+            current = null;
+            addMessage(line.substring(5).trim(), 'user');
+          } else if (line.startsWith('ARIA:')) {
+            current = line.substring(5).trim();
+          }
+        }
+        if (current) addMessage(current.trim(), 'aria');
+      }
+    } catch(e) { console.warn('History load failed', e); }
   }
 
-  // Add message to chat
   function addMessage(text, sender) {
     const div = document.createElement('div');
     div.className = `message ${sender}`;
-    div.innerHTML = `<div class="message-bubble">${text.replace(/\n/g, '<br>')}</div>`;
+    const bubble = document.createElement('div');
+    bubble.className = 'message-bubble';
+    bubble.innerHTML = marked.parse(text);
+    const actions = document.createElement('div');
+    actions.className = 'message-actions';
+    if (sender === 'aria') {
+      actions.innerHTML = `<button class="message-action copy-msg">📋 Copy</button><button class="message-action speak-msg">🔊 Speak</button>`;
+      actions.querySelector('.copy-msg').onclick = () => navigator.clipboard.writeText(text);
+      actions.querySelector('.speak-msg').onclick = () => {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'en-US';
+        speechSynthesis.cancel();
+        speechSynthesis.speak(utterance);
+      };
+    }
+    div.appendChild(bubble);
+    if (sender === 'aria') div.appendChild(actions);
+    messagesArea.appendChild(div);
+    messagesArea.scrollTop = messagesArea.scrollHeight;
+    if (sender === 'aria') lastAriaMessage = text;
+    return div;
+  }
+
+  function addTyping() {
+    const div = document.createElement('div');
+    div.className = 'message aria';
+    div.id = 'typingIndicator';
+    div.innerHTML = `<div class="message-bubble">✦ ✦ ✦</div>`;
     messagesArea.appendChild(div);
     messagesArea.scrollTop = messagesArea.scrollHeight;
   }
+  function removeTyping() {
+    const t = document.getElementById('typingIndicator');
+    if (t) t.remove();
+  }
 
-  // Send message to backend
   async function sendToAria(message, inputElement) {
     if (!currentUser) return;
     addMessage(message, 'user');
     inputElement.value = '';
+    addTyping();
     try {
       const res = await fetch('/chat', {
         method: 'POST',
@@ -503,73 +673,4 @@
         body: JSON.stringify({
           message: message,
           user_id: currentUser.uid,
-          email: currentUser.email.toLowerCase()
-        })
-      });
-      const data = await res.json();
-      if (data.error) addMessage(`Error: ${data.error}`, 'aria');
-      else addMessage(data.reply || '...', 'aria');
-    } catch(e) {
-      addMessage('Connection uncertain. Please try again.', 'aria');
-    }
-  }
-
-  function sendFromChat() {
-    const msg = chatInput.value.trim();
-    if (!msg) return;
-    sendToAria(msg, chatInput);
-  }
-
-  // Event listeners
-  mainInput.addEventListener('focus', openChat);
-  document.querySelectorAll('.feature-card').forEach(card => {
-    card.addEventListener('click', () => {
-      openChat();
-      addMessage(`Let's talk about ${card.querySelector('.card-title').textContent}. How can I help?`, 'aria');
-    });
-  });
-  document.getElementById('closeChatBtn').addEventListener('click', closeChat);
-  document.getElementById('chatSendBtn').addEventListener('click', sendFromChat);
-  chatInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      sendFromChat();
-    }
-  });
-
-  // Firebase auth
-  auth.onAuthStateChanged(async (user) => {
-    if (user) {
-      currentUser = user;
-      const displayName = user.displayName || user.email.split('@')[0];
-      userNameSpan.textContent = displayName;
-      userBadge.textContent = displayName;
-      // Register the user with backend
-      try {
-        await fetch('/set_user_name', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            user_id: user.uid,
-            email: user.email.toLowerCase(),
-            name: displayName
-          })
-        });
-      } catch(e) { console.warn(e); }
-    } else {
-      window.location.href = '/login.html';
-    }
-  });
-
-  // Auto-resize for mobile, ensure chat input is clean
-  window.addEventListener('resize', () => {
-    if (window.innerWidth > 600) {
-      document.querySelector('.app-container').style.maxWidth = '560px';
-    } else {
-      document.querySelector('.app-container').style.maxWidth = '100%';
-    }
-  });
-  window.dispatchEvent(new Event('resize'));
-</script>
-</body>
-</html>
+          email: currentUser.ema
