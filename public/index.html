@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>ARIA — Personal Intelligence System</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
@@ -28,95 +28,131 @@
       position: absolute; background: white; border-radius: 50%; opacity: 0;
       animation: slowTwinkle linear infinite;
     }
-    @keyframes slowTwinkle { 0% { opacity: 0; transform: scale(0.6); } 40% { opacity: 0.9; transform: scale(1); } 100% { opacity: 0; transform: scale(0.6); } }
+    @keyframes slowTwinkle { 0% { opacity: 0; transform: scale(0.6); } 20% { opacity: 0.6; transform: scale(1); } 80% { opacity: 0.6; } 100% { opacity: 0; transform: scale(0.6); } }
     .shooting-star {
-      position: absolute; width: 2px; height: 2px; background: white; box-shadow: 0 0 6px rgba(255,255,240,0.8); border-radius: 50%; opacity: 0;
-      animation: shoot 6s linear infinite;
+      position: absolute; width: 1.5px; height: 1.5px; background: rgba(255,255,240,0.5); box-shadow: 0 0 4px rgba(255,255,200,0.4);
+      border-radius: 50%; opacity: 0;
+      animation: shootVerySlow 25s linear infinite;
     }
-    @keyframes shoot { 0% { transform: translate(0,0); opacity:0; } 10% { opacity:1; } 30% { transform: translate(-80px,80px); opacity:0; } 100% { transform: translate(-200px,200px); opacity:0; } }
+    @keyframes shootVerySlow {
+      0% { transform: translate(0, 0); opacity: 0; }
+      10% { opacity: 0.6; }
+      30% { transform: translate(-120px, 120px); opacity: 0.2; }
+      100% { transform: translate(-300px, 300px); opacity: 0; }
+    }
     .nebula-dust { position: fixed; top: -120px; left: -120px; width: 400px; height: 400px; background: radial-gradient(circle, rgba(90,70,160,0.08) 0%, transparent 70%); pointer-events: none; z-index: 0; filter: blur(80px); }
 
     .app-container {
       position: relative; z-index: 2; max-width: 620px; margin: 0 auto; min-height: 100vh;
       display: flex; flex-direction: column; background: transparent; padding: 20px 24px 16px;
     }
-    .header { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 28px; }
-    .user-badge {
-      background: rgba(255,255,255,0.04); border: 0.5px solid rgba(255,255,255,0.1); border-radius: 40px;
-      padding: 6px 14px; font-size: 13px; font-weight: 500; color: #E2E8F0; backdrop-filter: blur(6px);
+    .header { display: flex; justify-content: flex-end; align-items: center; margin-bottom: 28px; }
+    .user-signout {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: rgba(255,255,255,0.03);
+      border: 0.5px solid rgba(255,255,255,0.08);
+      border-radius: 40px;
+      padding: 6px 14px 4px;
+      cursor: pointer;
+      transition: all 0.2s;
     }
-    .signout-btn {
-      background: rgba(255,255,255,0.04); border: 0.5px solid rgba(255,255,255,0.1); border-radius: 40px;
-      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer;
-      font-size: 14px; transition: all 0.2s; color: #94A3B8;
+    .user-signout:hover {
+      background: rgba(255,255,255,0.06);
+      border-color: rgba(255,255,255,0.15);
     }
-    .signout-btn:hover { background: rgba(255,255,255,0.08); color: #F8FAFC; border-color: rgba(255,255,255,0.2); }
+    .user-initials {
+      font-size: 14px;
+      font-weight: 500;
+      color: #E2E8F0;
+      letter-spacing: 0.5px;
+    }
+    .signout-text {
+      font-size: 8px;
+      font-weight: 400;
+      color: #7A8AAA;
+      margin-top: 2px;
+    }
 
-    .welcome-card {
-      background: rgba(17,24,39,0.45); backdrop-filter: blur(10px); border-radius: 28px; padding: 14px 18px;
-      display: flex; align-items: center; gap: 14px; margin-bottom: 8px; border: 0.5px solid rgba(255,255,255,0.05);
+    /* Centered welcome message – elegant, no card */
+    .welcome-center {
+      text-align: center;
+      margin: 20px 0 28px;
+      animation: fadeInUp 0.8s ease;
     }
-    .welcome-icon {
-      width: 46px; height: 46px; background: rgba(96,165,250,0.08); border-radius: 30px;
-      display: flex; align-items: center; justify-content: center; gap: 3px;
+    .greeting-main {
+      font-size: 22px;
+      font-weight: 300;
+      letter-spacing: -0.3px;
+      color: #F0F4FA;
+      line-height: 1.3;
     }
-    .welcome-icon svg { width: 14px; height: 14px; stroke: #60A5FA; fill: none; stroke-width: 1.2; filter: drop-shadow(0 0 2px #60A5FA); }
-    .welcome-text { flex: 1; }
-    .welcome-greeting { font-size: 16px; font-weight: 500; color: white; line-height: 1.4; }
-    .welcome-greeting span { font-weight: 600; color: #A78BFA; }
-    .timestamp { font-size: 10px; color: #6A7A9A; margin-left: 8px; margin-bottom: 16px; }
+    .greeting-main span {
+      font-weight: 500;
+      color: #A78BFA;
+    }
+    .timestamp-center {
+      font-size: 11px;
+      color: #7A8AAA;
+      margin-top: 8px;
+      font-weight: 300;
+      opacity: 0.7;
+    }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
 
-    .cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0 8px; }
+    /* Tiny, unobtrusive cards */
+    .cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0 6px; }
     .feature-card {
-      background: rgba(18,25,45,0.5); backdrop-filter: blur(6px); border-radius: 18px;
-      padding: 10px 8px 8px; display: flex; flex-direction: column; transition: all 0.2s;
-      border: 0.5px solid rgba(255,255,255,0.05);
+      background: rgba(18,25,45,0.2); backdrop-filter: blur(4px); border-radius: 14px;
+      padding: 5px 4px 4px; display: flex; flex-direction: column;
+      border: 0.5px solid rgba(255,255,255,0.02);
     }
-    .card-memory { box-shadow: 0 0 6px rgba(167,139,250,0.1); }
-    .card-education { box-shadow: 0 0 6px rgba(96,165,250,0.1); }
-    .card-income { box-shadow: 0 0 6px rgba(16,185,129,0.1); }
     .card-icon {
-      width: 32px; height: 32px; border-radius: 16px; display: flex; align-items: center; justify-content: center;
-      margin-bottom: 8px;
+      width: 22px; height: 22px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
+      margin-bottom: 3px;
     }
-    .card-memory .card-icon { background: rgba(167,139,250,0.12); }
-    .card-education .card-icon { background: rgba(96,165,250,0.12); }
-    .card-income .card-icon { background: rgba(16,185,129,0.12); }
-    .card-icon svg { width: 16px; height: 16px; fill: none; stroke-width: 1.5; }
+    .card-memory .card-icon { background: rgba(167,139,250,0.08); }
+    .card-education .card-icon { background: rgba(96,165,250,0.08); }
+    .card-income .card-icon { background: rgba(16,185,129,0.08); }
+    .card-icon svg { width: 10px; height: 10px; fill: none; stroke-width: 1.5; }
     .card-memory .card-icon svg { stroke: #A78BFA; }
     .card-education .card-icon svg { stroke: #60A5FA; }
     .card-income .card-icon svg { stroke: #10B981; }
-    .card-title { font-size: 12px; font-weight: 600; color: white; margin-bottom: 2px; }
-    .card-desc { font-size: 8px; color: #9CA3AF; line-height: 1.2; margin-bottom: 8px; }
-    .card-arrow { align-self: flex-end; margin-top: auto; opacity: 0.4; }
-    .card-arrow svg { width: 8px; height: 8px; stroke: #9CA3AF; }
+    .card-title { font-size: 8px; font-weight: 500; color: #C5D0E6; margin-bottom: 1px; letter-spacing: 0.2px; }
+    .card-desc { font-size: 6px; color: #7A8AAA; line-height: 1.2; margin-bottom: 4px; opacity: 0.6; }
+    .card-arrow { align-self: flex-end; margin-top: auto; opacity: 0.2; }
+    .card-arrow svg { width: 5px; height: 5px; stroke: #9CA3AF; }
 
-    .divider { text-align: center; margin: 16px 0 12px; }
-    .divider-text { font-size: 9px; letter-spacing: 1.5px; color: #60A5FA; display: inline-flex; align-items: center; gap: 8px; }
+    .divider { text-align: center; margin: 24px 0 8px; }
+    .divider-text { font-size: 8px; letter-spacing: 1.2px; color: #60A5FA; display: inline-flex; align-items: center; gap: 6px; opacity: 0.5; }
 
-    .spacer { flex: 1; min-height: 40px; }
+    .spacer { flex: 1; min-height: 30px; }
 
     .input-capsule {
-      background: #0A0F1A; border: 1px solid #3B82F6; border-radius: 50px; padding: 8px 14px 8px 20px;
-      display: flex; align-items: center; gap: 10px; margin: 12px 0 12px; box-shadow: 0 0 8px rgba(59,130,246,0.1);
+      background: #0A0F1A; border: 1px solid #3B82F6; border-radius: 50px; padding: 6px 12px 6px 18px;
+      display: flex; align-items: center; gap: 8px; margin: 8px 0 12px; box-shadow: 0 0 6px rgba(59,130,246,0.1);
     }
-    .input-icon-left svg { width: 16px; height: 16px; stroke: #60A5FA; }
+    .input-icon-left svg { width: 14px; height: 14px; stroke: #60A5FA; }
     .input-field {
-      flex: 1; background: transparent; border: none; color: white; font-size: 14px; outline: none; padding: 8px 0;
+      flex: 1; background: transparent; border: none; color: white; font-size: 13px; outline: none; padding: 6px 0;
     }
     .input-field::placeholder { color: #334155; font-weight: 400; }
     .send-circle {
-      width: 34px; height: 34px; background: transparent; border: 1px solid #1E40AF; border-radius: 30px;
+      width: 30px; height: 30px; background: transparent; border: 1px solid #1E40AF; border-radius: 30px;
       display: flex; align-items: center; justify-content: center; cursor: pointer;
     }
-    .send-circle svg { width: 14px; height: 14px; stroke: #3B82F6; stroke-width: 2; }
+    .send-circle svg { width: 12px; height: 12px; stroke: #3B82F6; stroke-width: 2; }
 
     .footer-note {
-      text-align: center; padding: 8px 0 20px; font-size: 11px; letter-spacing: 0.8px;
-      color: #5A6E8E; border-top: 0.5px solid rgba(255,255,255,0.06);
+      text-align: center; padding: 6px 0 20px; font-size: 10px; letter-spacing: 0.6px;
+      color: #4A5A7A; border-top: 0.5px solid rgba(255,255,255,0.04);
     }
 
-    /* Chat overlay styles (continued in part 2) */
+    /* Chat overlay */
     .chat-view {
       position: fixed; inset: 0; background: #03050A; z-index: 100; padding: 20px;
       display: none; flex-direction: column;
@@ -125,7 +161,7 @@
     .chat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
     .back-btn { background: transparent; border: none; color: white; font-size: 26px; cursor: pointer; }
     .chat-actions { display: flex; gap: 12px; }
-    .chat-action { background: transparent; border: none; font-size: 18px; cursor: pointer; filter: drop-shadow(0 0 3px currentColor); transition: 0.1s; }
+    .chat-action { background: transparent; border: none; font-size: 18px; cursor: pointer; filter: drop-shadow(0 0 3px currentColor); }
     .chat-action.copy { color: #60A5FA; }
     .chat-action.speak { color: #A78BFA; }
     .messages-area { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; }
@@ -142,11 +178,9 @@
 
     @media (max-width: 640px) {
       .app-container { padding: 16px 16px 12px; }
-      .cards-grid { gap: 8px; }
-      .feature-card { padding: 8px 6px 6px; }
-      .card-title { font-size: 11px; }
-      .card-desc { font-size: 7px; }
       .spacer { min-height: 20px; }
+      .divider { margin: 16px 0 6px; }
+      .greeting-main { font-size: 20px; }
     }
   </style>
 </head>
@@ -158,20 +192,17 @@
 
 <div class="app-container" id="mainUI">
   <div class="header">
-    <div class="user-badge" id="userBadge">—</div>
-    <button class="signout-btn" id="signoutBtn" title="Sign out">⏻</button>
-  </div>
-  <div class="welcome-card">
-    <div class="welcome-icon">
-      <svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
-      <svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
-      <svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
-    </div>
-    <div class="welcome-text">
-      <div class="welcome-greeting">Hey <span id="userNameDisplay">friend</span>, welcome back.</div>
+    <div class="user-signout" id="signoutBtn">
+      <div class="user-initials" id="userInitials">EN</div>
+      <div class="signout-text">sign out</div>
     </div>
   </div>
-  <div class="timestamp" id="timestamp">—</div>
+
+  <!-- Centered welcome message (no card, no icon) -->
+  <div class="welcome-center">
+    <div class="greeting-main">Good evening, <span id="userNameDisplay">friend</span>.</div>
+    <div class="timestamp-center" id="timestamp">—</div>
+  </div>
 
   <div class="cards-grid">
     <div class="feature-card card-memory" data-pillar="Memory">
@@ -208,7 +239,7 @@
   <div class="footer-note">By MrNicosh Eg</div>
 </div>
 
-<!-- Part 1 ends here. Part 2 begins with the chat overlay and JavaScript. -->
+<!-- Part 1 ends here. Part 2 begins with chat overlay and JavaScript. -->
   <div id="chatView" class="chat-view">
   <div class="chat-header">
     <button class="back-btn" id="closeChatBtn">←</button>
@@ -250,7 +281,7 @@
 
   const starfield = document.getElementById('starfield');
   function isNearDiagonal(x, y) { return (x + y) > 1.2; }
-  for (let i = 0; i < 400; i++) {
+  for (let i = 0; i < 380; i++) {
     const star = document.createElement('div');
     star.className = 'star';
     let x = Math.random();
@@ -258,26 +289,26 @@
     if (isNearDiagonal(x, y)) {
       star.style.left = (x * 100) + '%';
       star.style.top = (y * 100) + '%';
-      star.style.width = (Math.random() * 1.8 + 0.3) + 'px';
+      star.style.width = (Math.random() * 1.5 + 0.3) + 'px';
       star.style.height = star.style.width;
-      star.style.animationDuration = (Math.random() * 10 + 5) + 's';
+      star.style.animationDuration = (Math.random() * 12 + 8) + 's';
     } else {
       if (Math.random() > 0.7) continue;
       star.style.left = (x * 100) + '%';
       star.style.top = (y * 100) + '%';
-      star.style.width = (Math.random() * 1.2 + 0.2) + 'px';
+      star.style.width = (Math.random() * 1.0 + 0.2) + 'px';
       star.style.height = star.style.width;
-      star.style.animationDuration = (Math.random() * 12 + 6) + 's';
+      star.style.animationDuration = (Math.random() * 14 + 10) + 's';
     }
-    star.style.animationDelay = (Math.random() * 8) + 's';
+    star.style.animationDelay = (Math.random() * 12) + 's';
     starfield.appendChild(star);
   }
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 3; i++) {
     const shoot = document.createElement('div');
     shoot.className = 'shooting-star';
-    shoot.style.left = (Math.random() * 80 + 10) + '%';
-    shoot.style.top = (Math.random() * 60) + '%';
-    shoot.style.animationDelay = (Math.random() * 20) + 's';
+    shoot.style.left = (Math.random() * 70 + 15) + '%';
+    shoot.style.top = (Math.random() * 50) + '%';
+    shoot.style.animationDelay = (Math.random() * 40) + 's';
     starfield.appendChild(shoot);
   }
 
@@ -287,9 +318,14 @@
   const chatInput = document.getElementById('chatInput');
   const messagesArea = document.getElementById('messagesArea');
   const userNameSpan = document.getElementById('userNameDisplay');
-  const userBadge = document.getElementById('userBadge');
+  const userInitialsSpan = document.getElementById('userInitials');
 
-  function abbreviateName(fullName) { if (!fullName) return 'User'; const parts = fullName.trim().split(/\s+/); return parts[0]; }
+  function abbreviateName(fullName) {
+    if (!fullName) return 'EN';
+    const parts = fullName.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    return (parts[0][0] + (parts[1][0] || '')).toUpperCase();
+  }
 
   async function loadHistory(ariaUid) {
     try {
@@ -372,7 +408,7 @@
       const displayName = user.displayName || user.email.split('@')[0];
       const shortName = abbreviateName(displayName);
       userNameSpan.textContent = displayName;
-      userBadge.textContent = shortName;
+      userInitialsSpan.textContent = shortName;
       try {
         await fetch('/set_user_name', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user.uid, email: user.email.toLowerCase(), name: displayName }) });
         const uidRes = await fetch('/check_user?email=' + encodeURIComponent(user.email.toLowerCase()));
@@ -384,3 +420,4 @@
 </script>
 </body>
 </html>
+  
