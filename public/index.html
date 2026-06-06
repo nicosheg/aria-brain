@@ -611,4 +611,207 @@
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
 
-    const chatArea = document.getElementById('
+    const chatArea = document.getElementById('chatArea');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const loginOverlay = document.getElementById('loginOverlay');
+    const settingsPanel = document.getElementById('settingsPanel');
+    const userAvatarBtn = document.getElementById('userAvatarBtn');
+    const themeToggleBtn = document.getElementById('themeToggleBtn');
+    const themeModeCard = document.getElementById('themeModeCard');
+    const clearChatCard = document.getElementById('clearChatCard');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+
+    let currentUser = null;
+    let lastRatingMsgId = null;
+    let lastRatingBar = null;
+
+    marked.setOptions({ breaks: true, gfm: true });
+
+    function nowTime() {
+        return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function addMessage(text, sender, showRating = false, msgId = null) {
+        const row = document.createElement('div');
+        row.className = `message-row ${sender}`;
+        const bubble = document.createElement('div');
+        bubble.className = 'message-bubble';
+        if (sender === 'aria') {
+            if (text === '...') {
+                bubble.innerHTML = `<div class="typing-indicator"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>`;
+            } else {
+                bubble.innerHTML = marked.parse(text);
+            }
+        } else {
+            bubble.textContent = text;
+        }
+        const meta = document.createElement('div');
+        meta.className = 'message-meta';
+        meta.innerText = nowTime();
+        row.appendChild(bubble);
+        row.appendChild(meta);
+
+        if (sender === 'aria' && text !== '...') {
+            const actions = document.createElement('div');
+            actions.className = 'inline-actions';
+            actions.innerHTML = `
+                <button class="inline-action" data-action="copy">📋 Copy</button>
+                <button class="inline-action" data-action="regenerate">🔄 Regenerate</button>
+                <button class="inline-action" data-action="speak">🔊 Speak</button>
+            `;
+            row.appendChild(actions);
+            actions.querySelectorAll('[data-action]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const action = btn.dataset.action;
+                    if (action === 'copy') navigator.clipboard.writeText(text);
+                    if (action === 'regenerate') regenerateLastMessage();
+                    if (action === 'speak') speakText(text);
+                });
+            });
+        }
+
+        if (sender === 'aria' && showRating && msgId) {
+            const ratingDiv = document.createElement('div');
+            ratingDiv.className = 'rating-row';
+            for (let i = 1; i <= 5; i++) {
+                const star = document.createElement('span');
+                star.className = 'rating-star';
+                star.textContent = '★';
+                star.style.opacity = i === 3 ? '1' : '0.4';
+                star.dataset.score = i;
+                star.onclick = () => sendRating(i, msgId, ratingDiv);
+                ratingDiv.appendChild(star);
+            }
+            row.appendChild(ratingDiv);
+            lastRatingBar = ratingDiv;
+            lastRatingMsgId = msgId;
+        }
+        chatArea.appendChild(row);
+        chatArea.scrollTop = chatArea.scrollHeight;
+        return row;
+    }
+
+    function sendRating(score, msgId, ratingDiv) {
+        if (!currentUser) return;
+        fetch('/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: currentUser.uid, score: score, message_id: msgId })
+        }).catch(e => console.warn);
+        ratingDiv.innerHTML = `<span style="font-size:12px">⭐ Rated ${score}/5</span>`;
+    }
+
+    async function sendMessage() {
+        const msg = messageInput.value.trim();
+        if (!msg || !currentUser) return;
+        addMessage(msg, 'user');
+        messageInput.value = '';
+        messageInput.style.height = 'auto';
+        const typingRow = addMessage('...', 'aria', false);
+        try {
+            const email = currentUser.email.toLowerCase();
+            const res = await fetch('/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: msg, user_id: currentUser.uid, email: email })
+            });
+            const data = await res.json();
+            typingRow.remove();
+            if (data.error) {
+                addMessage(`Error: ${data.error}`, 'aria', false);
+            } else {
+                addMessage(data.reply || 'No response', 'aria', true, Date.now().toString());
+            }
+        } catch (err) {
+            typingRow.remove();
+            addMessage(`Connection error: ${err.message}`, 'aria', false);
+        }
+    }
+
+    async function regenerateLastMessage() {
+        addMessage('Regenerate not yet implemented in this version.', 'aria', false);
+    }
+
+    function speakText(text) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'en-US';
+        speechSynthesis.cancel();
+        speechSynthesis.speak(utterance);
+    }
+
+    function enableChat(enable) {
+        messageInput.disabled = !enable;
+        sendBtn.disabled = !enable;
+        if (enable) messageInput.focus();
+    }
+
+    function signInWithGoogle() {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        auth.signInWithPopup(provider).catch(console.error);
+    }
+
+    document.getElementById('googleSignInBtn').onclick = signInWithGoogle;
+
+    auth.onAuthStateChanged(async (user) => {
+        if (user) {
+            currentUser = user;
+            loginOverlay.style.display = 'none';
+            enableChat(true);
+            try {
+                await fetch('/set_user_name', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: user.uid,
+                        email: user.email.toLowerCase(),
+                        name: user.displayName || user.email.split('@')[0]
+                    })
+                });
+            } catch (e) { console.log(e); }
+            chatArea.innerHTML = '';
+            addMessage(`Hey ${user.displayName || user.email.split('@')[0]}, welcome back.`, 'aria', false);
+        } else {
+            currentUser = null;
+            loginOverlay.style.display = 'flex';
+            enableChat(false);
+            chatArea.innerHTML = '';
+        }
+    });
+
+    userAvatarBtn.onclick = () => settingsPanel.classList.toggle('open');
+    themeToggleBtn.onclick = () => {
+        document.body.classList.toggle('light');
+        localStorage.setItem('aria_theme', document.body.classList.contains('light') ? 'light' : 'dark');
+    };
+    themeModeCard.onclick = () => {
+        document.body.classList.toggle('light');
+        localStorage.setItem('aria_theme', document.body.classList.contains('light') ? 'light' : 'dark');
+        settingsPanel.classList.remove('open');
+    };
+    clearChatCard.onclick = () => {
+        chatArea.innerHTML = '';
+        settingsPanel.classList.remove('open');
+        addMessage('Chat cleared. How can I help?', 'aria', false);
+    };
+    logoutBtn.onclick = () => auth.signOut();
+    closeSettingsBtn.onclick = () => settingsPanel.classList.remove('open');
+
+    if (localStorage.getItem('aria_theme') === 'light') document.body.classList.add('light');
+
+    sendBtn.onclick = sendMessage;
+    messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey && currentUser) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+    messageInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+    });
+</script>
+</body>
+</html>
