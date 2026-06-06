@@ -1407,7 +1407,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"error": str(e)}, 500)
             return
 
-        elif self.path.startswith("/mine"):
+                elif self.path.startswith("/mine"):
             key = self.path.split("?key=")[-1] if "?key=" in self.path else ""
             if key != "aria_mine_nicholas_2026":
                 self.send_response(403)
@@ -1421,7 +1421,8 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path.startswith("/seed"):
             self.seed_aria_lessons()
             return
-                elif self.path.startswith("/check_user"):
+
+        elif self.path.startswith("/check_user"):
             from urllib.parse import urlparse, parse_qs
             parsed = urlparse(self.path)
             params = parse_qs(parsed.query)
@@ -1432,6 +1433,10 @@ class Handler(BaseHTTPRequestHandler):
             uid_result = generate_aria_uid(email)
             self._json(uid_result)
             return
+
+        else:
+            self.send_response(404)
+            self.end_headers()
 
         else:
             self.send_response(404)
