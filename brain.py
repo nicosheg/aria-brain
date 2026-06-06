@@ -1441,10 +1441,19 @@ class Handler(BaseHTTPRequestHandler):
             uid_result = generate_aria_uid(email)
             self._json(uid_result)
             return
-
+            
+        elif self.path == "/reset_pool":
+            global _postgres_pool
+            if _postgres_pool:
+                _postgres_pool.closeall()
+            _postgres_pool = None
+            init_postgres()
+            self._json({"status": "pool reset"})
+            return
         # ── 404 for everything else ─────────────────
-        self.send_response(404)
-        self.end_headers()
+        else:
+            self.send_response(404)
+            self.end_headers()
 
     def seed_aria_lessons(self):
         SEED_KEY = "aria_seed_nicholas_2026"
