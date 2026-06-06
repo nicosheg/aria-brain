@@ -192,8 +192,8 @@
     auth.onAuthStateChanged(async (user) => {
         if (user) {
             currentUser = user;
-            // ✅ Store email immediately for later /chat requests
-            localStorage.setItem("user_email", user.email);
+            // Store normalized email (lowercase) for cross-device consistency
+            localStorage.setItem("user_email", user.email.toLowerCase());
             
             loginOverlay.style.display = "none";
             appDiv.style.display = "flex";
@@ -207,7 +207,7 @@
                     headers: {"Content-Type": "application/json"},
                     body: JSON.stringify({
                         user_id: user.uid,
-                        email: user.email,
+                        email: user.email.toLowerCase(),
                         name: user.displayName || user.email.split("@")[0]
                     })
                 });
@@ -227,7 +227,7 @@
             loginOverlay.style.display = "flex";
             appDiv.style.display = "none";
             enableChat(false);
-            // Clear stored email on logout
+            // Clear stored session data
             localStorage.removeItem("user_email");
             localStorage.removeItem("aria_uid");
         }
