@@ -55,7 +55,7 @@
       pointer-events: none;
       z-index: 1;
     }
-    /* Individual star */
+    /* Individual star – tiny, twinkling */
     .star {
       position: absolute;
       background: white;
@@ -68,21 +68,33 @@
       40% { opacity: 0.9; transform: scale(1); }
       100% { opacity: 0; transform: scale(0.6); }
     }
-    /* Shooting star */
+    /* Shooting star – soft tail using box-shadow and gradient */
     .shooting-star {
       position: absolute;
-      width: 2px;
-      height: 2px;
+      width: 3px;
+      height: 3px;
       background: white;
-      box-shadow: 0 0 6px rgba(255,255,240,0.6);
       border-radius: 50%;
       opacity: 0;
+      filter: blur(0.5px);
       animation: shootVerySlow linear infinite;
+    }
+    /* Soft tail effect via pseudo-element */
+    .shooting-star::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 60px;
+      height: 2px;
+      background: linear-gradient(90deg, rgba(255,255,240,0.7) 0%, rgba(255,255,240,0) 100%);
+      transform: translateX(-100%);
+      border-radius: 2px;
     }
     @keyframes shootVerySlow {
       0% { transform: translate(0, 0); opacity: 0; }
-      10% { opacity: 0.8; }
-      30% { transform: translate(-80px, 80px); opacity: 0.4; }
+      10% { opacity: 0.9; }
+      30% { transform: translate(-80px, 80px); opacity: 0.6; }
       100% { transform: translate(-200px, 200px); opacity: 0; }
     }
     /* Nebula dust */
@@ -109,42 +121,39 @@
       flex-direction: column;
       background: transparent;
     }
-    /* Header – abbreviated name badge + sign out button */
+    /* Header – combined sign-out block with initials and label */
     .header {
       display: flex;
       justify-content: flex-end;
       align-items: center;
-      gap: 8px;
       margin-bottom: 28px;
     }
-    .user-badge {
+    .user-signout {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       background: rgba(255, 255, 255, 0.04);
       border: 0.5px solid rgba(255, 255, 255, 0.1);
       border-radius: 40px;
-      padding: 6px 14px;
+      padding: 6px 14px 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .user-signout:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+    .user-initials {
       font-size: 13px;
       font-weight: 500;
       color: #E2E8F0;
-      backdrop-filter: blur(6px);
+      letter-spacing: 0.5px;
     }
-    .signout-btn {
-      background: rgba(255, 255, 255, 0.04);
-      border: 0.5px solid rgba(255, 255, 255, 0.1);
-      border-radius: 40px;
-      width: 32px;
-      height: 32px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      font-size: 14px;
-      transition: all 0.2s;
-      color: #94A3B8;
-    }
-    .signout-btn:hover {
-      background: rgba(255, 255, 255, 0.08);
-      color: #F8FAFC;
-      border-color: rgba(255, 255, 255, 0.2);
+    .signout-label {
+      font-size: 7px;
+      font-weight: 400;
+      color: #7A8AAA;
+      margin-top: 1px;
     }
     /* Welcome banner – three blue stars icon */
     .welcome-card {
@@ -195,7 +204,7 @@
       margin-left: 8px;
       margin-bottom: 16px;
     }
-    /* 3 cards – compact */
+    /* 3 cards – compact, at bottom */
     .cards-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -495,8 +504,10 @@
 
 <div class="app-container" id="mainUI">
   <div class="header">
-    <div class="user-badge" id="userBadge">—</div>
-    <button class="signout-btn" id="signoutBtn" title="Sign out">⏻</button>
+    <div class="user-signout" id="signoutBtn">
+      <div class="user-initials" id="userInitials">EN</div>
+      <div class="signout-label">sign out</div>
+    </div>
   </div>
 
   <div class="welcome-card">
@@ -573,7 +584,6 @@
 
 <!-- End of Part 1. Part 2 starts below -->
   <script>
-  // Firebase config (same as yours)
   const firebaseConfig = {
     apiKey: "AIzaSyAfrs67qWlU8FjsjqHwNeivGgm7x_vHdJY",
     authDomain: "fiducia-148b9.firebaseapp.com",
@@ -588,7 +598,6 @@
   let currentUser = null;
   let lastAriaMessage = null;
 
-  // Time update (Lagos)
   function updateTimestamp() {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos' });
@@ -599,13 +608,12 @@
   setInterval(updateTimestamp, 60000);
 
   // ============================================================
-  // STARFIELD GENERATION (pure CSS, working version)
+  // STARFIELD GENERATION (pure CSS, tiny, twinkling)
   // ============================================================
   const starfield = document.getElementById('starfield');
   function isNearDiagonal(x, y) {
     return (x + y) > 1.2;
   }
-  // Generate stars – tiny, dim, with varied sizes
   for (let i = 0; i < 500; i++) {
     const star = document.createElement('div');
     star.className = 'star';
@@ -628,7 +636,7 @@
     star.style.animationDelay = (Math.random() * 8) + 's';
     starfield.appendChild(star);
   }
-  // Shooting stars – very slow, soft tail (CSS animation)
+  // Shooting stars – CSS elements with soft tail (pseudo-element gradient)
   for (let i = 0; i < 6; i++) {
     const shoot = document.createElement('div');
     shoot.className = 'shooting-star';
@@ -640,7 +648,7 @@
   }
 
   // ============================================================
-  // UI Logic (chat, history, Firebase)
+  // UI Logic
   // ============================================================
   const mainUI = document.getElementById('mainUI');
   const chatView = document.getElementById('chatView');
@@ -648,7 +656,7 @@
   const chatInput = document.getElementById('chatInput');
   const messagesArea = document.getElementById('messagesArea');
   const userNameSpan = document.getElementById('userNameDisplay');
-  const userBadge = document.getElementById('userBadge');
+  const userInitialsSpan = document.getElementById('userInitials');
   const historyModal = document.getElementById('historyModal');
   const historyContent = document.getElementById('historyContent');
 
@@ -821,7 +829,7 @@
   document.querySelectorAll('.feature-card').forEach(card => {
     card.addEventListener('click', () => {
       openChat();
-      addMessage(`Let's talk about ${card.querySelector('.card-title').textContent}. How can I help?`, 'aria');
+      addMessage(`Let's talk about ${card.querySelector('.card-title').textContent}. How can I help?', 'aria');
     });
   });
   document.getElementById('closeChatBtn').addEventListener('click', closeChat);
@@ -871,7 +879,7 @@
       const displayName = user.displayName || user.email.split('@')[0];
       const shortName = abbreviateName(displayName);
       userNameSpan.textContent = displayName;
-      userBadge.textContent = shortName;
+      userInitialsSpan.textContent = shortName;
       try {
         await fetch('/set_user_name', {
           method: 'POST',
