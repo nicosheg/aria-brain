@@ -457,326 +457,281 @@
 
 <!-- Part 2 follows -->
   <script>
-  // Firebase config (same as yours)
-  const firebaseConfig = {
-    apiKey: "AIzaSyAfrs67qWlU8FjsjqHwNeivGgm7x_vHdJY",
-    authDomain: "fiducia-148b9.firebaseapp.com",
-    projectId: "fiducia-148b9",
-    storageBucket: "fiducia-148b9.firebasestorage.app",
-    messagingSenderId: "380888909038",
-    appId: "1:380888909038:web:efe40c252537e670959fff"
-  };
-  firebase.initializeApp(firebaseConfig);
-  const auth = firebase.auth();
+  // -------------------------------------------------------------
+  // COSMIC BACKGROUND (canvas) – twinkling stars, Milky Way, clouds, constellation, shooting stars
+  // -------------------------------------------------------------
+  (function() {
+    const canvas = document.getElementById('cosmicCanvas');
+    const ctx = canvas.getContext('2d');
+    let width, height;
 
-  let currentUser = null;
-  let lastAriaMessage = null;
+    // Helper
+    function random(min, max) { return min + Math.random() * (max - min); }
 
-  // ========== Canvas Starfield (tiny, twinkling, soft shooting star) ==========
-  const canvas = document.getElementById('starCanvas');
-  const ctx = canvas.getContext('2d');
-  let width, height;
-  let stars = [];
-  let shootingStars = [];
+    // ---------------------------------------------------------
+    // 1. Stars (many, tiny, dim)
+    // ---------------------------------------------------------
+    const STAR_COUNT = 4500;
+    let stars = [];
+    let brightStars = [];
+    const BRIGHT_STAR_COUNT = 18;
 
-  function initStars() {
-    width = window.innerWidth;
-    height = window.innerHeight;
-    canvas.width = width;
-    canvas.height = height;
-    stars = [];
-    // Tiny background stars
-    for (let i = 0; i < 300; i++) {
-      stars.push({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        radius: 0.3 + Math.random() * 0.8,
-        baseOpacity: 0.1 + Math.random() * 0.25,
-        twinkleSpeed: 0.002 + Math.random() * 0.003,
-        phase: Math.random() * Math.PI * 2
-      });
-    }
-    // Slightly brighter stars (rare)
-    for (let i = 0; i < 60; i++) {
-      stars.push({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        radius: 0.6 + Math.random() * 0.8,
-        baseOpacity: 0.3 + Math.random() * 0.4,
-        twinkleSpeed: 0.001 + Math.random() * 0.002,
-        phase: Math.random() * Math.PI * 2
-      });
-    }
-  }
+    // Twinkling data (for all stars)
+    let starTwinkle = []; // phase and speed
 
-  let starTime = 0;
-  function drawStars() {
-    if (!ctx) return;
-    ctx.clearRect(0, 0, width, height);
-    starTime += 0.016;
-    for (let s of stars) {
-      const twinkle = 0.6 + 0.4 * Math.sin(starTime * s.twinkleSpeed + s.phase);
-      const opacity = s.baseOpacity * twinkle;
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, s.radius, 0, Math.PI*2);
-      ctx.fillStyle = `rgba(255, 245, 235, ${opacity})`;
-      ctx.fill();
-    }
-    // Draw shooting stars (soft, multi‑layer)
-    for (let i = 0; i < shootingStars.length; i++) {
-      const ss = shootingStars[i];
-      ss.progress += ss.speed;
-      if (ss.progress >= 1) {
-        shootingStars.splice(i,1);
-        i--;
-        continue;
+    // ---------------------------------------------------------
+    // 2. Constellation
+    // ---------------------------------------------------------
+    let constellationStars = [];
+    let constellationEdges = [];
+    const CONSTELLATION_COUNT = 12;
+
+    // ---------------------------------------------------------
+    // 3. Shooting stars (animated)
+    // ---------------------------------------------------------
+    class ShootingStar {
+      constructor(x, y, angle, length, width, brightness, lifespan) {
+        this.x = x; this.y = y; this.angle = angle; this.length = length;
+        this.width = width; this.brightness = brightness;
+        this.life = lifespan; this.maxLife = lifespan;
       }
-      const x = ss.startX + (ss.endX - ss.startX) * ss.progress;
-      const y = ss.startY + (ss.endY - ss.startY) * ss.progress;
-      const tailX = x - Math.cos(ss.angle) * 40;
-      const tailY = y - Math.sin(ss.angle) * 40;
-      const fade = 1 - ss.progress;
-      // Outer glow
+      update() { this.life--; }
+      isAlive() { return this.life > 0; }
+      draw(ctx, w, h) {
+        const progress = 1 - (this.life / this.maxLife);
+        const startX = this.x * w;
+        const startY = this.y * h;
+        const endX = startX + Math.cos(this.angle) * this.length * w;
+        const endY = startY + Math.sin(this.angle) * this.length * h;
+        const fade = Math.max(0, 1 - progress * 1.2);
+        const bright = this.brightness * fade;
+        if (bright <= 0.02) return;
+        const grad = ctx.createLinearGradient(startX, startY, endX, endY);
+        grad.addColorStop(0, `rgba(220, 240, 255, ${bright * 0.5})`);
+        grad.addColorStop(0.6, `rgba(220, 240, 255, ${bright * 0.15})`);
+        grad.addColorStop(1, `rgba(220, 240, 255, 0)`);
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(endX, endY);
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = this.width;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(startX, startY, 1.0, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 250, 240, ${bright * 0.6})`;
+        ctx.fill();
+      }
+    }
+
+    let shootingStars = [];
+    let frame = 0;
+    const SHOOTING_STAR_PROB = 0.006;
+    const SHOOTING_STAR_LIFE = 80;
+
+    // ---------------------------------------------------------
+    // Initialisation
+    // ---------------------------------------------------------
+    function initStars() {
+      stars = [];
+      starTwinkle = [];
+      for (let i = 0; i < STAR_COUNT; i++) {
+        stars.push({
+          x: Math.random(),
+          y: Math.random(),
+          radius: random(0.12, 0.55),
+          baseOpacity: random(0.02, 0.15)
+        });
+        starTwinkle.push({
+          speed: random(0.005, 0.02),
+          phase: random(0, Math.PI * 2)
+        });
+      }
+      brightStars = [];
+      for (let i = 0; i < BRIGHT_STAR_COUNT; i++) {
+        brightStars.push({
+          x: Math.random(),
+          y: Math.random(),
+          radius: random(0.7, 1.2),
+          opacity: random(0.5, 0.85),
+          spikeLen: random(3, 5)
+        });
+      }
+    }
+
+    function initConstellation() {
+      const centerX = 0.25, centerY = 0.3;
+      constellationStars = [];
+      for (let i = 0; i < CONSTELLATION_COUNT; i++) {
+        constellationStars.push({
+          x: centerX + (Math.random() - 0.5) * 0.12,
+          y: centerY + (Math.random() - 0.5) * 0.12,
+          radius: random(0.6, 1.0),
+          opacity: random(0.6, 0.9)
+        });
+      }
+      constellationEdges = [];
+      for (let i = 0; i < constellationStars.length; i++) {
+        for (let j = i+1; j < constellationStars.length; j++) {
+          const dx = constellationStars[i].x - constellationStars[j].x;
+          const dy = constellationStars[i].y - constellationStars[j].y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < 0.08 && Math.random() < 0.3) {
+            constellationEdges.push({ i, j });
+          }
+        }
+      }
+    }
+
+    // ---------------------------------------------------------
+    // Background layers (gradients, Milky Way, clouds)
+    // ---------------------------------------------------------
+    function drawBaseGradient() {
+      const grad = ctx.createLinearGradient(0, 0, width * 0.85, height);
+      grad.addColorStop(0, '#01030A');
+      grad.addColorStop(0.5, '#020514');
+      grad.addColorStop(1, '#03081A');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+    }
+
+    function drawMilkyWayGlow() {
+      const startX = width * 0.94, startY = height * 0.92;
+      const endX = width * 0.06, endY = height * 0.08;
+      const grad = ctx.createLinearGradient(startX, startY, endX, endY);
+      grad.addColorStop(0, 'rgba(20,30,60,0)');
+      grad.addColorStop(0.3, 'rgba(45,75,115,0.07)');
+      grad.addColorStop(0.6, 'rgba(60,90,135,0.12)');
+      grad.addColorStop(0.8, 'rgba(50,80,120,0.08)');
+      grad.addColorStop(1, 'rgba(35,50,80,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+    }
+
+    function drawCloudClusters() {
+      const clusters = [
+        { cx: 0.72, cy: 0.74, radius: 0.42, r: 25, g: 55, b: 120, intensity: 0.65 },
+        { cx: 0.28, cy: 0.26, radius: 0.36, r: 30, g: 60, b: 125, intensity: 0.55 },
+        { cx: 0.50, cy: 0.52, radius: 0.32, r: 20, g: 50, b: 115, intensity: 0.5 },
+        { cx: 0.85, cy: 0.45, radius: 0.28, r: 35, g: 65, b: 130, intensity: 0.45 },
+        { cx: 0.15, cy: 0.70, radius: 0.30, r: 25, g: 55, b: 120, intensity: 0.5 },
+        { cx: 0.38, cy: 0.85, radius: 0.25, r: 30, g: 60, b: 125, intensity: 0.4 }
+      ];
+      for (let c of clusters) {
+        const cx = c.cx * width;
+        const cy = c.cy * height;
+        const rad = c.radius * width;
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad);
+        grad.addColorStop(0, `rgba(${c.r}, ${c.g}, ${c.b}, ${0.035 * c.intensity})`);
+        grad.addColorStop(1, `rgba(${c.r}, ${c.g}, ${c.b}, 0)`);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, width, height);
+      }
+    }
+
+    // ---------------------------------------------------------
+    // Star drawing (with twinkling)
+    // ---------------------------------------------------------
+    let time = 0;
+    function drawStars() {
+      time += 0.016;
+      for (let i = 0; i < stars.length; i++) {
+        const s = stars[i];
+        const t = starTwinkle[i];
+        const twinkle = 0.6 + 0.4 * Math.sin(time * t.speed + t.phase);
+        const opacity = s.baseOpacity * twinkle;
+        ctx.beginPath();
+        ctx.arc(s.x * width, s.y * height, s.radius, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(210, 225, 255, ${opacity})`;
+        ctx.fill();
+      }
+      // Bright stars (no twinkle, but subtle)
+      for (let b of brightStars) {
+        const cx = b.x * width, cy = b.y * height;
+        ctx.beginPath();
+        ctx.arc(cx, cy, b.radius, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(240, 245, 255, ${b.opacity})`;
+        ctx.fill();
+        // tiny spikes
+        const len = b.spikeLen;
+        ctx.beginPath();
+        ctx.moveTo(cx - len, cy); ctx.lineTo(cx + len, cy);
+        ctx.moveTo(cx, cy - len); ctx.lineTo(cx, cy + len);
+        ctx.strokeStyle = `rgba(240, 245, 255, ${b.opacity * 0.4})`;
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+      }
+    }
+
+    function drawConstellation() {
       ctx.beginPath();
-      ctx.moveTo(tailX, tailY);
-      ctx.lineTo(x, y);
-      ctx.strokeStyle = `rgba(255,255,240, ${fade * 0.08})`;
-      ctx.lineWidth = 6;
-      ctx.lineCap = 'round';
-      ctx.stroke();
-      // Middle
-      ctx.beginPath();
-      ctx.moveTo(tailX, tailY);
-      ctx.lineTo(x, y);
-      ctx.strokeStyle = `rgba(255,255,240, ${fade * 0.25})`;
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
-      // Core
-      ctx.beginPath();
-      ctx.moveTo(tailX, tailY);
-      ctx.lineTo(x, y);
-      ctx.strokeStyle = `rgba(255,255,255, ${fade * 0.8})`;
+      for (let edge of constellationEdges) {
+        const s1 = constellationStars[edge.i];
+        const s2 = constellationStars[edge.j];
+        ctx.moveTo(s1.x * width, s1.y * height);
+        ctx.lineTo(s2.x * width, s2.y * height);
+      }
+      ctx.strokeStyle = 'rgba(140, 180, 230, 0.2)';
       ctx.lineWidth = 0.8;
       ctx.stroke();
-    }
-    requestAnimationFrame(drawStars);
-  }
-
-  function addShootingStar() {
-    if (shootingStars.length > 1) return;
-    const startX = width * (0.6 + Math.random() * 0.3);
-    const startY = height * (0.1 + Math.random() * 0.2);
-    const endX = startX - width * 0.35;
-    const endY = startY + height * 0.25;
-    const angle = Math.atan2(endY - startY, endX - startX);
-    shootingStars.push({ startX, startY, endX, endY, progress: 0, speed: 0.003 + Math.random() * 0.002, angle });
-  }
-
-  window.addEventListener('resize', () => { initStars(); });
-  initStars();
-  drawStars();
-  setInterval(() => { if (Math.random() > 0.7) addShootingStar(); }, 25000);
-  addShootingStar();
-
-  // ========== UI Logic ==========
-  function updateTimestamp() {
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString('en-NG', { hour:'2-digit', minute:'2-digit', timeZone:'Africa/Lagos' });
-    const el = document.getElementById('timestamp');
-    if (el) el.textContent = timeStr;
-  }
-  updateTimestamp();
-  setInterval(updateTimestamp, 60000);
-
-  const mainUI = document.getElementById('mainUI');
-  const chatView = document.getElementById('chatView');
-  const mainInput = document.getElementById('mainInput');
-  const chatInput = document.getElementById('chatInput');
-  const messagesArea = document.getElementById('messagesArea');
-  const userNameSpan = document.getElementById('userNameDisplay');
-  const userInitialsSpan = document.getElementById('userInitials');
-  const historyModal = document.getElementById('historyModal');
-  const historyContent = document.getElementById('historyContent');
-
-  function abbreviateName(fullName) {
-    if (!fullName) return 'EN';
-    const parts = fullName.trim().split(/\s+/);
-    if (parts.length === 1) return parts[0].substring(0,2).toUpperCase();
-    return (parts[0][0] + (parts[1][0] || '')).toUpperCase();
-  }
-
-  async function loadHistory(ariaUid) {
-    try {
-      const res = await fetch(`/context?uid=${ariaUid}`);
-      const data = await res.json();
-      if (data.context) {
-        const lines = data.context.split('\n');
-        let current = null;
-        for (let line of lines) {
-          if (line.startsWith('User:')) {
-            if (current) addMessage(current.trim(), 'aria');
-            current = null;
-            addMessage(line.substring(5).trim(), 'user');
-          } else if (line.startsWith('ARIA:')) {
-            current = line.substring(5).trim();
-          }
-        }
-        if (current) addMessage(current.trim(), 'aria');
+      for (let cs of constellationStars) {
+        ctx.beginPath();
+        ctx.arc(cs.x * width, cs.y * height, cs.radius, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(200, 220, 255, ${cs.opacity})`;
+        ctx.fill();
       }
-    } catch(e) { console.warn('History load failed', e); }
-  }
+    }
 
-  async function fetchHistoryForModal() {
-    if (!currentUser) return;
-    try {
-      const uidRes = await fetch('/check_user?email=' + encodeURIComponent(currentUser.email.toLowerCase()));
-      const uidData = await uidRes.json();
-      if (!uidData.aria_uid) return;
-      const res = await fetch(`/context?uid=${uidData.aria_uid}`);
-      const data = await res.json();
-      if (data.context) {
-        const lines = data.context.split('\n');
-        let items = [];
-        let uMsg = null, aMsg = null;
-        for (let line of lines) {
-          if (line.startsWith('User:')) {
-            if (uMsg && aMsg) items.push({ user: uMsg, aria: aMsg });
-            uMsg = line.substring(5).trim();
-            aMsg = null;
-          } else if (line.startsWith('ARIA:')) {
-            aMsg = line.substring(5).trim();
-          }
-        }
-        if (uMsg && aMsg) items.push({ user: uMsg, aria: aMsg });
-        historyContent.innerHTML = '';
-        items.slice(-10).forEach(item => {
-          const div = document.createElement('div');
-          div.className = 'history-item';
-          div.innerHTML = `<div class="history-user">🧑 ${item.user}</div><div class="history-aria">🤖 ${item.aria}</div>`;
-          historyContent.appendChild(div);
-        });
-        if (items.length === 0) historyContent.innerHTML = '<p>No conversation history yet.</p>';
-      } else {
-        historyContent.innerHTML = '<p>No conversation history yet.</p>';
+    function updateShootingStars() {
+      shootingStars = shootingStars.filter(ss => ss.isAlive());
+      if (shootingStars.length < 2 && Math.random() < SHOOTING_STAR_PROB) {
+        const x = random(0.1, 0.7);
+        const y = random(0.05, 0.4);
+        const angle = random(-0.85, -0.2);
+        const length = random(0.03, 0.06);
+        const width = random(0.5, 0.8);
+        const brightness = random(0.3, 0.55);
+        const life = Math.floor(SHOOTING_STAR_LIFE * random(0.8, 1.2));
+        shootingStars.push(new ShootingStar(x, y, angle, length, width, brightness, life));
       }
-    } catch(e) { historyContent.innerHTML = '<p>Failed to load history.</p>'; }
-  }
-
-  function addMessage(text, sender) {
-    const div = document.createElement('div');
-    div.className = `message ${sender}`;
-    const bubble = document.createElement('div');
-    bubble.className = 'message-bubble';
-    bubble.innerHTML = marked.parse(text);
-    const actions = document.createElement('div');
-    actions.className = 'message-actions';
-    if (sender === 'aria') {
-      actions.innerHTML = `<button class="message-action copy-msg">📋 Copy</button><button class="message-action speak-msg">🔊 Speak</button>`;
-      actions.querySelector('.copy-msg').onclick = () => navigator.clipboard.writeText(text);
-      actions.querySelector('.speak-msg').onclick = () => {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'en-US';
-        speechSynthesis.cancel();
-        speechSynthesis.speak(utterance);
-      };
+      shootingStars.forEach(ss => ss.update());
     }
-    div.appendChild(bubble);
-    if (sender === 'aria') div.appendChild(actions);
-    messagesArea.appendChild(div);
-    messagesArea.scrollTop = messagesArea.scrollHeight;
-    if (sender === 'aria') lastAriaMessage = text;
-    return div;
-  }
 
-  function addTyping() {
-    const div = document.createElement('div');
-    div.className = 'message aria';
-    div.id = 'typingIndicator';
-    div.innerHTML = `<div class="message-bubble">✦ ✦ ✦</div>`;
-    messagesArea.appendChild(div);
-    messagesArea.scrollTop = messagesArea.scrollHeight;
-  }
-  function removeTyping() {
-    const t = document.getElementById('typingIndicator');
-    if (t) t.remove();
-  }
-
-  async function sendToAria(message, inputElement) {
-    if (!currentUser) return;
-    addMessage(message, 'user');
-    inputElement.value = '';
-    addTyping();
-    try {
-      const res = await fetch('/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, user_id: currentUser.uid, email: currentUser.email.toLowerCase() })
-      });
-      const data = await res.json();
-      removeTyping();
-      if (data.error) addMessage(`Error: ${data.error}`, 'aria');
-      else addMessage(data.reply || '...', 'aria');
-    } catch(e) { removeTyping(); addMessage('Connection uncertain. Please try again.', 'aria'); }
-  }
-
-  function openChat() {
-    mainUI.style.display = 'none';
-    chatView.classList.add('active');
-    if (messagesArea.children.length === 0 && currentUser) {
-      addMessage(`Hey ${abbreviateName(currentUser.displayName || currentUser.email.split('@')[0])}. I'm ARIA. What would you like to explore?`, 'aria');
+    function drawShootingStars() {
+      for (let ss of shootingStars) ss.draw(ctx, width, height);
     }
-    chatInput.focus();
-  }
-  function closeChat() {
-    mainUI.style.display = 'flex';
-    chatView.classList.remove('active');
-    messagesArea.innerHTML = '';
-  }
-  async function signOut() {
-    try { await auth.signOut(); window.location.href = '/login.html'; } catch(e) { console.error(e); } }
-  function showHistory() { fetchHistoryForModal(); historyModal.classList.add('active'); }
-  function closeHistory() { historyModal.classList.remove('active'); }
 
-  mainInput.addEventListener('focus', openChat);
-  document.querySelectorAll('.feature-card').forEach(card => {
-    card.addEventListener('click', () => {
-      openChat();
-      addMessage(`Let's talk about ${card.querySelector('.card-title').textContent}. How can I help?`, 'aria');
-    });
-  });
-  document.getElementById('closeChatBtn').addEventListener('click', closeChat);
-  document.getElementById('chatSendBtn').addEventListener('click', () => { const msg = chatInput.value.trim(); if (msg) sendToAria(msg, chatInput); });
-  chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); const msg = chatInput.value.trim(); if (msg) sendToAria(msg, chatInput); } });
-  document.getElementById('sendBtn').addEventListener('click', () => { const msg = mainInput.value.trim(); if (msg) sendToAria(msg, mainInput); });
-  mainInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); const msg = mainInput.value.trim(); if (msg) sendToAria(msg, mainInput); } });
-  document.getElementById('copyLastMsgBtn').addEventListener('click', () => { if (lastAriaMessage) navigator.clipboard.writeText(lastAriaMessage); });
-  document.getElementById('speakLastMsgBtn').addEventListener('click', () => { if (lastAriaMessage) { const u = new SpeechSynthesisUtterance(lastAriaMessage); u.lang = 'en-US'; speechSynthesis.cancel(); speechSynthesis.speak(u); } });
-  document.getElementById('historyBtn').addEventListener('click', showHistory);
-  document.getElementById('closeHistoryBtn').addEventListener('click', closeHistory);
-  historyModal.addEventListener('click', (e) => { if (e.target === historyModal) closeHistory(); });
-  document.getElementById('signoutBtn').addEventListener('click', signOut);
-
-  auth.onAuthStateChanged(async (user) => {
-    if (user) {
-      currentUser = user;
-      const displayName = user.displayName || user.email.split('@')[0];
-      const shortName = abbreviateName(displayName);
-      userNameSpan.textContent = displayName;
-      userInitialsSpan.textContent = shortName;
-      try {
-        await fetch('/set_user_name', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: user.uid, email: user.email.toLowerCase(), name: displayName })
-        });
-        const uidRes = await fetch('/check_user?email=' + encodeURIComponent(user.email.toLowerCase()));
-        const uidData = await uidRes.json();
-        if (uidData.aria_uid) loadHistory(uidData.aria_uid);
-      } catch(e) { console.warn(e); }
-    } else {
-      window.location.href = '/login.html';
+    // ---------------------------------------------------------
+    // Render loop
+    // ---------------------------------------------------------
+    function resizeCanvas() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = width;
+      canvas.height = height;
     }
-  });
+
+    function render() {
+      if (!ctx) return;
+      drawBaseGradient();
+      drawMilkyWayGlow();
+      drawCloudClusters();
+      drawStars();
+      drawConstellation();
+      drawShootingStars();
+      updateShootingStars();
+      requestAnimationFrame(render);
+    }
+
+    function init() {
+      initStars();
+      initConstellation();
+      resizeCanvas();
+      render();
+    }
+
+    window.addEventListener('resize', () => resizeCanvas());
+    init();
+  })();
 </script>
 </body>
 </html>
