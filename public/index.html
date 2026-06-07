@@ -329,11 +329,12 @@
       border-top: 0.5px solid rgba(255, 255, 255, 0.06);
       margin-top: auto;
     }
-    /* Chat overlay */
+    /* Chat overlay – semi-transparent so stars are visible */
     .chat-view {
       position: fixed;
       inset: 0;
-      background: #03050A;
+      background: rgba(3, 5, 10, 0.85);
+      backdrop-filter: blur(4px);
       z-index: 100;
       padding: 20px;
       display: none;
@@ -598,11 +599,10 @@
   setInterval(updateTimestamp, 60000);
 
   // ============================================================
-  // STARFIELD GENERATION (CSS-based, working version)
+  // STARFIELD GENERATION (pure CSS, working version)
   // ============================================================
   const starfield = document.getElementById('starfield');
   function isNearDiagonal(x, y) {
-    // dense cluster along the milky way diagonal
     return (x + y) > 1.2;
   }
   // Generate stars – tiny, dim, with varied sizes
@@ -614,12 +614,10 @@
     if (isNearDiagonal(x, y)) {
       star.style.left = (x * 100) + '%';
       star.style.top = (y * 100) + '%';
-      // smaller stars: 0.2–1.2px
       star.style.width = (Math.random() * 1.0 + 0.2) + 'px';
       star.style.height = star.style.width;
       star.style.animationDuration = (Math.random() * 8 + 4) + 's';
     } else {
-      // fewer stars outside diagonal
       if (Math.random() > 0.65) continue;
       star.style.left = (x * 100) + '%';
       star.style.top = (y * 100) + '%';
@@ -636,7 +634,6 @@
     shoot.className = 'shooting-star';
     shoot.style.left = (Math.random() * 80 + 10) + '%';
     shoot.style.top = (Math.random() * 60) + '%';
-    // longer duration (8–14 seconds) for slower movement
     shoot.style.animationDuration = (Math.random() * 6 + 8) + 's';
     shoot.style.animationDelay = (Math.random() * 30) + 's';
     starfield.appendChild(shoot);
@@ -895,4 +892,4 @@
   });
 </script>
 </body>
-  </html>
+</html>
