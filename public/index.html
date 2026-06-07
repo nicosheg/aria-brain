@@ -451,7 +451,7 @@
   </div>
 </div>
 
-<!-- End of Part 1. Part 2 starts below --> 
+<!-- End of Part 1. Part 2 starts below -->
   <div id="chatView" class="chat-view">
   <div class="chat-header">
     <button class="back-btn" id="closeChatBtn">←</button>
@@ -492,7 +492,7 @@
   let lastAriaMessage = null;
 
   // ============================================================
-  // WORKING STARFIELD (restored from earlier working version)
+  // WORKING STARFIELD (restored to original working version)
   // ============================================================
   const canvas = document.getElementById('starCanvas');
   const ctx = canvas.getContext('2d');
@@ -507,13 +507,13 @@
     canvas.height = height;
 
     stars = [];
-    // 400 stars with random properties
-    for (let i = 0; i < 400; i++) {
+    const starCount = 400;
+    for (let i = 0; i < starCount; i++) {
       stars.push({
         x: Math.random() * width,
         y: Math.random() * height,
         radius: Math.random() * 1.2 + 0.2,
-        alpha: Math.random() * 0.6 + 0.2,
+        alpha: Math.random() * 0.5 + 0.2,
         twinkleSpeed: 0.001 + Math.random() * 0.003,
         phase: Math.random() * Math.PI * 2
       });
@@ -530,11 +530,10 @@
       const twinkle = 0.6 + 0.4 * Math.sin(starTime * s.twinkleSpeed + s.phase);
       ctx.beginPath();
       ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(255, 240, 230, ${s.alpha * twinkle})`;
+      ctx.fillStyle = `rgba(255, 245, 235, ${s.alpha * twinkle})`;
       ctx.fill();
     }
 
-    // Very rare shooting star (optional)
     requestAnimationFrame(drawStars);
   }
 
@@ -544,16 +543,15 @@
   initStars();
   drawStars();
 
-  // Add occasional shooting star (very slow)
-  setInterval(() => {
-    if (Math.random() > 0.85 && shootingStars.length < 1) {
-      const startX = width * (0.6 + Math.random() * 0.3);
-      const startY = height * (0.1 + Math.random() * 0.2);
-      const endX = startX - width * 0.3;
-      const endY = startY + height * 0.25;
-      shootingStars.push({ startX, startY, endX, endY, progress: 0, speed: 0.003 });
-    }
-  }, 20000);
+  // Very slow shooting star (once every 20-30 seconds)
+  function addShootingStar() {
+    if (shootingStars.length > 0) return;
+    const startX = width * (0.6 + Math.random() * 0.3);
+    const startY = height * (0.1 + Math.random() * 0.2);
+    const endX = startX - width * 0.35;
+    const endY = startY + height * 0.25;
+    shootingStars.push({ startX, startY, endX, endY, progress: 0, speed: 0.004 });
+  }
 
   function drawShootingStars() {
     for (let i = 0; i < shootingStars.length; i++) {
@@ -568,19 +566,23 @@
       const y = ss.startY + (ss.endY - ss.startY) * ss.progress;
       ctx.beginPath();
       ctx.moveTo(x, y);
-      const tailX = x - (ss.startX - ss.endX) * 0.06;
-      const tailY = y - (ss.startY - ss.endY) * 0.06;
+      const tailX = x - (ss.startX - ss.endX) * 0.07;
+      const tailY = y - (ss.startY - ss.endY) * 0.07;
       ctx.lineTo(tailX, tailY);
-      ctx.strokeStyle = `rgba(255, 255, 255, ${0.7 * (1 - ss.progress)})`;
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.8 * (1 - ss.progress)})`;
       ctx.lineWidth = 1;
       ctx.stroke();
     }
     requestAnimationFrame(drawShootingStars);
   }
   drawShootingStars();
+  setInterval(() => {
+    if (Math.random() > 0.6) addShootingStar();
+  }, 25000);
+  addShootingStar();
 
   // ============================================================
-  // Rest of UI (unchanged)
+  // Rest of UI
   // ============================================================
   function updateTimestamp() {
     const now = new Date();
@@ -837,4 +839,4 @@
   });
 </script>
 </body>
-</html>
+  </html>
