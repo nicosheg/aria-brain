@@ -21,6 +21,7 @@
       overflow-x: hidden;
       min-height: 100vh;
     }
+    /* Cosmic background layers */
     .cosmic-bg {
       position: fixed;
       inset: 0;
@@ -51,24 +52,25 @@
     }
     @keyframes twinkle {
       0% { opacity: 0; transform: scale(0.6); }
-      40% { opacity: 0.8; transform: scale(1); }
+      40% { opacity: 0.9; transform: scale(1); }
       100% { opacity: 0; transform: scale(0.6); }
     }
+    /* Shooting star – no tail, just a soft glowing dot */
     .shooting-star {
       position: absolute;
       width: 2px;
       height: 2px;
-      background: white;
-      box-shadow: 0 0 4px rgba(255,255,240,0.6);
+      background: rgba(255,255,240,0.95);
+      box-shadow: 0 0 6px rgba(255,240,200,0.8);
       border-radius: 50%;
       opacity: 0;
       animation: shootVerySlow linear infinite;
     }
     @keyframes shootVerySlow {
       0% { transform: translate(0, 0); opacity: 0; }
-      10% { opacity: 0.8; }
-      30% { transform: translate(-80px, 80px); opacity: 0.4; }
-      100% { transform: translate(-200px, 200px); opacity: 0; }
+      10% { opacity: 1; }
+      30% { transform: translate(-60px, 60px); opacity: 0.6; }
+      100% { transform: translate(-140px, 140px); opacity: 0; }
     }
     .app-container {
       position: relative;
@@ -130,60 +132,57 @@
       color: #94A3B8;
       margin-top: 4px;
     }
-    /* Removed old icon-row */
-    .welcome-card {
-      background: rgba(10,12,25,0.7);
-      border: 0.5px solid rgba(255,255,255,0.08);
-      border-radius: 24px;
-      padding: 16px 18px;
+    /* Centered welcome message */
+    .center-message {
+      flex: 1;
       display: flex;
-      align-items: center;
-      gap: 14px;
-      backdrop-filter: blur(4px);
-      margin-bottom: 8px;
-    }
-    .welcome-icon {
-      width: 48px;
-      height: 48px;
-      background: rgba(0,0,0,0.5);
-      border-radius: 30px;
-      display: flex;
-      align-items: center;
+      flex-direction: column;
       justify-content: center;
+      align-items: center;
+      text-align: center;
+      margin: 20px 0;
     }
-    .welcome-icon svg {
-      width: 24px;
-      height: 24px;
-      stroke: #60A5FA;
-      fill: none;
-      stroke-width: 1.5;
+    .greeting {
+      font-size: 24px;
+      font-weight: 300;
+      letter-spacing: -0.3px;
+      color: #F0F4FA;
     }
-    .welcome-greeting {
-      font-size: 16px;
-      font-weight: 600;
-      color: white;
-      line-height: 1.4;
+    .greeting span {
+      font-weight: 500;
+      background: linear-gradient(120deg, #A78BFA, #60A5FA, #10B981);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      animation: shimmer 6s linear infinite;
     }
-    .welcome-greeting span {
-      font-weight: 700;
-      color: #A78BFA;
+    @keyframes shimmer {
+      0% { background-position: 0% center; }
+      100% { background-position: 200% center; }
     }
     .timestamp {
       font-size: 12px;
-      color: #55657E;
-      margin-top: 4px;
+      color: #7A8AAA;
+      margin-top: 8px;
+      opacity: 0.7;
+    }
+    /* Bottom block (cards + divider + input) */
+    .bottom-block {
+      margin-top: auto;
+      width: 100%;
     }
     .cards-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 12px;
-      margin: 20px 0;
+      margin-bottom: 16px;
     }
     .feature-card {
       background: rgba(20,22,40,0.5);
       backdrop-filter: blur(8px);
       border-radius: 20px;
-      padding: 16px 10px 12px;
+      padding: 14px 8px 10px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -194,66 +193,63 @@
     }
     .feature-card:hover { background: rgba(20,22,40,0.7); }
     .card-icon {
-      width: 40px;
-      height: 40px;
-      border-radius: 20px;
+      width: 36px;
+      height: 36px;
+      border-radius: 18px;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
     }
     .card-memory .card-icon { background: rgba(167,139,250,0.15); }
     .card-education .card-icon { background: rgba(96,165,250,0.15); }
     .card-income .card-icon { background: rgba(16,185,129,0.15); }
-    .card-decisions .card-icon { background: rgba(245,158,11,0.15); }
     .card-icon svg {
-      width: 20px;
-      height: 20px;
+      width: 18px;
+      height: 18px;
       fill: none;
       stroke-width: 1.5;
     }
     .card-memory .card-icon svg { stroke: #A78BFA; }
     .card-education .card-icon svg { stroke: #60A5FA; }
     .card-income .card-icon svg { stroke: #10B981; }
-    .card-decisions .card-icon svg { stroke: #F59E0B; }
     .card-title {
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
       color: white;
+      margin-bottom: 2px;
     }
     .card-desc {
-      font-size: 10px;
+      font-size: 9px;
       color: #9CA3AF;
-      margin-top: 4px;
     }
-    .center-divider {
+    .divider {
       text-align: center;
-      margin: 16px 0 24px;
+      margin: 8px 0 16px;
     }
     .divider-text {
-      font-size: 10px;
-      letter-spacing: 2px;
+      font-size: 9px;
+      letter-spacing: 1.5px;
       color: #60A5FA;
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
+      opacity: 0.6;
     }
-    /* Input bar moved to bottom */
     .input-capsule {
-      background: #05070F;
+      background: #0A0F1A;
       border: 1.5px solid #3B82F6;
       border-radius: 50px;
       padding: 8px 12px 8px 18px;
       display: flex;
       align-items: center;
       gap: 12px;
-      margin-top: auto;
       margin-bottom: 12px;
-      box-shadow: 0 0 8px rgba(59,130,246,0.2);
+      box-shadow: 0 0 8px rgba(59,130,246,0.1);
     }
     .input-icon-left svg {
-      width: 18px;
-      height: 18px;
+      width: 16px;
+      height: 16px;
       stroke: #60A5FA;
     }
     .input-field {
@@ -267,8 +263,8 @@
     }
     .input-field::placeholder { color: #334155; }
     .send-circle {
-      width: 36px;
-      height: 36px;
+      width: 34px;
+      height: 34px;
       background: transparent;
       border: 1px solid #1E40AF;
       border-radius: 30px;
@@ -278,66 +274,26 @@
       cursor: pointer;
     }
     .send-circle svg {
-      width: 16px;
-      height: 16px;
+      width: 14px;
+      height: 14px;
       stroke: #3B82F6;
       stroke-width: 2;
     }
-    /* Footer */
     .footer {
       text-align: center;
       padding: 8px 0 12px;
       font-size: 10px;
       letter-spacing: 0.6px;
-      color: #5A6E8E;
-      border-top: 0.5px solid rgba(255,255,255,0.06);
-    }
-    .bottom-nav {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
-      padding: 12px 0 0;
-      margin-top: 8px;
-    }
-    .nav-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      cursor: pointer;
-      background: transparent;
-      border: none;
-    }
-    .nav-icon {
-      width: 24px;
-      height: 24px;
-    }
-    .nav-icon svg {
+      color: #4A5A7A;
+      border-top: 0.5px solid rgba(255,255,255,0.04);
       width: 100%;
-      height: 100%;
-      fill: none;
-      stroke: #6B7280;
-      stroke-width: 1.5;
     }
-    .nav-item.active .nav-icon svg { stroke: #3B82F6; }
-    .nav-label {
-      font-size: 10px;
-      font-weight: 500;
-      color: #6B7280;
-    }
-    .nav-item.active .nav-label { color: #3B82F6; }
-    .active-dot {
-      width: 4px;
-      height: 4px;
-      background: #3B82F6;
-      border-radius: 2px;
-      margin-top: 2px;
-    }
+    /* Chat overlay (same cosmic background) */
     .chat-view {
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.94);
-      backdrop-filter: blur(8px);
+      background: rgba(3, 5, 10, 0.85);
+      backdrop-filter: blur(4px);
       z-index: 100;
       padding: 20px;
       display: none;
@@ -354,15 +310,30 @@
       background: transparent;
       border: none;
       color: white;
-      font-size: 24px;
+      font-size: 26px;
       cursor: pointer;
     }
+    .chat-actions {
+      display: flex;
+      gap: 12px;
+      margin-left: auto;
+    }
+    .chat-action {
+      background: transparent;
+      border: none;
+      font-size: 18px;
+      cursor: pointer;
+      color: #9CA3AF;
+      transition: 0.1s;
+    }
+    .chat-action:hover { color: #60A5FA; }
     .messages-area {
       flex: 1;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
       gap: 16px;
+      margin-bottom: 16px;
     }
     .message {
       max-width: 80%;
@@ -378,8 +349,106 @@
       color: white;
     }
     .user .message-bubble {
-      background: rgba(96,165,250,0.2);
+      background: rgba(96,165,250,0.15);
       border: 0.5px solid rgba(96,165,250,0.3);
+    }
+    .message-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .message:hover .message-actions { opacity: 0.7; }
+    .message-action {
+      background: transparent;
+      border: none;
+      font-size: 12px;
+      cursor: pointer;
+      color: #9CA3AF;
+    }
+    .message-action:hover { color: #60A5FA; }
+    /* Typing indicator (glowing dots) */
+    .typing-indicator {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 20px;
+      width: fit-content;
+      animation: glowPulse 1.2s infinite;
+    }
+    .typing-dot {
+      width: 6px;
+      height: 6px;
+      background: #60A5FA;
+      border-radius: 50%;
+      animation: dotBounce 1.2s infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes dotBounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+      30% { transform: translateY(-4px); opacity: 1; }
+    }
+    @keyframes glowPulse {
+      0% { box-shadow: 0 0 0 rgba(96,165,250,0); }
+      50% { box-shadow: 0 0 10px rgba(96,165,250,0.3); }
+      100% { box-shadow: 0 0 0 rgba(96,165,250,0); }
+    }
+    /* History modal */
+    .history-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      backdrop-filter: blur(8px);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: 0.2s;
+    }
+    .history-modal.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .history-container {
+      background: rgba(10,20,40,0.95);
+      border-radius: 24px;
+      max-width: 90%;
+      width: 500px;
+      max-height: 80%;
+      overflow-y: auto;
+      padding: 20px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .history-item {
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 0.5px solid rgba(255,255,255,0.1);
+    }
+    .history-user {
+      font-size: 12px;
+      color: #60A5FA;
+    }
+    .history-aria {
+      font-size: 12px;
+      color: #A78BFA;
+      margin-top: 4px;
+    }
+    .close-history {
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 20px;
+      float: right;
+      cursor: pointer;
     }
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(6px); }
@@ -387,9 +456,9 @@
     }
     @media (max-width: 640px) {
       .cards-grid { gap: 8px; }
-      .feature-card { padding: 12px 6px 8px; }
-      .card-title { font-size: 12px; }
-      .card-desc { font-size: 8px; }
+      .feature-card { padding: 10px 4px 6px; }
+      .card-title { font-size: 11px; }
+      .card-desc { font-size: 7px; }
     }
   </style>
 </head>
@@ -410,65 +479,65 @@
       </div>
     </div>
 
-    <div class="welcome-card">
-      <div class="welcome-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
-      <div class="welcome-text"><div class="welcome-greeting">Hey <span id="userName">friend</span>, welcome back.</div></div>
-    </div>
-    <div class="timestamp" id="timestamp">—</div>
-
-    <div class="cards-grid">
-      <div class="feature-card card-memory" data-pillar="Memory">
-        <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M12 2a9 9 0 1 0 0 18A9 9 0 0 0 12 2z"/><path d="M8 12s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/></svg></div>
-        <div class->card-title">Memory</div><div class="card-desc">Your memories, organized.</div>
-      </div>
-      <div class="feature-card card-education" data-pillar="Education">
-        <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
-        <div class="card-title">Education</div><div class="card-desc">Learn, grow, and master.</div>
-      </div>
-      <div class="feature-card card-income" data-pillar="Income">
-        <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-        <div class="card-title">Income</div><div class="card-desc">Track, plan, and grow.</div>
-      </div>
-      <div class="feature-card card-decisions" data-pillar="Decisions">
-        <div class="card-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg></div>
-        <div class="card-title">Decisions</div><div class="card-desc">Get clarity. Make better calls.</div>
-      </div>
+    <!-- Centered welcome message -->
+    <div class="center-message">
+      <div class="greeting">Hey <span id="userName">friend</span>.</div>
+      <div class="timestamp" id="timestamp">—</div>
     </div>
 
-    <div class="center-divider"><div class="divider-text">✦ ONE AI. EVERY PART OF YOUR LIFE. ✦</div></div>
-
-    <div class="input-capsule">
-      <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
-      <input type="text" class="input-field" id="mainInput" placeholder="Message ARIA...">
-      <div class="send-circle" id="sendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
-    </div>
-
-    <div class="footer">By MrNicosh Eg</div>
-
-    <div class="bottom-nav">
-      <div class="nav-item active" data-tab="chat"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><div class="nav-label">Chat</div><div class="active-dot"></div></div>
-      <div class="nav-item" data-tab="memory"><div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg></div><div class="nav-label">Memory</div></div>
-      <div class="nav-item" data-tab="insights"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="nav-label">Insights</div></div>
-      <div class="nav-item" data-tab="learn"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div><div class="nav-label">Learn</div></div>
-      <div class="nav-item" data-tab="profile"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div class="nav-label">Profile</div></div>
+    <!-- Bottom block: cards, divider, input, footer -->
+    <div class="bottom-block">
+      <div class="cards-grid">
+        <div class="feature-card card-memory" data-pillar="Memory">
+          <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M12 2a9 9 0 1 0 0 18A9 9 0 0 0 12 2z"/><path d="M8 12s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/></svg></div>
+          <div class="card-title">Memory</div><div class="card-desc">Your memories, organized.</div>
+        </div>
+        <div class="feature-card card-education" data-pillar="Education">
+          <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
+          <div class="card-title">Education</div><div class="card-desc">Learn, grow, and master.</div>
+        </div>
+        <div class="feature-card card-income" data-pillar="Income">
+          <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <div class="card-title">Income</div><div class="card-desc">Track, plan, and grow.</div>
+        </div>
+      </div>
+      <div class="divider"><div class="divider-text">💫 ONE AI. EVERY PART OF YOUR LIFE. 💫</div></div>
+      <div class="input-capsule">
+        <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+        <input type="text" class="input-field" id="mainInput" placeholder="Message ARIA...">
+        <div class="send-circle" id="sendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
+      </div>
+      <div class="footer">By MrNicosh Eg</div>
     </div>
   </div>
 
+  <!-- Chat overlay -->
   <div id="chatView" class="chat-view">
     <div class="chat-header">
       <button class="back-btn" id="closeChatBtn">←</button>
       <div style="color:white; font-weight:500;">ARIA</div>
+      <div class="chat-actions">
+        <button class="chat-action" id="historyBtn" title="History">🕘</button>
+      </div>
     </div>
     <div class="messages-area" id="messagesArea"></div>
-    <div class="input-capsule" style="margin-top: auto;">
+    <div class="input-capsule" style="margin-bottom: 0;">
       <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
       <input type="text" class="input-field" id="chatInput" placeholder="Message ARIA...">
       <div class="send-circle" id="chatSendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
     </div>
   </div>
 
+  <div id="historyModal" class="history-modal">
+    <div class="history-container">
+      <button class="close-history" id="closeHistoryBtn">✕</button>
+      <h3 style="margin-bottom:16px;">📜 Conversation History</h3>
+      <div id="historyContent"></div>
+    </div>
+  </div>
+
   <script>
-    // ========== CSS STARFIELD GENERATION ==========
+    // ========== STARFIELD GENERATION ==========
     (function() {
       const starfield = document.getElementById('starfield');
       function isNearDiagonal(x, y) { return (x + y) > 1.2; }
@@ -481,27 +550,28 @@
         if (isNearDiagonal(x, y)) {
           star.style.left = (x * 100) + '%';
           star.style.top = (y * 100) + '%';
-          star.style.width = (Math.random() * 1.0 + 0.2) + 'px';
+          star.style.width = (Math.random() * 0.9 + 0.2) + 'px';
           star.style.height = star.style.width;
           star.style.animationDuration = (Math.random() * 8 + 4) + 's';
         } else {
           if (Math.random() > 0.65) continue;
           star.style.left = (x * 100) + '%';
           star.style.top = (y * 100) + '%';
-          star.style.width = (Math.random() * 0.8 + 0.1) + 'px';
+          star.style.width = (Math.random() * 0.7 + 0.1) + 'px';
           star.style.height = star.style.width;
           star.style.animationDuration = (Math.random() * 10 + 6) + 's';
         }
         star.style.animationDelay = (Math.random() * 8) + 's';
         starfield.appendChild(star);
       }
+      // Shooting stars – no tail, just a soft dot
       for (let i = 0; i < 6; i++) {
         const shoot = document.createElement('div');
         shoot.className = 'shooting-star';
-        shoot.style.left = (Math.random() * 80 + 10) + '%';
-        shoot.style.top = (Math.random() * 60) + '%';
-        shoot.style.animationDuration = (Math.random() * 6 + 8) + 's';
-        shoot.style.animationDelay = (Math.random() * 30) + 's';
+        shoot.style.left = (Math.random() * 70 + 15) + '%';
+        shoot.style.top = (Math.random() * 50) + '%';
+        shoot.style.animationDuration = (Math.random() * 10 + 12) + 's';
+        shoot.style.animationDelay = (Math.random() * 40) + 's';
         starfield.appendChild(shoot);
       }
     })();
@@ -520,6 +590,7 @@
     const auth = firebase.auth();
 
     let currentUser = null;
+    let lastAriaMessage = null;
 
     function updateTimestamp() {
       const now = new Date();
@@ -529,7 +600,7 @@
     updateTimestamp();
     setInterval(updateTimestamp, 60000);
 
-    // Helper to get user initials
+    // Helper: user initials
     function getUserInitials(displayName, email) {
       if (!displayName) return email.substring(0,2).toUpperCase();
       const parts = displayName.trim().split(/\s+/);
@@ -546,6 +617,8 @@
     const userNameSpan = document.getElementById('userName');
     const userInitialsSpan = document.getElementById('userInitials');
     const signoutBtn = document.getElementById('signoutBtn');
+    const historyModal = document.getElementById('historyModal');
+    const historyContent = document.getElementById('historyContent');
 
     function addMessage(text, sender) {
       const div = document.createElement('div');
@@ -554,19 +627,35 @@
       bubble.className = 'message-bubble';
       bubble.innerHTML = marked.parse(text);
       div.appendChild(bubble);
+      // Add copy & speak buttons for ARIA messages
+      if (sender === 'aria') {
+        const actions = document.createElement('div');
+        actions.className = 'message-actions';
+        actions.innerHTML = `<button class="message-action copy-msg">📋 Copy</button><button class="message-action speak-msg">🔊 Speak</button>`;
+        actions.querySelector('.copy-msg').onclick = () => navigator.clipboard.writeText(text);
+        actions.querySelector('.speak-msg').onclick = () => {
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = 'en-US';
+          speechSynthesis.cancel();
+          speechSynthesis.speak(utterance);
+        };
+        div.appendChild(actions);
+      }
       messagesArea.appendChild(div);
       messagesArea.scrollTop = messagesArea.scrollHeight;
+      if (sender === 'aria') lastAriaMessage = text;
+      return div;
     }
 
-    function addTyping() {
+    function showTyping() {
       const div = document.createElement('div');
       div.className = 'message aria';
       div.id = 'typingIndicator';
-      div.innerHTML = `<div class="message-bubble">✦ ✦ ✦</div>`;
+      div.innerHTML = `<div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>`;
       messagesArea.appendChild(div);
       messagesArea.scrollTop = messagesArea.scrollHeight;
     }
-    function removeTyping() {
+    function hideTyping() {
       const el = document.getElementById('typingIndicator');
       if (el) el.remove();
     }
@@ -575,7 +664,7 @@
       if (!currentUser) return;
       addMessage(message, 'user');
       inputElement.value = '';
-      addTyping();
+      showTyping();
       try {
         const res = await fetch('/chat', {
           method: 'POST',
@@ -583,10 +672,13 @@
           body: JSON.stringify({ message, user_id: currentUser.uid, email: currentUser.email.toLowerCase() })
         });
         const data = await res.json();
-        removeTyping();
+        hideTyping();
         if (data.error) addMessage(`Error: ${data.error}`, 'aria');
         else addMessage(data.reply || '...', 'aria');
-      } catch(e) { removeTyping(); addMessage('Connection uncertain.', 'aria'); }
+      } catch(e) {
+        hideTyping();
+        addMessage('Connection uncertain. Please try again.', 'aria');
+      }
     }
 
     function openChat() {
@@ -603,13 +695,50 @@
       messagesArea.innerHTML = '';
     }
 
-    // Sign out function
-    async function signOut() {
+    // History modal
+    async function fetchHistory() {
+      if (!currentUser) return;
       try {
-        await auth.signOut();
-        window.location.href = '/login.html';
-      } catch(e) { console.error('Sign out error', e); }
+        const uidRes = await fetch('/check_user?email=' + encodeURIComponent(currentUser.email.toLowerCase()));
+        const uidData = await uidRes.json();
+        if (!uidData.aria_uid) return;
+        const res = await fetch(`/context?uid=${uidData.aria_uid}`);
+        const data = await res.json();
+        if (data.context) {
+          const lines = data.context.split('\n');
+          let items = [];
+          let currentUserMsg = null;
+          let currentAriaMsg = null;
+          for (let line of lines) {
+            if (line.startsWith('User:')) {
+              if (currentUserMsg && currentAriaMsg) {
+                items.push({ user: currentUserMsg, aria: currentAriaMsg });
+                currentUserMsg = null; currentAriaMsg = null;
+              }
+              currentUserMsg = line.substring(5).trim();
+            } else if (line.startsWith('ARIA:')) {
+              currentAriaMsg = line.substring(5).trim();
+            }
+          }
+          if (currentUserMsg && currentAriaMsg) items.push({ user: currentUserMsg, aria: currentAriaMsg });
+          historyContent.innerHTML = '';
+          items.slice(-10).forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'history-item';
+            div.innerHTML = `<div class="history-user">🧑 ${item.user}</div><div class="history-aria">🤖 ${item.aria}</div>`;
+            historyContent.appendChild(div);
+          });
+          if (items.length === 0) historyContent.innerHTML = '<p>No conversation history yet.</p>';
+        } else {
+          historyContent.innerHTML = '<p>No conversation history yet.</p>';
+        }
+      } catch(e) {
+        console.warn(e);
+        historyContent.innerHTML = '<p>Failed to load history.</p>';
+      }
     }
+    function showHistory() { fetchHistory(); historyModal.classList.add('active'); }
+    function closeHistory() { historyModal.classList.remove('active'); }
 
     document.querySelectorAll('.feature-card').forEach(card => {
       card.addEventListener('click', () => {
@@ -636,14 +765,16 @@
       if (e.key === 'Enter') { e.preventDefault(); const msg = mainInput.value.trim(); if (msg) sendToAria(msg, mainInput); }
     });
 
-    document.querySelectorAll('.nav-item').forEach(item => {
-      item.addEventListener('click', () => {
-        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-        item.classList.add('active');
-      });
-    });
+    document.getElementById('historyBtn').addEventListener('click', showHistory);
+    document.getElementById('closeHistoryBtn').addEventListener('click', closeHistory);
+    historyModal.addEventListener('click', (e) => { if (e.target === historyModal) closeHistory(); });
 
-    signoutBtn.addEventListener('click', signOut);
+    signoutBtn.addEventListener('click', async () => {
+      try {
+        await auth.signOut();
+        window.location.href = '/login.html';
+      } catch(e) { console.error(e); }
+    });
 
     auth.onAuthStateChanged(async (user) => {
       if (user) {
