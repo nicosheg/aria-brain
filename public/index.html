@@ -9,224 +9,408 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
     body {
-      background: #0A1128;
+      background: #050A1A;
       font-family: 'Inter', sans-serif;
-      color: #E8F0FE;
+      color: #F8FAFC;
       min-height: 100vh;
       overflow-x: hidden;
     }
-    /* Cosmic background – deep navy + royal blue milky way */
+    /* Base cosmic background */
     .cosmic-bg {
-      position: fixed; inset: 0;
-      background: radial-gradient(ellipse at 40% 50%, #0F1A3A 0%, #0A1128 100%);
+      position: fixed;
+      inset: 0;
+      background: #050A1A;
       z-index: 0;
     }
-    .milky-way {
-      position: fixed; top: -20%; left: -10%; width: 140%; height: 140%;
-      background: radial-gradient(ellipse at 65% 45%, rgba(59,130,246,0.28) 0%, rgba(37,99,235,0.12) 30%, transparent 70%);
-      transform: rotate(32deg); pointer-events: none; z-index: 0; filter: blur(50px);
+    /* Milky Way glow – realistic galaxy depth */
+    .galaxy-glow {
+      position: fixed;
+      width: 120%;
+      height: 120%;
+      top: -10%;
+      left: -10%;
+      background: radial-gradient(
+        ellipse 80% 60% at 65% 45%,
+        rgba(20, 48, 110, 0.45) 0%,
+        rgba(10, 20, 60, 0.25) 40%,
+        transparent 75%
+      );
+      pointer-events: none;
+      z-index: 0;
     }
-    .starfield { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
-    .star {
-      position: absolute; background: white; border-radius: 50%; opacity: 0;
-      animation: slowTwinkle linear infinite;
+    /* Star canvas (realistic stars) */
+    .star-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 0;
     }
-    @keyframes slowTwinkle { 0% { opacity: 0; transform: scale(0.6); } 20% { opacity: 0.8; transform: scale(1); } 80% { opacity: 0.6; } 100% { opacity: 0; transform: scale(0.6); } }
-    .shooting-star {
-      position: absolute; width: 1.5px; height: 1.5px; background: rgba(255,255,240,0.6); box-shadow: 0 0 4px rgba(255,255,200,0.5);
-      border-radius: 50%; opacity: 0;
-      animation: shootVerySlow 25s linear infinite;
-    }
-    @keyframes shootVerySlow {
-      0% { transform: translate(0, 0); opacity: 0; }
-      10% { opacity: 0.7; }
-      30% { transform: translate(-120px, 120px); opacity: 0.2; }
-      100% { transform: translate(-300px, 300px); opacity: 0; }
-    }
-    .nebula-dust { position: fixed; top: -120px; left: -120px; width: 400px; height: 400px; background: radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%); pointer-events: none; z-index: 0; filter: blur(80px); }
-
+    /* Main container */
     .app-container {
-      position: relative; z-index: 2; max-width: 620px; margin: 0 auto; min-height: 100vh;
-      display: flex; flex-direction: column; background: transparent; padding: 20px 24px 16px;
+      position: relative;
+      z-index: 2;
+      max-width: 620px;
+      margin: 0 auto;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 20px 20px 16px;
     }
-    .header { display: flex; justify-content: flex-end; align-items: center; margin-bottom: 28px; }
-    .user-signout {
-      display: flex; flex-direction: column; align-items: center;
-      background: rgba(255,255,255,0.03); border: 0.5px solid rgba(255,255,255,0.1); border-radius: 40px;
-      padding: 6px 14px 4px; cursor: pointer; transition: all 0.2s;
+    /* Top right sign-out */
+    .top-right {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 24px;
     }
-    .user-signout:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.2); }
-    .user-initials { font-size: 14px; font-weight: 500; color: #E2E8F0; letter-spacing: 0.5px; }
-    .signout-text { font-size: 8px; font-weight: 400; color: #7A8AAA; margin-top: 2px; }
+    .signout-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: rgba(255,255,255,0.03);
+      border: 0.5px solid rgba(255,255,255,0.08);
+      border-radius: 40px;
+      padding: 5px 12px 3px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .signout-block:hover {
+      background: rgba(255,255,255,0.06);
+      border-color: rgba(255,255,255,0.15);
+    }
+    .user-initials {
+      font-size: 13px;
+      font-weight: 500;
+      color: #E2E8F0;
+      letter-spacing: 0.5px;
+    }
+    .signout-label {
+      font-size: 7px;
+      font-weight: 400;
+      color: #7A8AAA;
+      margin-top: 1px;
+    }
 
     /* Centered welcome message */
-    .center-space {
-      flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;
-      min-height: 200px; animation: fadeInUp 0.8s ease;
+    .center-hero {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
     }
-    .greeting-main { font-size: 22px; font-weight: 300; letter-spacing: -0.3px; color: #E8F0FE; line-height: 1.3; }
-    .greeting-main span { font-weight: 500; color: #60A5FA; }
-    .timestamp-center { font-size: 11px; color: #8AA0C0; margin-top: 8px; font-weight: 300; opacity: 0.7; }
-    @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    .greeting {
+      font-size: 24px;
+      font-weight: 300;
+      letter-spacing: -0.3px;
+      color: #F0F4FA;
+      line-height: 1.3;
+    }
+    .greeting span {
+      font-weight: 500;
+      color: #A78BFA;
+    }
+    .time {
+      font-size: 12px;
+      color: #7A8AAA;
+      margin-top: 8px;
+      font-weight: 300;
+      opacity: 0.7;
+    }
 
-    /* Bottom block – narrowed cards */
-    .bottom-block { margin-top: auto; }
-    .cards-grid {
-      display: flex; justify-content: center; gap: 20px; margin-bottom: 12px;
+    /* Bottom block – cards, divider, input, footer */
+    .bottom-block {
+      margin-top: auto;
     }
-    .feature-card {
-      width: 70px;
-      background: rgba(18,25,45,0.3); backdrop-filter: blur(4px); border-radius: 20px;
-      padding: 4px 2px 2px; text-align: center; border: 0.5px solid rgba(255,255,255,0.05);
-    }
-    .card-icon {
-      width: 22px; height: 22px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 2px;
-    }
-    .card-memory .card-icon { background: rgba(167,139,250,0.12); }
-    .card-education .card-icon { background: rgba(96,165,250,0.12); }
-    .card-income .card-icon { background: rgba(16,185,129,0.12); }
-    .card-icon svg { width: 10px; height: 10px; fill: none; stroke-width: 1.5; }
-    .card-memory .card-icon svg { stroke: #A78BFA; }
-    .card-education .card-icon svg { stroke: #60A5FA; }
-    .card-income .card-icon svg { stroke: #10B981; }
-    .card-title { font-size: 8px; font-weight: 500; color: #C5D0E6; margin-bottom: 0; }
 
-    .divider { text-align: center; margin: 6px 0 8px; }
-    .divider-text { font-size: 7px; letter-spacing: 1px; color: #60A5FA; display: inline-flex; align-items: center; gap: 4px; opacity: 0.6; }
+    /* 3 compact glass cards (Memory, Education, Income) */
+    .pillars-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .pillar-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 18px;
+      padding: 14px 10px;
+      backdrop-filter: blur(10px);
+      transition: background 0.2s;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .pillar-card:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .icon-circle {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .memory .icon-circle { background: rgba(167, 139, 250, 0.15); }
+    .education .icon-circle { background: rgba(96, 165, 250, 0.15); }
+    .income .icon-circle { background: rgba(16, 185, 129, 0.15); }
+    .icon-circle svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke-width: 1.5;
+    }
+    .memory .icon-circle svg { stroke: #A78BFA; }
+    .education .icon-circle svg { stroke: #60A5FA; }
+    .income .icon-circle svg { stroke: #10B981; }
+    .pillar-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: #F8FAFC;
+    }
+    .pillar-desc {
+      font-size: 11px;
+      color: #94A3B8;
+      line-height: 1.3;
+    }
+    .pillar-arrow {
+      font-size: 14px;
+      color: #64748B;
+      margin-top: auto;
+      text-align: right;
+    }
+
+    .divider {
+      text-align: center;
+      margin: 8px 0 12px;
+    }
+    .divider-text {
+      font-size: 8px;
+      letter-spacing: 1.2px;
+      color: #60A5FA;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      opacity: 0.6;
+    }
 
     .input-capsule {
-      background: rgba(10, 17, 40, 0.8); backdrop-filter: blur(8px); border: 1px solid #3B82F6; border-radius: 50px;
-      padding: 6px 12px 6px 18px; display: flex; align-items: center; gap: 8px; margin: 8px 0 12px;
-      box-shadow: 0 0 8px rgba(59,130,246,0.15);
+      background: #0A0F1A;
+      border: 1px solid #3B82F6;
+      border-radius: 50px;
+      padding: 6px 12px 6px 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 8px 0 12px;
+      box-shadow: 0 0 6px rgba(59,130,246,0.1);
     }
-    .input-icon-left svg { width: 14px; height: 14px; stroke: #60A5FA; }
+    .input-icon-left svg {
+      width: 14px;
+      height: 14px;
+      stroke: #60A5FA;
+    }
     .input-field {
-      flex: 1; background: transparent; border: none; color: white; font-size: 13px; outline: none; padding: 6px 0;
-      font-family: 'Inter', monospace; resize: vertical; min-height: 30px; line-height: 1.4;
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 13px;
+      outline: none;
+      padding: 6px 0;
     }
-    .input-field::placeholder { color: #4A6A9A; font-weight: 400; }
+    .input-field::placeholder {
+      color: #334155;
+      font-weight: 400;
+    }
     .send-circle {
-      width: 30px; height: 30px; background: transparent; border: 1px solid #3B82F6; border-radius: 30px;
-      display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;
+      width: 30px;
+      height: 30px;
+      background: transparent;
+      border: 1px solid #1E40AF;
+      border-radius: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
     }
-    .send-circle:hover { background: #3B82F6; border-color: #60A5FA; }
-    .send-circle svg { width: 12px; height: 12px; stroke: #60A5FA; stroke-width: 2; }
+    .send-circle svg {
+      width: 12px;
+      height: 12px;
+      stroke: #3B82F6;
+      stroke-width: 2;
+    }
 
     .footer-note {
-      text-align: center; padding: 6px 0 20px; font-size: 9px; letter-spacing: 0.6px;
-      color: #4A6A8A; border-top: 0.5px solid rgba(255,255,255,0.05);
+      text-align: center;
+      padding: 6px 0 20px;
+      font-size: 9px;
+      letter-spacing: 0.6px;
+      color: #4A5A7A;
+      border-top: 0.5px solid rgba(255,255,255,0.04);
     }
 
-    /* Chat overlay – transparent (cosmic visible) */
+    /* Chat overlay */
     .chat-view {
-      position: fixed; inset: 0; background: transparent; z-index: 100; padding: 20px;
-      display: none; flex-direction: column; backdrop-filter: blur(1px);
+      position: fixed;
+      inset: 0;
+      background: #050A1A;
+      z-index: 100;
+      padding: 20px;
+      display: none;
+      flex-direction: column;
     }
-    .chat-view.active { display: flex; }
+    .chat-view.active {
+      display: flex;
+    }
     .chat-header {
-      display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;
-      padding-bottom: 8px; border-bottom: 0.5px solid rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
     }
     .back-btn {
-      background: transparent; border: none; color: #B0C4DE; font-size: 24px; cursor: pointer;
-      opacity: 0.7; transition: 0.2s;
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 26px;
+      cursor: pointer;
     }
-    .back-btn:hover { opacity: 1; }
-    .chat-title {
-      font-family: 'Inter', sans-serif; font-size: 20px; font-weight: 400; letter-spacing: 3px;
-      background: linear-gradient(135deg, #E0F2FE, #BAE6FD); -webkit-background-clip: text; background-clip: text; color: transparent;
-      text-shadow: 0 0 6px rgba(96,165,250,0.3);
+    .chat-actions {
+      display: flex;
+      gap: 12px;
     }
-    .chat-actions { display: flex; gap: 16px; }
     .chat-action {
-      background: transparent; border: none; font-size: 16px; cursor: pointer; filter: drop-shadow(0 0 2px currentColor);
-      transition: 0.1s; color: #B0C4DE;
+      background: transparent;
+      border: none;
+      font-size: 18px;
+      cursor: pointer;
+      filter: drop-shadow(0 0 3px currentColor);
     }
-    .chat-action:hover { transform: scale(1.05); color: #E0F2FE; }
+    .chat-action.copy { color: #60A5FA; }
+    .chat-action.speak { color: #A78BFA; }
     .messages-area {
-      flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px;
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 16px;
+      scroll-behavior: smooth;
     }
-    .message { max-width: 80%; animation: fadeUp 0.2s ease; }
-    .message.user { align-self: flex-end; }
-    .message.aria { align-self: flex-start; }
+    .message {
+      max-width: 80%;
+      animation: fadeUp 0.2s ease;
+    }
+    .message.user {
+      align-self: flex-end;
+    }
+    .message.aria {
+      align-self: flex-start;
+    }
     .message-bubble {
-      padding: 10px 16px; border-radius: 24px; font-size: 14px; line-height: 1.45;
-      background: rgba(10, 20, 40, 0.65); backdrop-filter: blur(8px); border: 0.5px solid rgba(255,255,255,0.08);
-      color: #E8F0FE;
+      padding: 10px 14px;
+      border-radius: 20px;
+      font-size: 14px;
+      background: rgba(255,255,255,0.05);
+      color: white;
     }
     .message.user .message-bubble {
-      background: rgba(59, 130, 246, 0.2); border: 0.5px solid rgba(59, 130, 246, 0.3);
+      background: rgba(96,165,250,0.15);
+      border: 0.5px solid rgba(96,165,250,0.3);
     }
-    .message-actions { display: flex; gap: 10px; margin-top: 6px; opacity: 0; transition: 0.2s; }
-    .message:hover .message-actions { opacity: 0.7; }
-    .message-action { background: transparent; border: none; font-size: 11px; cursor: pointer; color: #9CA3AF; }
-    .message-action:hover { color: #60A5FA; }
-    @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-
-    /* Gemini typing indicator (glowing pill) */
-    .typing-indicator {
-      display: flex; align-items: center; gap: 8px;
-      background: rgba(0, 217, 255, 0.1); backdrop-filter: blur(20px);
-      border-radius: 50px; padding: 8px 18px; width: fit-content;
-      animation: pulseGlow 1.2s infinite alternate;
+    .message-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 6px;
+      opacity: 0;
+      transition: 0.2s;
     }
-    @keyframes pulseGlow {
-      0% { box-shadow: 0 0 0px rgba(0, 217, 255, 0); background: rgba(0, 217, 255, 0.08); }
-      100% { box-shadow: 0 0 16px rgba(0, 217, 255, 0.4); background: rgba(0, 217, 255, 0.2); }
+    .message:hover .message-actions {
+      opacity: 0.7;
     }
-    .typing-dot {
-      width: 6px; height: 6px; background: #00d9ff; border-radius: 6px;
-      animation: wave 1.2s infinite;
+    .message-action {
+      background: transparent;
+      border: none;
+      font-size: 12px;
+      cursor: pointer;
+      color: #9CA3AF;
     }
-    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
-    @keyframes wave {
-      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-      30% { transform: translateY(-6px); opacity: 1; }
+    .message-action:hover {
+      color: #60A5FA;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     @media (max-width: 640px) {
       .app-container { padding: 16px 16px 12px; }
-      .greeting-main { font-size: 20px; }
-      .feature-card { width: 60px; }
-      .cards-grid { gap: 12px; }
+      .greeting { font-size: 22px; }
+      .pillars-row { gap: 8px; }
+      .pillar-card { padding: 10px 6px; }
+      .pillar-name { font-size: 12px; }
+      .pillar-desc { font-size: 9px; }
     }
   </style>
 </head>
 <body>
 <div class="cosmic-bg"></div>
-<div class="milky-way"></div>
-<div class="nebula-dust"></div>
-<div class="starfield" id="starfield"></div>
+<div class="galaxy-glow"></div>
+<canvas id="starCanvas" class="star-canvas"></canvas>
 
 <div class="app-container" id="mainUI">
-  <div class="header">
-    <div class="user-signout" id="signoutBtn">
+  <div class="top-right">
+    <div class="signout-block" id="signoutBtn">
       <div class="user-initials" id="userInitials">EN</div>
-      <div class="signout-text">sign out</div>
+      <div class="signout-label">sign out</div>
     </div>
   </div>
 
-  <div class="center-space">
-    <div class="greeting-main">Good evening, <span id="userNameDisplay">friend</span>.</div>
-    <div class="timestamp-center" id="timestamp">—</div>
+  <div class="center-hero">
+    <div class="greeting">Good evening, <span id="userNameDisplay">friend</span>.</div>
+    <div class="time" id="timestamp">—</div>
   </div>
 
   <div class="bottom-block">
-    <div class="cards-grid">
-      <div class="feature-card card-memory" data-pillar="Memory">
-        <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M12 2a9 9 0 1 0 0 18A9 9 0 0 0 12 2z"/><path d="M8 12s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/></svg></div>
-        <div class="card-title">Memory</div>
+    <div class="pillars-row">
+      <!-- Memory card -->
+      <div class="pillar-card memory" data-pillar="Memory">
+        <div class="icon-circle">
+          <svg viewBox="0 0 24 24"><path d="M12 2a9 9 0 1 0 0 18A9 9 0 0 0 12 2z"/><path d="M8 12s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/></svg>
+        </div>
+        <div class="pillar-name">Memory</div>
+        <div class="pillar-desc">Your memories, organized.</div>
+        <div class="pillar-arrow">›</div>
       </div>
-      <div class="feature-card card-education" data-pillar="Education">
-        <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
-        <div class="card-title">Education</div>
+      <!-- Education card -->
+      <div class="pillar-card education" data-pillar="Education">
+        <div class="icon-circle">
+          <svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+        </div>
+        <div class="pillar-name">Education</div>
+        <div class="pillar-desc">Learn, grow, and master.</div>
+        <div class="pillar-arrow">›</div>
       </div>
-      <div class="feature-card card-income" data-pillar="Income">
-        <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-        <div class="card-title">Income</div>
+      <!-- Income card -->
+      <div class="pillar-card income" data-pillar="Income">
+        <div class="icon-circle">
+          <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </div>
+        <div class="pillar-name">Income</div>
+        <div class="pillar-desc">Track, plan, and grow.</div>
+        <div class="pillar-arrow">›</div>
       </div>
     </div>
 
@@ -236,18 +420,17 @@
 
     <div class="input-capsule">
       <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
-      <textarea rows="1" class="input-field" id="mainInput" placeholder="Chat Aria..."></textarea>
+      <input type="text" class="input-field" id="mainInput" placeholder="Chat Aria...">
       <div class="send-circle" id="sendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
     </div>
     <div class="footer-note">By MrNicosh Eg</div>
   </div>
 </div>
-
+  
 <!-- Part 1 ends here. Part 2 begins with chat overlay and JavaScript. -->
   <div id="chatView" class="chat-view">
   <div class="chat-header">
     <button class="back-btn" id="closeChatBtn">←</button>
-    <div class="chat-title">ARIA</div>
     <div class="chat-actions">
       <button class="chat-action copy" id="copyLastMsgBtn" title="Copy last response">📋</button>
       <button class="chat-action speak" id="speakLastMsgBtn" title="Speak last response">🔊</button>
@@ -256,7 +439,7 @@
   <div class="messages-area" id="messagesArea"></div>
   <div class="input-capsule" style="margin-bottom: 0;">
     <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
-    <textarea rows="1" class="input-field" id="chatInput" placeholder="Chat Aria..."></textarea>
+    <input type="text" class="input-field" id="chatInput" placeholder="Chat Aria...">
     <div class="send-circle" id="chatSendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
   </div>
 </div>
@@ -275,6 +458,131 @@
   let currentUser = null;
   let lastAriaMessage = null;
 
+  // Starfield – three layers (tiny, medium, bright with glow) + shooting star
+  const canvas = document.getElementById('starCanvas');
+  const ctx = canvas.getContext('2d');
+  let width, height;
+  let stars = [];
+
+  function resizeCanvas() {
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+    generateStars();
+  }
+
+  function generateStars() {
+    stars = [];
+    // Tiny background stars (many, dim)
+    for (let i = 0; i < 240; i++) {
+      stars.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        radius: 0.3 + Math.random() * 0.5,
+        opacity: 0.15 + Math.random() * 0.3,
+        glow: false,
+        twinkleSpeed: 0.002 + Math.random() * 0.003
+      });
+    }
+    // Medium stars
+    for (let i = 0; i < 90; i++) {
+      stars.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        radius: 0.6 + Math.random() * 0.8,
+        opacity: 0.4 + Math.random() * 0.35,
+        glow: false,
+        twinkleSpeed: 0.001 + Math.random() * 0.002
+      });
+    }
+    // Bright stars with blue glow
+    for (let i = 0; i < 18; i++) {
+      stars.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        radius: 1.2 + Math.random() * 1.2,
+        opacity: 0.7 + Math.random() * 0.3,
+        glow: true,
+        twinkleSpeed: 0.0008 + Math.random() * 0.0015
+      });
+    }
+    // Cluster near galaxy glow (top-right area)
+    for (let i = 0; i < 40; i++) {
+      stars.push({
+        x: width * (0.6 + Math.random() * 0.3),
+        y: height * (0.2 + Math.random() * 0.5),
+        radius: 0.5 + Math.random() * 1.0,
+        opacity: 0.3 + Math.random() * 0.5,
+        glow: Math.random() > 0.7,
+        twinkleSpeed: 0.001 + Math.random() * 0.002
+      });
+    }
+  }
+
+  let time = 0;
+  let shootingStars = [];
+
+  function createShootingStar() {
+    const startX = width * (0.7 + Math.random() * 0.2);
+    const startY = height * (0.1 + Math.random() * 0.3);
+    const endX = startX - width * 0.4;
+    const endY = startY + height * 0.4;
+    shootingStars.push({
+      startX, startY, endX, endY,
+      progress: 0,
+      speed: 0.005 + Math.random() * 0.004,
+      active: true
+    });
+  }
+
+  function drawStars() {
+    if (!ctx) return;
+    ctx.clearRect(0, 0, width, height);
+    time += 0.016;
+    for (let s of stars) {
+      const twinkle = 0.7 + 0.3 * Math.sin(time * s.twinkleSpeed * 15);
+      const finalOpacity = s.opacity * twinkle;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.radius, 0, Math.PI*2);
+      if (s.glow) {
+        ctx.shadowColor = 'rgba(100, 160, 255, 0.8)';
+        ctx.shadowBlur = 6;
+      } else {
+        ctx.shadowBlur = 0;
+      }
+      ctx.fillStyle = `rgba(255, 255, 255, ${finalOpacity})`;
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    for (let i = shootingStars.length-1; i >= 0; i--) {
+      const ss = shootingStars[i];
+      ss.progress += ss.speed;
+      if (ss.progress >= 1) {
+        shootingStars.splice(i,1);
+        continue;
+      }
+      const x = ss.startX + (ss.endX - ss.startX) * ss.progress;
+      const y = ss.startY + (ss.endY - ss.startY) * ss.progress;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      const tailX = x - (ss.startX - ss.endX) * 0.08;
+      const tailY = y - (ss.startY - ss.endY) * 0.08;
+      ctx.lineTo(tailX, tailY);
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.8 * (1 - ss.progress)})`;
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
+    requestAnimationFrame(drawStars);
+  }
+
+  window.addEventListener('resize', () => { resizeCanvas(); generateStars(); });
+  resizeCanvas();
+  generateStars();
+  drawStars();
+  setInterval(() => { if (Math.random() > 0.5) createShootingStar(); }, 25000);
+  createShootingStar();
+
   function updateTimestamp() {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos' });
@@ -283,40 +591,6 @@
   }
   updateTimestamp();
   setInterval(updateTimestamp, 60000);
-
-  // Starfield – denser on the right side (royal blue cluster)
-  const starfield = document.getElementById('starfield');
-  function isDenseArea(x, y) { return (x > 0.6 && y < 0.7) || (x + y) > 1.3; }
-  for (let i = 0; i < 420; i++) {
-    const star = document.createElement('div');
-    star.className = 'star';
-    let x = Math.random();
-    let y = Math.random();
-    if (isDenseArea(x, y)) {
-      star.style.left = (x * 100) + '%';
-      star.style.top = (y * 100) + '%';
-      star.style.width = (Math.random() * 1.8 + 0.4) + 'px';
-      star.style.height = star.style.width;
-      star.style.animationDuration = (Math.random() * 12 + 8) + 's';
-    } else {
-      if (Math.random() > 0.65) continue;
-      star.style.left = (x * 100) + '%';
-      star.style.top = (y * 100) + '%';
-      star.style.width = (Math.random() * 1.2 + 0.2) + 'px';
-      star.style.height = star.style.width;
-      star.style.animationDuration = (Math.random() * 14 + 10) + 's';
-    }
-    star.style.animationDelay = (Math.random() * 12) + 's';
-    starfield.appendChild(star);
-  }
-  for (let i = 0; i < 4; i++) {
-    const shoot = document.createElement('div');
-    shoot.className = 'shooting-star';
-    shoot.style.left = (Math.random() * 80 + 10) + '%';
-    shoot.style.top = (Math.random() * 60) + '%';
-    shoot.style.animationDelay = (Math.random() * 40) + 's';
-    starfield.appendChild(shoot);
-  }
 
   const mainUI = document.getElementById('mainUI');
   const chatView = document.getElementById('chatView');
@@ -370,25 +644,18 @@
     div.appendChild(bubble);
     if (sender === 'aria') div.appendChild(actions);
     messagesArea.appendChild(div);
-    messagesArea.scrollTop = messagesArea.scrollHeight;
+    messagesArea.scrollTo({ top: messagesArea.scrollHeight, behavior: 'smooth' });
     if (sender === 'aria') lastAriaMessage = text;
     return div;
   }
 
-  // Gemini-style typing indicator (glowing pill)
   function addTyping() {
     const div = document.createElement('div');
     div.className = 'message aria';
     div.id = 'typingIndicator';
-    div.innerHTML = `
-      <div class="typing-indicator">
-        <div class="typing-dot"></div>
-        <div class="typing-dot"></div>
-        <div class="typing-dot"></div>
-      </div>
-    `;
+    div.innerHTML = `<div class="message-bubble">✦ ✦ ✦</div>`;
     messagesArea.appendChild(div);
-    messagesArea.scrollTop = messagesArea.scrollHeight;
+    messagesArea.scrollTo({ top: messagesArea.scrollHeight, behavior: 'smooth' });
   }
 
   function removeTyping() {
@@ -400,15 +667,25 @@
     if (!currentUser) return;
     addMessage(message, 'user');
     inputElement.value = '';
-    inputElement.style.height = 'auto';
     addTyping();
     try {
-      const res = await fetch('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: message, user_id: currentUser.uid, email: currentUser.email.toLowerCase() }) });
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: message,
+          user_id: currentUser.uid,
+          email: currentUser.email.toLowerCase()
+        })
+      });
       const data = await res.json();
       removeTyping();
       if (data.error) addMessage(`Error: ${data.error}`, 'aria');
       else addMessage(data.reply || '...', 'aria');
-    } catch(e) { removeTyping(); addMessage('Connection uncertain. Please try again.', 'aria'); }
+    } catch(e) {
+      removeTyping();
+      addMessage('Connection uncertain. Please try again.', 'aria');
+    }
   }
 
   function openChat() {
@@ -426,42 +703,53 @@
   }
 
   async function signOut() {
-    try { await auth.signOut(); window.location.href = '/login.html'; } catch(e) { console.error('Sign out error', e); }
-  }
-
-  // Textarea: Enter = new line (Shift+Enter or send button to submit)
-  function setupTextarea(ta, sendFn) {
-    ta.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        const start = ta.selectionStart;
-        const end = ta.selectionEnd;
-        ta.value = ta.value.substring(0, start) + '\n' + ta.value.substring(end);
-        ta.selectionStart = ta.selectionEnd = start + 1;
-        ta.style.height = 'auto';
-        ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
-      }
-    });
-    ta.addEventListener('input', function() {
-      this.style.height = 'auto';
-      this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-    });
+    try {
+      await auth.signOut();
+      window.location.href = '/login.html';
+    } catch(e) { console.error('Sign out error', e); }
   }
 
   mainInput.addEventListener('focus', openChat);
-  document.querySelectorAll('.feature-card').forEach(card => {
+  document.querySelectorAll('.pillar-card').forEach(card => {
     card.addEventListener('click', () => {
       openChat();
-      addMessage(`Let's talk about ${card.querySelector('.card-title').textContent}. How can I help?`, 'aria');
+      addMessage(`Let's talk about ${card.querySelector('.pillar-name').textContent}. How can I help?`, 'aria');
     });
   });
   document.getElementById('closeChatBtn').addEventListener('click', closeChat);
-  document.getElementById('chatSendBtn').addEventListener('click', () => { const msg = chatInput.value.trim(); if (msg) sendToAria(msg, chatInput); });
-  setupTextarea(chatInput, sendToAria);
-  document.getElementById('sendBtn').addEventListener('click', () => { const msg = mainInput.value.trim(); if (msg) sendToAria(msg, mainInput); });
-  setupTextarea(mainInput, sendToAria);
-  document.getElementById('copyLastMsgBtn').addEventListener('click', () => { if (lastAriaMessage) navigator.clipboard.writeText(lastAriaMessage); });
-  document.getElementById('speakLastMsgBtn').addEventListener('click', () => { if (lastAriaMessage) { const utterance = new SpeechSynthesisUtterance(lastAriaMessage); utterance.lang = 'en-US'; speechSynthesis.cancel(); speechSynthesis.speak(utterance); } });
+  document.getElementById('chatSendBtn').addEventListener('click', () => {
+    const msg = chatInput.value.trim();
+    if (msg) sendToAria(msg, chatInput);
+  });
+  chatInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const msg = chatInput.value.trim();
+      if (msg) sendToAria(msg, chatInput);
+    }
+  });
+  document.getElementById('sendBtn').addEventListener('click', () => {
+    const msg = mainInput.value.trim();
+    if (msg) sendToAria(msg, mainInput);
+  });
+  mainInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const msg = mainInput.value.trim();
+      if (msg) sendToAria(msg, mainInput);
+    }
+  });
+  document.getElementById('copyLastMsgBtn').addEventListener('click', () => {
+    if (lastAriaMessage) navigator.clipboard.writeText(lastAriaMessage);
+  });
+  document.getElementById('speakLastMsgBtn').addEventListener('click', () => {
+    if (lastAriaMessage) {
+      const utterance = new SpeechSynthesisUtterance(lastAriaMessage);
+      utterance.lang = 'en-US';
+      speechSynthesis.cancel();
+      speechSynthesis.speak(utterance);
+    }
+  });
   document.getElementById('signoutBtn').addEventListener('click', signOut);
 
   auth.onAuthStateChanged(async (user) => {
@@ -472,12 +760,22 @@
       userNameSpan.textContent = displayName;
       userInitialsSpan.textContent = shortName;
       try {
-        await fetch('/set_user_name', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user.uid, email: user.email.toLowerCase(), name: displayName }) });
+        await fetch('/set_user_name', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: user.uid,
+            email: user.email.toLowerCase(),
+            name: displayName
+          })
+        });
         const uidRes = await fetch('/check_user?email=' + encodeURIComponent(user.email.toLowerCase()));
         const uidData = await uidRes.json();
         if (uidData.aria_uid) loadHistory(uidData.aria_uid);
       } catch(e) { console.warn(e); }
-    } else { window.location.href = '/login.html'; }
+    } else {
+      window.location.href = '/login.html';
+    }
   });
 </script>
 </body>
