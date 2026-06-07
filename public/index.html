@@ -340,7 +340,6 @@
       from { opacity: 0; transform: translateY(6px); }
       to { opacity: 1; transform: translateY(0); }
     }
-    /* History modal */
     .history-modal {
       position: fixed;
       top: 0;
@@ -496,11 +495,12 @@
   let currentUser = null;
   let lastAriaMessage = null;
 
-  // Starfield – twinkling, realistic (restored)
+  // --- Realistic Starfield (tiny points, no snow) ---
   const canvas = document.getElementById('starCanvas');
   const ctx = canvas.getContext('2d');
   let width, height;
   let stars = [];
+  let starTwinkle = 0;
 
   function resizeCanvas() {
     width = window.innerWidth;
@@ -512,100 +512,103 @@
 
   function generateStars() {
     stars = [];
-    // Type 1: tiny background stars (many, dim)
-    for (let i = 0; i < 220; i++) {
+    // Tiny background stars (many, very small)
+    for (let i = 0; i < 300; i++) {
       stars.push({
         x: Math.random() * width,
         y: Math.random() * height,
-        radius: 0.3 + Math.random() * 0.5,
-        opacity: 0.15 + Math.random() * 0.3,
-        twinkleSpeed: 0.002 + Math.random() * 0.003
+        radius: 0.2 + Math.random() * 0.4,
+        baseOpacity: 0.2 + Math.random() * 0.3,
+        twinkleSpeed: 0.003 + Math.random() * 0.005,
+        phase: Math.random() * Math.PI * 2
       });
     }
-    // Type 2: medium stars
+    // Medium stars
+    for (let i = 0; i < 120; i++) {
+      stars.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        radius: 0.5 + Math.random() * 0.7,
+        baseOpacity: 0.4 + Math.random() * 0.4,
+        twinkleSpeed: 0.002 + Math.random() * 0.003,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+    // Bright stars (rare, slight glow)
+    for (let i = 0; i < 30; i++) {
+      stars.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        radius: 0.8 + Math.random() * 0.8,
+        baseOpacity: 0.7 + Math.random() * 0.3,
+        twinkleSpeed: 0.001 + Math.random() * 0.002,
+        phase: Math.random() * Math.PI * 2,
+        glow: true
+      });
+    }
+    // Cluster near galaxy center (top-right)
     for (let i = 0; i < 80; i++) {
       stars.push({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        radius: 0.7 + Math.random() * 0.8,
-        opacity: 0.4 + Math.random() * 0.35,
-        twinkleSpeed: 0.001 + Math.random() * 0.002
-      });
-    }
-    // Type 3: bright stars with subtle glow
-    for (let i = 0; i < 20; i++) {
-      stars.push({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        radius: 1.2 + Math.random() * 1.2,
-        opacity: 0.7 + Math.random() * 0.3,
-        glow: true,
-        twinkleSpeed: 0.0008 + Math.random() * 0.0015
-      });
-    }
-    // clustered near galaxy glow
-    for (let i = 0; i < 50; i++) {
-      stars.push({
-        x: width * (0.6 + Math.random() * 0.3),
+        x: width * (0.6 + Math.random() * 0.35),
         y: height * (0.2 + Math.random() * 0.5),
-        radius: 0.5 + Math.random() * 1.0,
-        opacity: 0.3 + Math.random() * 0.5,
-        glow: Math.random() > 0.8,
-        twinkleSpeed: 0.001 + Math.random() * 0.002
+        radius: 0.3 + Math.random() * 0.6,
+        baseOpacity: 0.3 + Math.random() * 0.4,
+        twinkleSpeed: 0.002 + Math.random() * 0.004,
+        phase: Math.random() * Math.PI * 2
       });
     }
   }
 
-  let time = 0;
   let shootingStars = [];
 
-  function createShootingStar() {
+  function addShootingStar() {
+    // Very rare, slow
     const startX = width * (0.7 + Math.random() * 0.2);
-    const startY = height * (0.1 + Math.random() * 0.3);
+    const startY = height * (0.1 + Math.random() * 0.25);
     const endX = startX - width * 0.35;
-    const endY = startY + height * 0.35;
+    const endY = startY + height * 0.3;
     shootingStars.push({
       startX, startY, endX, endY,
       progress: 0,
-      speed: 0.004 + Math.random() * 0.003,
-      active: true
+      speed: 0.003 + Math.random() * 0.002
     });
   }
 
+  let time = 0;
   function drawStars() {
     if (!ctx) return;
     ctx.clearRect(0, 0, width, height);
     time += 0.016;
     for (let s of stars) {
-      const twinkle = 0.6 + 0.4 * Math.sin(time * s.twinkleSpeed * 12);
-      const finalOpacity = s.opacity * twinkle;
+      const twinkle = 0.6 + 0.4 * Math.sin(time * s.twinkleSpeed + s.phase);
+      const opacity = s.baseOpacity * twinkle;
       ctx.beginPath();
-      ctx.arc(s.x, s.y, s.radius, 0, Math.PI*2);
+      ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
       if (s.glow) {
-        ctx.shadowColor = 'rgba(100, 160, 255, 0.5)';
-        ctx.shadowBlur = 5;
+        ctx.shadowBlur = 3;
+        ctx.shadowColor = 'rgba(100, 160, 255, 0.6)';
       } else {
         ctx.shadowBlur = 0;
       }
-      ctx.fillStyle = `rgba(255, 255, 255, ${finalOpacity})`;
+      ctx.fillStyle = `rgba(255, 245, 240, ${opacity})`;
       ctx.fill();
     }
     ctx.shadowBlur = 0;
-    for (let i = shootingStars.length-1; i >= 0; i--) {
+    for (let i = shootingStars.length - 1; i >= 0; i--) {
       const ss = shootingStars[i];
       ss.progress += ss.speed;
       if (ss.progress >= 1) {
-        shootingStars.splice(i,1);
+        shootingStars.splice(i, 1);
         continue;
       }
       const x = ss.startX + (ss.endX - ss.startX) * ss.progress;
       const y = ss.startY + (ss.endY - ss.startY) * ss.progress;
       ctx.beginPath();
       ctx.moveTo(x, y);
-      const tailX = x - (ss.startX - ss.endX) * 0.06;
-      const tailY = y - (ss.startY - ss.endY) * 0.06;
+      const tailX = x - (ss.startX - ss.endX) * 0.07;
+      const tailY = y - (ss.startY - ss.endY) * 0.07;
       ctx.lineTo(tailX, tailY);
-      ctx.strokeStyle = `rgba(255, 255, 255, ${0.7 * (1 - ss.progress)})`;
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.8 * (1 - ss.progress)})`;
       ctx.lineWidth = 1.2;
       ctx.stroke();
     }
@@ -619,9 +622,13 @@
   resizeCanvas();
   generateStars();
   drawStars();
-  setInterval(() => { if (Math.random() > 0.5) createShootingStar(); }, 26000);
-  createShootingStar();
+  // Add a shooting star every 20-30 seconds
+  setInterval(() => {
+    if (Math.random() > 0.6) addShootingStar();
+  }, 24000);
+  addShootingStar();
 
+  // --- Rest of UI ---
   function updateTimestamp() {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos' });
