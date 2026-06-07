@@ -3,735 +3,197 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>ARIA — Personal Intelligence System</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600&display=swap" rel="stylesheet">
+  <title>ARIA — Your AI. Your Life. Your Future.</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      -webkit-tap-highlight-color: transparent;
-    }
-    body {
-      background: #03050A;
-      font-family: 'Inter', sans-serif;
-      color: #F8FAFC;
-      min-height: 100vh;
-      overflow-x: hidden;
-    }
-    /* Cosmic layers */
-    .cosmic-bg {
-      position: fixed;
-      inset: 0;
-      background: radial-gradient(ellipse at 30% 40%, #0B1120 0%, #03050A 100%);
-      z-index: 0;
-    }
-    .milky-way {
-      position: fixed;
-      top: -20%;
-      left: -10%;
-      width: 140%;
-      height: 140%;
-      background: radial-gradient(ellipse at 35% 35%, 
-        rgba(80, 70, 150, 0.25) 0%,
-        rgba(100, 80, 180, 0.15) 20%,
-        rgba(60, 50, 120, 0.08) 50%,
-        transparent 80%);
-      transform: rotate(32deg);
-      pointer-events: none;
-      z-index: 0;
-      filter: blur(45px);
-    }
-    .nebula-dust {
-      position: fixed;
-      top: -120px;
-      left: -120px;
-      width: 400px;
-      height: 400px;
-      background: radial-gradient(circle, rgba(90, 70, 160, 0.08) 0%, transparent 70%);
-      pointer-events: none;
-      z-index: 0;
-      filter: blur(80px);
-    }
-    .star-canvas {
-      position: fixed;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      z-index: 1;
-    }
-    /* Main layout – bottom block sticks to bottom */
-    .app-container {
-      position: relative;
-      z-index: 2;
-      max-width: 620px;
-      margin: 0 auto;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      padding: 20px 24px 24px;
-      background: transparent;
-    }
-    /* Header (sign out) */
-    .header {
-      display: flex;
-      justify-content: flex-end;
-      margin-bottom: 28px;
-    }
-    .user-signout {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      background: rgba(255,255,255,0.04);
-      border: 0.5px solid rgba(255,255,255,0.1);
-      border-radius: 40px;
-      padding: 6px 14px 4px;
-      cursor: pointer;
-    }
-    .user-signout:hover {
-      background: rgba(255,255,255,0.06);
-    }
-    .user-initials {
-      font-size: 13px;
-      font-weight: 500;
-      color: #E2E8F0;
-    }
-    .signout-label {
-      font-size: 7px;
-      color: #7A8AAA;
-      margin-top: 1px;
-    }
-    /* Centered welcome message */
-    .center-hero {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      text-align: center;
-    }
-    .greeting {
-      font-size: 24px;
-      font-weight: 300;
-      letter-spacing: -0.3px;
-      color: #F0F4FA;
-    }
-    .greeting span {
-      font-weight: 500;
-      color: #A78BFA;
-    }
-    .timestamp {
-      font-size: 12px;
-      color: #7A8AAA;
-      margin-top: 8px;
-      opacity: 0.7;
-    }
-    /* Bottom block – cards, divider, input, footer */
-    .bottom-block {
-      margin-top: auto;
-      width: 100%;
-    }
-    .cards-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-    .feature-card {
-      background: rgba(18,25,45,0.5);
-      backdrop-filter: blur(6px);
-      border-radius: 18px;
-      padding: 10px 8px 8px;
-      text-align: center;
-      border: 0.5px solid rgba(255,255,255,0.05);
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    .feature-card:hover {
-      background: rgba(18,25,45,0.7);
-    }
-    .card-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 16px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 6px;
-    }
-    .card-memory .card-icon { background: rgba(167,139,250,0.12); }
-    .card-education .card-icon { background: rgba(96,165,250,0.12); }
-    .card-income .card-icon { background: rgba(16,185,129,0.12); }
-    .card-icon svg {
-      width: 16px;
-      height: 16px;
-      fill: none;
-      stroke-width: 1.5;
-    }
-    .card-memory .card-icon svg { stroke: #A78BFA; }
-    .card-education .card-icon svg { stroke: #60A5FA; }
-    .card-income .card-icon svg { stroke: #10B981; }
-    .card-title {
-      font-size: 12px;
-      font-weight: 600;
-      color: white;
-    }
-    .card-desc {
-      font-size: 8px;
-      color: #9CA3AF;
-      margin-top: 2px;
-      line-height: 1.2;
-    }
-    .divider {
-      text-align: center;
-      margin: 12px 0 12px;
-    }
-    .divider-text {
-      font-size: 8px;
-      letter-spacing: 1.2px;
-      color: #60A5FA;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      opacity: 0.6;
-    }
-    .input-capsule {
-      background: #0A0F1A;
-      border: 1px solid #3B82F6;
-      border-radius: 50px;
-      padding: 8px 14px 8px 20px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 16px;
-    }
-    .input-icon-left svg {
-      width: 16px;
-      height: 16px;
-      stroke: #60A5FA;
-    }
-    .input-field {
-      flex: 1;
-      background: transparent;
-      border: none;
-      color: white;
-      font-size: 14px;
-      outline: none;
-      padding: 8px 0;
-    }
-    .input-field::placeholder {
-      color: #334155;
-    }
-    .send-circle {
-      width: 34px;
-      height: 34px;
-      background: transparent;
-      border: 1px solid #1E40AF;
-      border-radius: 30px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-    }
-    .send-circle svg {
-      width: 14px;
-      height: 14px;
-      stroke: #3B82F6;
-      stroke-width: 2;
-    }
-    .footer-note {
-      text-align: center;
-      padding: 8px 0 12px;
-      font-size: 10px;
-      color: #4A5A7A;
-      border-top: 0.5px solid rgba(255,255,255,0.04);
-    }
-    /* Chat overlay */
-    .chat-view {
-      position: fixed;
-      inset: 0;
-      background: rgba(3,5,10,0.85);
-      backdrop-filter: blur(4px);
-      z-index: 100;
-      padding: 20px;
-      display: none;
-      flex-direction: column;
-    }
-    .chat-view.active { display: flex; }
-    .chat-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 20px;
-    }
-    .back-btn {
-      background: transparent;
-      border: none;
-      color: white;
-      font-size: 26px;
-      cursor: pointer;
-    }
-    .chat-actions {
-      display: flex;
-      gap: 12px;
-    }
-    .chat-action {
-      background: transparent;
-      border: none;
-      font-size: 18px;
-      cursor: pointer;
-    }
-    .chat-action.copy { color: #60A5FA; }
-    .chat-action.speak { color: #A78BFA; }
-    .chat-action.history { color: #F59E0B; font-size: 18px; }
-    .messages-area {
-      flex: 1;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      margin-bottom: 16px;
-    }
-    .message {
-      max-width: 80%;
-      animation: fadeUp 0.2s ease;
-    }
-    .message.user { align-self: flex-end; }
-    .message.aria { align-self: flex-start; }
-    .message-bubble {
-      padding: 10px 14px;
-      border-radius: 20px;
-      font-size: 14px;
-      background: rgba(255,255,255,0.05);
-      color: white;
-    }
-    .message.user .message-bubble {
-      background: rgba(96,165,250,0.2);
-      border: 0.5px solid rgba(96,165,250,0.3);
-    }
-    .message-actions {
-      display: flex;
-      gap: 10px;
-      margin-top: 6px;
-      opacity: 0;
-      transition: 0.2s;
-    }
-    .message:hover .message-actions { opacity: 0.7; }
-    .message-action {
-      background: transparent;
-      border: none;
-      font-size: 12px;
-      cursor: pointer;
-      color: #9CA3AF;
-    }
-    .message-action:hover { color: #60A5FA; }
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    .history-modal {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0,0,0,0.8);
-      backdrop-filter: blur(8px);
-      z-index: 200;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      opacity: 0;
-      pointer-events: none;
-      transition: 0.2s;
-    }
-    .history-modal.active {
-      opacity: 1;
-      pointer-events: auto;
-    }
-    .history-container {
-      background: rgba(10,20,40,0.95);
-      border-radius: 24px;
-      max-width: 90%;
-      width: 500px;
-      max-height: 80%;
-      overflow-y: auto;
-      padding: 20px;
-      border: 1px solid rgba(255,255,255,0.1);
-    }
-    .history-item {
-      margin-bottom: 16px;
-      padding-bottom: 12px;
-      border-bottom: 0.5px solid rgba(255,255,255,0.1);
-    }
-    .history-user { font-size: 12px; color: #60A5FA; }
-    .history-aria { font-size: 12px; color: #A78BFA; margin-top: 4px; }
-    .close-history {
-      background: transparent;
-      border: none;
-      color: white;
-      font-size: 20px;
-      float: right;
-      cursor: pointer;
-    }
-    @media (max-width: 640px) {
-      .app-container { padding: 16px; }
-      .greeting { font-size: 22px; }
-    }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{background:#01030A;font-family:'Inter',sans-serif;overflow:hidden;min-height:100vh;}
+    .cosmic-bg{position:fixed;inset:0;background:radial-gradient(ellipse at 45% 30%,#0D1E3A 0%,#071222 35%,#030810 70%,#01030A 100%);z-index:0;}
+    .space-glow{position:fixed;top:0;left:0;width:100%;height:60%;background:radial-gradient(ellipse at 50% 0%,rgba(12,28,64,0.5) 0%,rgba(6,14,32,0.2) 50%,transparent 100%);pointer-events:none;z-index:1;}
+    canvas{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:2;}
+    .app-container{position:relative;z-index:3;max-width:430px;margin:0 auto;min-height:100vh;padding:20px 20px 12px;display:flex;flex-direction:column;}
+    .header{display:flex;justify-content:space-between;margin-bottom:24px;}
+    .main-title{font-size:28px;font-weight:700;letter-spacing:3px;color:white;}
+    .subtitle{font-size:10px;color:#94A3B8;margin-top:4px;}
+    .icon-row{display:flex;gap:16px;align-items:center;}
+    .icon-btn{background:transparent;border:none;cursor:pointer;}
+    .icon-btn svg{width:20px;height:20px;stroke:white;stroke-width:1.5;fill:none;}
+    .lang-badge{background:rgba(0,0,0,0.6);border:0.5px solid rgba(255,255,255,0.3);border-radius:30px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:white;}
+    .welcome-card{background:rgba(10,12,25,0.7);border-radius:24px;padding:16px 18px;display:flex;align-items:center;gap:14px;backdrop-filter:blur(4px);margin-bottom:8px;}
+    .welcome-icon{width:48px;height:48px;background:rgba(0,0,0,0.5);border-radius:30px;display:flex;align-items:center;justify-content:center;}
+    .welcome-icon svg{width:24px;height:24px;stroke:#60A5FA;fill:none;stroke-width:1.5;}
+    .welcome-greeting{font-size:16px;font-weight:600;color:white;}
+    .welcome-greeting span{font-weight:700;color:#A78BFA;}
+    .timestamp{font-size:12px;color:#55657E;margin-top:4px;}
+    .cards-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0;}
+    .feature-card{background:rgba(20,22,40,0.5);backdrop-filter:blur(8px);border-radius:20px;padding:16px 10px 12px;text-align:center;border:0.5px solid rgba(255,255,255,0.05);cursor:pointer;}
+    .card-icon{width:40px;height:40px;border-radius:20px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;}
+    .card-memory .card-icon{background:rgba(167,139,250,0.15);}
+    .card-education .card-icon{background:rgba(96,165,250,0.15);}
+    .card-income .card-icon{background:rgba(16,185,129,0.15);}
+    .card-decisions .card-icon{background:rgba(245,158,11,0.15);}
+    .card-icon svg{width:20px;height:20px;fill:none;stroke-width:1.5;}
+    .card-memory .card-icon svg{stroke:#A78BFA;}
+    .card-education .card-icon svg{stroke:#60A5FA;}
+    .card-income .card-icon svg{stroke:#10B981;}
+    .card-decisions .card-icon svg{stroke:#F59E0B;}
+    .card-title{font-size:14px;font-weight:600;color:white;}
+    .card-desc{font-size:10px;color:#9CA3AF;margin-top:4px;}
+    .center-divider{text-align:center;margin:16px 0 24px;}
+    .divider-text{font-size:10px;letter-spacing:2px;color:#60A5FA;display:inline-flex;align-items:center;gap:8px;}
+    .input-capsule{background:#05070F;border:1.5px solid #3B82F6;border-radius:50px;padding:8px 12px 8px 18px;display:flex;align-items:center;gap:12px;margin-bottom:24px;}
+    .input-icon-left svg{width:18px;height:18px;stroke:#60A5FA;}
+    .input-field{flex:1;background:transparent;border:none;color:white;font-size:14px;outline:none;padding:8px 0;}
+    .input-field::placeholder{color:#334155;}
+    .send-circle{width:36px;height:36px;background:transparent;border:1px solid #1E40AF;border-radius:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+    .send-circle svg{width:16px;height:16px;stroke:#3B82F6;stroke-width:2;}
+    .bottom-nav{display:flex;justify-content:space-between;padding:12px 0 0;border-top:0.5px solid rgba(255,255,255,0.06);margin-top:auto;}
+    .nav-item{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;}
+    .nav-icon{width:24px;height:24px;}
+    .nav-icon svg{width:100%;height:100%;stroke:#6B7280;fill:none;stroke-width:1.5;}
+    .nav-item.active .nav-icon svg{stroke:#3B82F6;}
+    .nav-label{font-size:10px;color:#6B7280;}
+    .nav-item.active .nav-label{color:#3B82F6;}
+    .active-dot{width:4px;height:4px;background:#3B82F6;border-radius:2px;margin-top:2px;}
+    .chat-view{position:fixed;inset:0;background:rgba(0,0,0,0.94);backdrop-filter:blur(8px);z-index:100;padding:20px;display:none;flex-direction:column;}
+    .chat-view.active{display:flex;}
+    .chat-header{display:flex;align-items:center;gap:16px;margin-bottom:20px;}
+    .back-btn{background:transparent;border:none;color:white;font-size:24px;cursor:pointer;}
+    .messages-area{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:16px;}
+    .message{max-width:80%;animation:fadeIn 0.2s ease;}
+    .message.user{align-self:flex-end;}
+    .message.aria{align-self:flex-start;}
+    .message-bubble{padding:10px 14px;border-radius:20px;font-size:14px;background:rgba(255,255,255,0.08);color:white;}
+    .user .message-bubble{background:rgba(96,165,250,0.2);border:0.5px solid rgba(96,165,250,0.3);}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+    @media (max-width:640px){.cards-grid{gap:8px;}.feature-card{padding:12px 6px 8px;}.card-title{font-size:12px;}.card-desc{font-size:8px;}}
   </style>
 </head>
 <body>
 <div class="cosmic-bg"></div>
-<div class="milky-way"></div>
-<div class="nebula-dust"></div>
-<canvas id="starCanvas" class="star-canvas"></canvas>
+<div class="space-glow"></div>
+<canvas id="starCanvas"></canvas>
 
 <div class="app-container" id="mainUI">
   <div class="header">
-    <div class="user-signout" id="signoutBtn">
-      <div class="user-initials" id="userInitials">EN</div>
-      <div class="signout-label">sign out</div>
+    <div class="title-section"><div class="main-title">ARIA</div><div class="subtitle">Your AI. Your Life. Your Future.</div></div>
+    <div class="icon-row">
+      <button class="icon-btn"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></button>
+      <button class="icon-btn"><svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg></button>
+      <button class="icon-btn"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><div class="notif-dot"></div></button>
+      <div class="lang-badge">EN</div>
     </div>
   </div>
-
-  <div class="center-hero">
-    <div class="greeting">Good evening, <span id="userNameDisplay">friend</span>.</div>
-    <div class="timestamp" id="timestamp">—</div>
+  <div class="welcome-card"><div class="welcome-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div><div class="welcome-greeting">Hey <span id="userName">friend</span>, welcome back.</div></div>
+  <div class="timestamp" id="timestamp">—</div>
+  <div class="cards-grid">
+    <div class="feature-card card-memory" data-pillar="Memory"><div class="card-icon"><svg viewBox="0 0 24 24"><path d="M12 2a9 9 0 1 0 0 18A9 9 0 0 0 12 2z"/><path d="M8 12s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/></svg></div><div class="card-title">Memory</div><div class="card-desc">Your memories, organized.</div></div>
+    <div class="feature-card card-education" data-pillar="Education"><div class="card-icon"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div><div class="card-title">Education</div><div class="card-desc">Learn, grow, and master.</div></div>
+    <div class="feature-card card-income" data-pillar="Income"><div class="card-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="card-title">Income</div><div class="card-desc">Track, plan, and grow.</div></div>
+    <div class="feature-card card-decisions" data-pillar="Decisions"><div class="card-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg></div><div class="card-title">Decisions</div><div class="card-desc">Get clarity. Make better calls.</div></div>
   </div>
-
-  <div class="bottom-block">
-    <div class="cards-grid">
-      <div class="feature-card card-memory" data-pillar="Memory">
-        <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M12 2a9 9 0 1 0 0 18A9 9 0 0 0 12 2z"/><path d="M8 12s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/></svg></div>
-        <div class="card-title">Memory</div>
-        <div class="card-desc">Your memories, organized.</div>
-      </div>
-      <div class="feature-card card-education" data-pillar="Education">
-        <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
-        <div class="card-title">Education</div>
-        <div class="card-desc">Learn, grow, and master.</div>
-      </div>
-      <div class="feature-card card-income" data-pillar="Income">
-        <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-        <div class="card-title">Income</div>
-        <div class="card-desc">Track, plan, and grow.</div>
-      </div>
-    </div>
-    <div class="divider"><div class="divider-text">💫 ONE AI. EVERY PART OF YOUR LIFE. 💫</div></div>
-    <div class="input-capsule">
-      <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
-      <input type="text" class="input-field" id="mainInput" placeholder="Chat Aria...">
-      <div class="send-circle" id="sendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
-    </div>
-    <div class="footer-note">By MrNicosh Eg</div>
+  <div class="center-divider"><div class="divider-text">✦ ONE AI. EVERY PART OF YOUR LIFE. ✦</div></div>
+  <div class="input-capsule"><div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div><input type="text" class="input-field" id="mainInput" placeholder="Message ARIA..."><div class="send-circle" id="sendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div></div>
+  <div class="bottom-nav">
+    <div class="nav-item active" data-tab="chat"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><div class="nav-label">Chat</div><div class="active-dot"></div></div>
+    <div class="nav-item" data-tab="memory"><div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg></div><div class="nav-label">Memory</div></div>
+    <div class="nav-item" data-tab="insights"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div><div class="nav-label">Insights</div></div>
+    <div class="nav-item" data-tab="learn"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div><div class="nav-label">Learn</div></div>
+    <div class="nav-item" data-tab="profile"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div class="nav-label">Profile</div></div>
   </div>
 </div>
 
-<!-- Chat overlay (identical to previous) -->
 <div id="chatView" class="chat-view">
-  <div class="chat-header">
-    <button class="back-btn" id="closeChatBtn">←</button>
-    <div class="chat-actions">
-      <button class="chat-action copy" id="copyLastMsgBtn" title="Copy last response">📋</button>
-      <button class="chat-action speak" id="speakLastMsgBtn" title="Speak last response">🔊</button>
-      <button class="chat-action history" id="historyBtn" title="View conversation history">🕘</button>
-    </div>
-  </div>
+  <div class="chat-header"><button class="back-btn" id="closeChatBtn">←</button><div style="color:white;font-weight:500;">ARIA</div></div>
   <div class="messages-area" id="messagesArea"></div>
-  <div class="input-capsule" style="margin-bottom:0;">
-    <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
-    <input type="text" class="input-field" id="chatInput" placeholder="Chat Aria...">
-    <div class="send-circle" id="chatSendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
-  </div>
+  <div class="input-capsule" style="margin-top:auto;"><div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div><input type="text" class="input-field" id="chatInput" placeholder="Message ARIA..."><div class="send-circle" id="chatSendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div></div>
 </div>
 
-<div id="historyModal" class="history-modal">
-  <div class="history-container">
-    <button class="close-history" id="closeHistoryBtn">✕</button>
-    <h3 style="margin-bottom:16px;">📜 Conversation History</h3>
-    <div id="historyContent"></div>
-  </div>
-</div>
+<script>
+  // Firebase config (replace with yours if different)
+  const firebaseConfig = {
+    apiKey: "AIzaSyAfrs67qWlU8FjsjqHwNeivGgm7x_vHdJY",
+    authDomain: "fiducia-148b9.firebaseapp.com",
+    projectId: "fiducia-148b9",
+    storageBucket: "fiducia-148b9.firebasestorage.app",
+    messagingSenderId: "380888909038",
+    appId: "1:380888909038:web:efe40c252537e670959fff"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  let currentUser = null;
 
-<!-- Part 2 follows -->
-  <script>
-  // -------------------------------------------------------------
-  // COSMIC BACKGROUND (canvas) – twinkling stars, Milky Way, clouds, constellation, shooting stars
-  // -------------------------------------------------------------
-  (function() {
-    const canvas = document.getElementById('cosmicCanvas');
-    const ctx = canvas.getContext('2d');
-    let width, height;
+  // timestamp
+  function updateTimestamp(){ document.getElementById('timestamp').textContent = new Date().toLocaleTimeString('en-NG',{hour:'2-digit',minute:'2-digit',timeZone:'Africa/Lagos'}); }
+  updateTimestamp(); setInterval(updateTimestamp,60000);
 
-    // Helper
-    function random(min, max) { return min + Math.random() * (max - min); }
+  // chat
+  const mainUI = document.getElementById('mainUI'), chatView = document.getElementById('chatView'), mainInput = document.getElementById('mainInput'), chatInput = document.getElementById('chatInput'), messagesArea = document.getElementById('messagesArea'), userNameSpan = document.getElementById('userName');
+  function addMessage(text,sender){ const div = document.createElement('div'); div.className = `message ${sender}`; const bubble = document.createElement('div'); bubble.className = 'message-bubble'; bubble.innerHTML = marked.parse(text); div.appendChild(bubble); messagesArea.appendChild(div); messagesArea.scrollTop = messagesArea.scrollHeight; }
+  function addTyping(){ const div = document.createElement('div'); div.className = 'message aria'; div.id = 'typingIndicator'; div.innerHTML = '<div class="message-bubble">✦ ✦ ✦</div>'; messagesArea.appendChild(div); messagesArea.scrollTop = messagesArea.scrollHeight; }
+  function removeTyping(){ const el = document.getElementById('typingIndicator'); if(el) el.remove(); }
+  async function sendToAria(message,inputElement){ if(!currentUser) return; addMessage(message,'user'); inputElement.value=''; addTyping(); try{ const res = await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message,user_id:currentUser.uid,email:currentUser.email.toLowerCase()})}); const data = await res.json(); removeTyping(); if(data.error) addMessage(`Error: ${data.error}`,'aria'); else addMessage(data.reply||'...','aria'); } catch(e){ removeTyping(); addMessage('Connection uncertain.','aria'); } }
+  function openChat(){ mainUI.style.display='none'; chatView.classList.add('active'); if(messagesArea.children.length===0 && currentUser) addMessage(`Hey ${currentUser.displayName||currentUser.email.split('@')[0]}. I'm ARIA. What would you like to explore?`,'aria'); chatInput.focus(); }
+  function closeChat(){ mainUI.style.display='flex'; chatView.classList.remove('active'); messagesArea.innerHTML=''; }
+  mainInput.addEventListener('focus',openChat);
+  document.querySelectorAll('.feature-card').forEach(c=>c.addEventListener('click',()=>{ openChat(); addMessage(`Let's talk about ${c.querySelector('.card-title').textContent}. How can I help?`,'aria'); }));
+  document.getElementById('closeChatBtn').onclick=closeChat;
+  document.getElementById('chatSendBtn').onclick=()=>{ const m=chatInput.value.trim(); if(m) sendToAria(m,chatInput); };
+  chatInput.addEventListener('keypress',e=>{ if(e.key==='Enter'){ e.preventDefault(); const m=chatInput.value.trim(); if(m) sendToAria(m,chatInput); } });
+  document.getElementById('sendBtn').onclick=()=>{ const m=mainInput.value.trim(); if(m) sendToAria(m,mainInput); };
+  mainInput.addEventListener('keypress',e=>{ if(e.key==='Enter'){ e.preventDefault(); const m=mainInput.value.trim(); if(m) sendToAria(m,mainInput); } });
+  auth.onAuthStateChanged(async user=>{ if(user){ currentUser=user; userNameSpan.textContent=user.displayName||user.email.split('@')[0]; try{ await fetch('/set_user_name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:user.uid,email:user.email.toLowerCase(),name:user.displayName||user.email.split('@')[0]})}); }catch(e){} } else window.location.href='/login.html'; });
 
-    // ---------------------------------------------------------
-    // 1. Stars (many, tiny, dim)
-    // ---------------------------------------------------------
-    const STAR_COUNT = 4500;
-    let stars = [];
-    let brightStars = [];
-    const BRIGHT_STAR_COUNT = 18;
-
-    // Twinkling data (for all stars)
-    let starTwinkle = []; // phase and speed
-
-    // ---------------------------------------------------------
-    // 2. Constellation
-    // ---------------------------------------------------------
-    let constellationStars = [];
-    let constellationEdges = [];
-    const CONSTELLATION_COUNT = 12;
-
-    // ---------------------------------------------------------
-    // 3. Shooting stars (animated)
-    // ---------------------------------------------------------
-    class ShootingStar {
-      constructor(x, y, angle, length, width, brightness, lifespan) {
-        this.x = x; this.y = y; this.angle = angle; this.length = length;
-        this.width = width; this.brightness = brightness;
-        this.life = lifespan; this.maxLife = lifespan;
-      }
-      update() { this.life--; }
-      isAlive() { return this.life > 0; }
-      draw(ctx, w, h) {
-        const progress = 1 - (this.life / this.maxLife);
-        const startX = this.x * w;
-        const startY = this.y * h;
-        const endX = startX + Math.cos(this.angle) * this.length * w;
-        const endY = startY + Math.sin(this.angle) * this.length * h;
-        const fade = Math.max(0, 1 - progress * 1.2);
-        const bright = this.brightness * fade;
-        if (bright <= 0.02) return;
-        const grad = ctx.createLinearGradient(startX, startY, endX, endY);
-        grad.addColorStop(0, `rgba(220, 240, 255, ${bright * 0.5})`);
-        grad.addColorStop(0.6, `rgba(220, 240, 255, ${bright * 0.15})`);
-        grad.addColorStop(1, `rgba(220, 240, 255, 0)`);
-        ctx.beginPath();
-        ctx.moveTo(startX, startY);
-        ctx.lineTo(endX, endY);
-        ctx.strokeStyle = grad;
-        ctx.lineWidth = this.width;
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(startX, startY, 1.0, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 250, 240, ${bright * 0.6})`;
-        ctx.fill();
-      }
+  // ===== STARS (twinkling + shooting stars) =====
+  const canvas = document.getElementById('starCanvas');
+  const ctx = canvas.getContext('2d');
+  let w,h;
+  function r(a,b){ return a+Math.random()*(b-a); }
+  let stars=[], starTwinkle=[];
+  for(let i=0;i<500;i++){
+    stars.push({x:Math.random(), y:Math.random(), rad:r(0.12,0.55), baseOp:r(0.02,0.15)});
+    starTwinkle.push({spd:r(0.005,0.02), ph:Math.random()*Math.PI*2});
+  }
+  let shootingStars=[];
+  class SS{ constructor(x,y,ang,len,wid,bri,life){ this.x=x;this.y=y;this.ang=ang;this.len=len;this.wid=wid;this.bri=bri;this.life=life;this.maxLife=life; }
+  update(){ this.life--; }
+  draw(ctx,w,h){
+    let prog=1-this.life/this.maxLife, fade=Math.max(0,1-prog*1.2), bright=this.bri*fade;
+    if(bright<=0.02) return;
+    let sx=this.x*w, sy=this.y*h, ex=sx+Math.cos(this.ang)*this.len*w, ey=sy+Math.sin(this.ang)*this.len*h;
+    let grad=ctx.createLinearGradient(sx,sy,ex,ey);
+    grad.addColorStop(0,`rgba(220,240,255,${bright*0.5})`);
+    grad.addColorStop(0.6,`rgba(220,240,255,${bright*0.15})`);
+    grad.addColorStop(1,`rgba(220,240,255,0)`);
+    ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(ex,ey); ctx.strokeStyle=grad; ctx.lineWidth=this.wid; ctx.stroke();
+    ctx.beginPath(); ctx.arc(sx,sy,0.9,0,Math.PI*2); ctx.fillStyle=`rgba(255,250,240,${bright*0.6})`; ctx.fill();
+  }}
+  let frame=0;
+  function resizeCanvas(){ w=innerWidth; h=innerHeight; canvas.width=w; canvas.height=h; }
+  function drawStars(){
+    let time=frame*0.016;
+    ctx.clearRect(0,0,w,h);
+    for(let i=0;i<stars.length;i++){
+      let s=stars[i], t=starTwinkle[i];
+      let tw=0.6+0.4*Math.sin(time*t.spd+t.ph);
+      let op=s.baseOp*tw;
+      ctx.beginPath(); ctx.arc(s.x*w,s.y*h,s.rad,0,Math.PI*2); ctx.fillStyle=`rgba(210,225,255,${op})`; ctx.fill();
     }
-
-    let shootingStars = [];
-    let frame = 0;
-    const SHOOTING_STAR_PROB = 0.006;
-    const SHOOTING_STAR_LIFE = 80;
-
-    // ---------------------------------------------------------
-    // Initialisation
-    // ---------------------------------------------------------
-    function initStars() {
-      stars = [];
-      starTwinkle = [];
-      for (let i = 0; i < STAR_COUNT; i++) {
-        stars.push({
-          x: Math.random(),
-          y: Math.random(),
-          radius: random(0.12, 0.55),
-          baseOpacity: random(0.02, 0.15)
-        });
-        starTwinkle.push({
-          speed: random(0.005, 0.02),
-          phase: random(0, Math.PI * 2)
-        });
-      }
-      brightStars = [];
-      for (let i = 0; i < BRIGHT_STAR_COUNT; i++) {
-        brightStars.push({
-          x: Math.random(),
-          y: Math.random(),
-          radius: random(0.7, 1.2),
-          opacity: random(0.5, 0.85),
-          spikeLen: random(3, 5)
-        });
-      }
+    for(let ss of shootingStars) ss.draw(ctx,w,h);
+    shootingStars=shootingStars.filter(ss=>ss.life>0);
+    if(shootingStars.length<2 && Math.random()<0.006){
+      let x=r(0.1,0.7), y=r(0.05,0.4), ang=r(-0.85,-0.2), len=r(0.03,0.06), wid=r(0.5,0.8), bri=r(0.3,0.55), life=Math.floor(80*r(0.8,1.2));
+      shootingStars.push(new SS(x,y,ang,len,wid,bri,life));
     }
-
-    function initConstellation() {
-      const centerX = 0.25, centerY = 0.3;
-      constellationStars = [];
-      for (let i = 0; i < CONSTELLATION_COUNT; i++) {
-        constellationStars.push({
-          x: centerX + (Math.random() - 0.5) * 0.12,
-          y: centerY + (Math.random() - 0.5) * 0.12,
-          radius: random(0.6, 1.0),
-          opacity: random(0.6, 0.9)
-        });
-      }
-      constellationEdges = [];
-      for (let i = 0; i < constellationStars.length; i++) {
-        for (let j = i+1; j < constellationStars.length; j++) {
-          const dx = constellationStars[i].x - constellationStars[j].x;
-          const dy = constellationStars[i].y - constellationStars[j].y;
-          const dist = Math.hypot(dx, dy);
-          if (dist < 0.08 && Math.random() < 0.3) {
-            constellationEdges.push({ i, j });
-          }
-        }
-      }
-    }
-
-    // ---------------------------------------------------------
-    // Background layers (gradients, Milky Way, clouds)
-    // ---------------------------------------------------------
-    function drawBaseGradient() {
-      const grad = ctx.createLinearGradient(0, 0, width * 0.85, height);
-      grad.addColorStop(0, '#01030A');
-      grad.addColorStop(0.5, '#020514');
-      grad.addColorStop(1, '#03081A');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, width, height);
-    }
-
-    function drawMilkyWayGlow() {
-      const startX = width * 0.94, startY = height * 0.92;
-      const endX = width * 0.06, endY = height * 0.08;
-      const grad = ctx.createLinearGradient(startX, startY, endX, endY);
-      grad.addColorStop(0, 'rgba(20,30,60,0)');
-      grad.addColorStop(0.3, 'rgba(45,75,115,0.07)');
-      grad.addColorStop(0.6, 'rgba(60,90,135,0.12)');
-      grad.addColorStop(0.8, 'rgba(50,80,120,0.08)');
-      grad.addColorStop(1, 'rgba(35,50,80,0)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, width, height);
-    }
-
-    function drawCloudClusters() {
-      const clusters = [
-        { cx: 0.72, cy: 0.74, radius: 0.42, r: 25, g: 55, b: 120, intensity: 0.65 },
-        { cx: 0.28, cy: 0.26, radius: 0.36, r: 30, g: 60, b: 125, intensity: 0.55 },
-        { cx: 0.50, cy: 0.52, radius: 0.32, r: 20, g: 50, b: 115, intensity: 0.5 },
-        { cx: 0.85, cy: 0.45, radius: 0.28, r: 35, g: 65, b: 130, intensity: 0.45 },
-        { cx: 0.15, cy: 0.70, radius: 0.30, r: 25, g: 55, b: 120, intensity: 0.5 },
-        { cx: 0.38, cy: 0.85, radius: 0.25, r: 30, g: 60, b: 125, intensity: 0.4 }
-      ];
-      for (let c of clusters) {
-        const cx = c.cx * width;
-        const cy = c.cy * height;
-        const rad = c.radius * width;
-        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad);
-        grad.addColorStop(0, `rgba(${c.r}, ${c.g}, ${c.b}, ${0.035 * c.intensity})`);
-        grad.addColorStop(1, `rgba(${c.r}, ${c.g}, ${c.b}, 0)`);
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, width, height);
-      }
-    }
-
-    // ---------------------------------------------------------
-    // Star drawing (with twinkling)
-    // ---------------------------------------------------------
-    let time = 0;
-    function drawStars() {
-      time += 0.016;
-      for (let i = 0; i < stars.length; i++) {
-        const s = stars[i];
-        const t = starTwinkle[i];
-        const twinkle = 0.6 + 0.4 * Math.sin(time * t.speed + t.phase);
-        const opacity = s.baseOpacity * twinkle;
-        ctx.beginPath();
-        ctx.arc(s.x * width, s.y * height, s.radius, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(210, 225, 255, ${opacity})`;
-        ctx.fill();
-      }
-      // Bright stars (no twinkle, but subtle)
-      for (let b of brightStars) {
-        const cx = b.x * width, cy = b.y * height;
-        ctx.beginPath();
-        ctx.arc(cx, cy, b.radius, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(240, 245, 255, ${b.opacity})`;
-        ctx.fill();
-        // tiny spikes
-        const len = b.spikeLen;
-        ctx.beginPath();
-        ctx.moveTo(cx - len, cy); ctx.lineTo(cx + len, cy);
-        ctx.moveTo(cx, cy - len); ctx.lineTo(cx, cy + len);
-        ctx.strokeStyle = `rgba(240, 245, 255, ${b.opacity * 0.4})`;
-        ctx.lineWidth = 0.8;
-        ctx.stroke();
-      }
-    }
-
-    function drawConstellation() {
-      ctx.beginPath();
-      for (let edge of constellationEdges) {
-        const s1 = constellationStars[edge.i];
-        const s2 = constellationStars[edge.j];
-        ctx.moveTo(s1.x * width, s1.y * height);
-        ctx.lineTo(s2.x * width, s2.y * height);
-      }
-      ctx.strokeStyle = 'rgba(140, 180, 230, 0.2)';
-      ctx.lineWidth = 0.8;
-      ctx.stroke();
-      for (let cs of constellationStars) {
-        ctx.beginPath();
-        ctx.arc(cs.x * width, cs.y * height, cs.radius, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(200, 220, 255, ${cs.opacity})`;
-        ctx.fill();
-      }
-    }
-
-    function updateShootingStars() {
-      shootingStars = shootingStars.filter(ss => ss.isAlive());
-      if (shootingStars.length < 2 && Math.random() < SHOOTING_STAR_PROB) {
-        const x = random(0.1, 0.7);
-        const y = random(0.05, 0.4);
-        const angle = random(-0.85, -0.2);
-        const length = random(0.03, 0.06);
-        const width = random(0.5, 0.8);
-        const brightness = random(0.3, 0.55);
-        const life = Math.floor(SHOOTING_STAR_LIFE * random(0.8, 1.2));
-        shootingStars.push(new ShootingStar(x, y, angle, length, width, brightness, life));
-      }
-      shootingStars.forEach(ss => ss.update());
-    }
-
-    function drawShootingStars() {
-      for (let ss of shootingStars) ss.draw(ctx, width, height);
-    }
-
-    // ---------------------------------------------------------
-    // Render loop
-    // ---------------------------------------------------------
-    function resizeCanvas() {
-      width = window.innerWidth;
-      height = window.innerHeight;
-      canvas.width = width;
-      canvas.height = height;
-    }
-
-    function render() {
-      if (!ctx) return;
-      drawBaseGradient();
-      drawMilkyWayGlow();
-      drawCloudClusters();
-      drawStars();
-      drawConstellation();
-      drawShootingStars();
-      updateShootingStars();
-      requestAnimationFrame(render);
-    }
-
-    function init() {
-      initStars();
-      initConstellation();
-      resizeCanvas();
-      render();
-    }
-
-    window.addEventListener('resize', () => resizeCanvas());
-    init();
-  })();
+    frame++;
+    requestAnimationFrame(drawStars);
+  }
+  window.addEventListener('resize',()=>{ resizeCanvas(); });
+  resizeCanvas();
+  drawStars();
 </script>
 </body>
 </html>
