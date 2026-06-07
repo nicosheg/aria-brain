@@ -9,97 +9,543 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    body { background: #050A1A; font-family: 'Inter', sans-serif; color: #F8FAFC; min-height: 100vh; overflow-x: hidden; }
-    .cosmic-bg { position: fixed; inset: 0; background: #050A1A; z-index: 0; }
-    .galaxy-glow { position: fixed; width: 120%; height: 120%; top: -10%; left: -10%; background: radial-gradient(ellipse 80% 60% at 65% 45%, rgba(20,48,110,0.45) 0%, rgba(10,20,60,0.25) 40%, transparent 75%); pointer-events: none; z-index: 0; }
-    .star-canvas { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
-    .app-container { position: relative; z-index: 2; max-width: 620px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; padding: 20px 20px 16px; }
-    .top-right { display: flex; justify-content: flex-end; margin-bottom: 24px; }
-    .signout-block { display: flex; flex-direction: column; align-items: center; background: rgba(255,255,255,0.03); border: 0.5px solid rgba(255,255,255,0.08); border-radius: 40px; padding: 5px 12px 3px; cursor: pointer; transition: all 0.2s; }
-    .signout-block:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.15); }
-    .user-initials { font-size: 13px; font-weight: 500; color: #E2E8F0; letter-spacing: 0.5px; }
-    .signout-label { font-size: 7px; font-weight: 400; color: #7A8AAA; margin-top: 1px; }
-    .center-hero { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
-    .greeting { font-size: 24px; font-weight: 300; letter-spacing: -0.3px; color: #F0F4FA; line-height: 1.3; }
-    .greeting span { font-weight: 500; color: #A78BFA; }
-    .time { font-size: 12px; color: #7A8AAA; margin-top: 8px; font-weight: 300; opacity: 0.7; }
-    .bottom-block { margin-top: auto; }
-    .pillars-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
-    .pillar-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 14px 10px; backdrop-filter: blur(10px); transition: background 0.2s; cursor: pointer; display: flex; flex-direction: column; gap: 8px; }
-    .pillar-card:hover { background: rgba(255,255,255,0.08); }
-    .icon-circle { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-    .memory .icon-circle { background: rgba(167,139,250,0.15); }
-    .education .icon-circle { background: rgba(96,165,250,0.15); }
-    .income .icon-circle { background: rgba(16,185,129,0.15); }
-    .icon-circle svg { width: 18px; height: 18px; fill: none; stroke-width: 1.5; }
-    .memory .icon-circle svg { stroke: #A78BFA; }
-    .education .icon-circle svg { stroke: #60A5FA; }
-    .income .icon-circle svg { stroke: #10B981; }
-    .pillar-name { font-size: 14px; font-weight: 600; color: #F8FAFC; }
-    .pillar-desc { font-size: 11px; color: #94A3B8; line-height: 1.3; }
-    .pillar-arrow { font-size: 14px; color: #64748B; margin-top: auto; text-align: right; }
-    .divider { text-align: center; margin: 8px 0 12px; }
-    .divider-text { font-size: 8px; letter-spacing: 1.2px; color: #60A5FA; display: inline-flex; align-items: center; gap: 6px; opacity: 0.6; }
-    .input-capsule { background: #0A0F1A; border: 1px solid #3B82F6; border-radius: 50px; padding: 6px 12px 6px 18px; display: flex; align-items: center; gap: 8px; margin: 8px 0 12px; box-shadow: 0 0 6px rgba(59,130,246,0.1); }
-    .input-icon-left svg { width: 14px; height: 14px; stroke: #60A5FA; }
-    .input-field { flex: 1; background: transparent; border: none; color: white; font-size: 13px; outline: none; padding: 6px 0; }
-    .input-field::placeholder { color: #334155; font-weight: 400; }
-    .send-circle { width: 30px; height: 30px; background: transparent; border: 1px solid #1E40AF; border-radius: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-    .send-circle svg { width: 12px; height: 12px; stroke: #3B82F6; stroke-width: 2; }
-    .footer-note { text-align: center; padding: 6px 0 20px; font-size: 9px; letter-spacing: 0.6px; color: #4A5A7A; border-top: 0.5px solid rgba(255,255,255,0.04); }
-    .chat-view { position: fixed; inset: 0; background: rgba(5,10,26,0.85); backdrop-filter: blur(4px); z-index: 100; padding: 20px; display: none; flex-direction: column; }
-    .chat-view.active { display: flex; }
-    .chat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-    .back-btn { background: transparent; border: none; color: white; font-size: 26px; cursor: pointer; }
-    .chat-actions { display: flex; gap: 12px; }
-    .chat-action { background: transparent; border: none; font-size: 18px; cursor: pointer; filter: drop-shadow(0 0 3px currentColor); }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      background: #03050A;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      color: #F8FAFC;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    /* Deep cosmic background */
+    .cosmic-bg {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at 30% 40%, #0B1120 0%, #03050A 100%);
+      z-index: 0;
+    }
+    /* Milky way galaxy – dense diagonal cluster */
+    .milky-way {
+      position: fixed;
+      top: -20%;
+      left: -10%;
+      width: 140%;
+      height: 140%;
+      background: radial-gradient(ellipse at 35% 35%, 
+        rgba(80, 70, 150, 0.25) 0%,
+        rgba(100, 80, 180, 0.15) 20%,
+        rgba(60, 50, 120, 0.08) 50%,
+        transparent 80%);
+      transform: rotate(32deg);
+      pointer-events: none;
+      z-index: 0;
+      filter: blur(45px);
+    }
+    /* Starfield container (CSS stars) */
+    .starfield {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+    /* Individual star */
+    .star {
+      position: absolute;
+      background: white;
+      border-radius: 50%;
+      opacity: 0;
+      animation: slowTwinkle linear infinite;
+    }
+    @keyframes slowTwinkle {
+      0% { opacity: 0; transform: scale(0.6); }
+      40% { opacity: 0.9; transform: scale(1); }
+      100% { opacity: 0; transform: scale(0.6); }
+    }
+    /* Shooting star */
+    .shooting-star {
+      position: absolute;
+      width: 2px;
+      height: 2px;
+      background: white;
+      box-shadow: 0 0 6px rgba(255,255,240,0.6);
+      border-radius: 50%;
+      opacity: 0;
+      animation: shootVerySlow linear infinite;
+    }
+    @keyframes shootVerySlow {
+      0% { transform: translate(0, 0); opacity: 0; }
+      10% { opacity: 0.8; }
+      30% { transform: translate(-80px, 80px); opacity: 0.4; }
+      100% { transform: translate(-200px, 200px); opacity: 0; }
+    }
+    /* Nebula dust */
+    .nebula-dust {
+      position: fixed;
+      top: -120px;
+      left: -120px;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(90, 70, 160, 0.08) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+      filter: blur(80px);
+    }
+    /* Main container – responsive */
+    .app-container {
+      position: relative;
+      z-index: 2;
+      max-width: 620px;
+      margin: 0 auto;
+      min-height: 100vh;
+      padding: 20px 24px 24px;
+      display: flex;
+      flex-direction: column;
+      background: transparent;
+    }
+    /* Header – abbreviated name badge + sign out button */
+    .header {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 28px;
+    }
+    .user-badge {
+      background: rgba(255, 255, 255, 0.04);
+      border: 0.5px solid rgba(255, 255, 255, 0.1);
+      border-radius: 40px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #E2E8F0;
+      backdrop-filter: blur(6px);
+    }
+    .signout-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 0.5px solid rgba(255, 255, 255, 0.1);
+      border-radius: 40px;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+      color: #94A3B8;
+    }
+    .signout-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #F8FAFC;
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    /* Welcome banner – three blue stars icon */
+    .welcome-card {
+      background: rgba(17, 24, 39, 0.45);
+      backdrop-filter: blur(10px);
+      border-radius: 28px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 8px;
+      border: 0.5px solid rgba(255, 255, 255, 0.05);
+    }
+    .welcome-icon {
+      width: 46px;
+      height: 46px;
+      background: rgba(96, 165, 250, 0.08);
+      border-radius: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+    }
+    .welcome-icon svg {
+      width: 14px;
+      height: 14px;
+      stroke: #60A5FA;
+      fill: none;
+      stroke-width: 1.2;
+      filter: drop-shadow(0 0 2px #60A5FA);
+    }
+    .welcome-text {
+      flex: 1;
+    }
+    .welcome-greeting {
+      font-size: 16px;
+      font-weight: 500;
+      color: white;
+      line-height: 1.4;
+    }
+    .welcome-greeting span {
+      font-weight: 600;
+      color: #A78BFA;
+    }
+    .timestamp {
+      font-size: 10px;
+      color: #6A7A9A;
+      margin-left: 8px;
+      margin-bottom: 16px;
+    }
+    /* 3 cards – compact */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin: 12px 0 8px;
+    }
+    .feature-card {
+      background: rgba(18, 25, 45, 0.5);
+      backdrop-filter: blur(6px);
+      border-radius: 18px;
+      padding: 10px 8px 8px;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.2s;
+      border: 0.5px solid rgba(255, 255, 255, 0.05);
+    }
+    .card-memory { box-shadow: 0 0 6px rgba(167, 139, 250, 0.1); }
+    .card-education { box-shadow: 0 0 6px rgba(96, 165, 250, 0.1); }
+    .card-income { box-shadow: 0 0 6px rgba(16, 185, 129, 0.1); }
+    .card-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 8px;
+    }
+    .card-memory .card-icon { background: rgba(167, 139, 250, 0.12); }
+    .card-education .card-icon { background: rgba(96, 165, 250, 0.12); }
+    .card-income .card-icon { background: rgba(16, 185, 129, 0.12); }
+    .card-icon svg {
+      width: 16px;
+      height: 16px;
+      fill: none;
+      stroke-width: 1.5;
+    }
+    .card-memory .card-icon svg { stroke: #A78BFA; }
+    .card-education .card-icon svg { stroke: #60A5FA; }
+    .card-income .card-icon svg { stroke: #10B981; }
+    .card-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: white;
+      margin-bottom: 2px;
+    }
+    .card-desc {
+      font-size: 8px;
+      color: #9CA3AF;
+      line-height: 1.2;
+      margin-bottom: 8px;
+    }
+    .card-arrow {
+      align-self: flex-end;
+      margin-top: auto;
+      opacity: 0.4;
+    }
+    .card-arrow svg {
+      width: 8px;
+      height: 8px;
+      stroke: #9CA3AF;
+    }
+    /* Divider */
+    .divider {
+      text-align: center;
+      margin: 16px 0 12px;
+    }
+    .divider-text {
+      font-size: 9px;
+      letter-spacing: 1.5px;
+      color: #60A5FA;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    /* Input bar */
+    .input-capsule {
+      background: #0A0F1A;
+      border: 1px solid #3B82F6;
+      border-radius: 50px;
+      padding: 8px 14px 8px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 12px 0 28px;
+      box-shadow: 0 0 8px rgba(59, 130, 246, 0.1);
+    }
+    .input-icon-left svg {
+      width: 16px;
+      height: 16px;
+      stroke: #60A5FA;
+    }
+    .input-field {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      padding: 8px 0;
+    }
+    .input-field::placeholder {
+      color: #334155;
+      font-weight: 400;
+    }
+    .send-circle {
+      width: 34px;
+      height: 34px;
+      background: transparent;
+      border: 1px solid #1E40AF;
+      border-radius: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .send-circle svg {
+      width: 14px;
+      height: 14px;
+      stroke: #3B82F6;
+      stroke-width: 2;
+    }
+    /* Footer */
+    .footer-note {
+      text-align: center;
+      padding: 16px 0 20px;
+      font-size: 11px;
+      letter-spacing: 0.8px;
+      color: #5A6E8E;
+      border-top: 0.5px solid rgba(255, 255, 255, 0.06);
+      margin-top: auto;
+    }
+    /* Chat overlay */
+    .chat-view {
+      position: fixed;
+      inset: 0;
+      background: #03050A;
+      z-index: 100;
+      padding: 20px;
+      display: none;
+      flex-direction: column;
+    }
+    .chat-view.active {
+      display: flex;
+    }
+    .chat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .back-btn {
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 26px;
+      cursor: pointer;
+    }
+    .chat-actions {
+      display: flex;
+      gap: 12px;
+    }
+    .chat-action {
+      background: transparent;
+      border: none;
+      font-size: 18px;
+      cursor: pointer;
+      filter: drop-shadow(0 0 3px currentColor);
+      transition: 0.1s;
+    }
     .chat-action.copy { color: #60A5FA; }
     .chat-action.speak { color: #A78BFA; }
     .chat-action.history { color: #F59E0B; font-size: 18px; }
-    .messages-area { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; scroll-behavior: smooth; }
-    .message { max-width: 80%; animation: fadeUp 0.2s ease; }
-    .message.user { align-self: flex-end; }
-    .message.aria { align-self: flex-start; }
-    .message-bubble { padding: 10px 14px; border-radius: 20px; font-size: 14px; background: rgba(255,255,255,0.1); color: white; }
-    .message.user .message-bubble { background: rgba(96,165,250,0.2); border: 0.5px solid rgba(96,165,250,0.3); }
-    .message-actions { display: flex; gap: 10px; margin-top: 6px; opacity: 0; transition: 0.2s; }
-    .message:hover .message-actions { opacity: 0.7; }
-    .message-action { background: transparent; border: none; font-size: 12px; cursor: pointer; color: #9CA3AF; }
-    .message-action:hover { color: #60A5FA; }
-    @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-    .history-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); z-index: 200; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: 0.2s; }
-    .history-modal.active { opacity: 1; pointer-events: auto; }
-    .history-container { background: rgba(10,20,40,0.95); border-radius: 24px; max-width: 90%; width: 500px; max-height: 80%; overflow-y: auto; padding: 20px; border: 1px solid rgba(255,255,255,0.1); }
-    .history-item { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 0.5px solid rgba(255,255,255,0.1); }
-    .history-user { font-size: 12px; color: #60A5FA; }
-    .history-aria { font-size: 12px; color: #A78BFA; margin-top: 4px; }
-    .close-history { background: transparent; border: none; color: white; font-size: 20px; float: right; cursor: pointer; }
-    @media (max-width: 640px) { .app-container { padding: 16px 16px 12px; } .greeting { font-size: 22px; } .pillars-row { gap: 8px; } .pillar-card { padding: 10px 6px; } .pillar-name { font-size: 12px; } .pillar-desc { font-size: 9px; } }
+    .messages-area {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .message {
+      max-width: 80%;
+      animation: fadeUp 0.2s ease;
+    }
+    .message.user {
+      align-self: flex-end;
+    }
+    .message.aria {
+      align-self: flex-start;
+    }
+    .message-bubble {
+      padding: 10px 14px;
+      border-radius: 20px;
+      font-size: 14px;
+      background: rgba(255, 255, 255, 0.05);
+      color: white;
+    }
+    .message.user .message-bubble {
+      background: rgba(96, 165, 250, 0.15);
+      border: 0.5px solid rgba(96, 165, 250, 0.3);
+    }
+    .message-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 6px;
+      opacity: 0;
+      transition: 0.2s;
+    }
+    .message:hover .message-actions {
+      opacity: 0.7;
+    }
+    .message-action {
+      background: transparent;
+      border: none;
+      font-size: 12px;
+      cursor: pointer;
+      color: #9CA3AF;
+    }
+    .message-action:hover {
+      color: #60A5FA;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    /* History modal */
+    .history-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      backdrop-filter: blur(8px);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: 0.2s;
+    }
+    .history-modal.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .history-container {
+      background: rgba(10,20,40,0.95);
+      border-radius: 24px;
+      max-width: 90%;
+      width: 500px;
+      max-height: 80%;
+      overflow-y: auto;
+      padding: 20px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .history-item {
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 0.5px solid rgba(255,255,255,0.1);
+    }
+    .history-user {
+      font-size: 12px;
+      color: #60A5FA;
+    }
+    .history-aria {
+      font-size: 12px;
+      color: #A78BFA;
+      margin-top: 4px;
+    }
+    .close-history {
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 20px;
+      float: right;
+      cursor: pointer;
+    }
+    @media (max-width: 640px) {
+      .app-container { padding: 16px 16px 20px; }
+      .cards-grid { gap: 8px; }
+      .feature-card { padding: 8px 6px 6px; }
+      .card-title { font-size: 11px; }
+      .card-desc { font-size: 7px; }
+    }
   </style>
 </head>
 <body>
+
 <div class="cosmic-bg"></div>
-<div class="galaxy-glow"></div>
-<canvas id="starCanvas" class="star-canvas"></canvas>
+<div class="milky-way"></div>
+<div class="nebula-dust"></div>
+<div class="starfield" id="starfield"></div>
 
 <div class="app-container" id="mainUI">
-  <div class="top-right"><div class="signout-block" id="signoutBtn"><div class="user-initials" id="userInitials">EN</div><div class="signout-label">sign out</div></div></div>
-  <div class="center-hero"><div class="greeting">Good evening, <span id="userNameDisplay">friend</span>.</div><div class="time" id="timestamp">—</div></div>
-  <div class="bottom-block">
-    <div class="pillars-row">
-      <div class="pillar-card memory" data-pillar="Memory"><div class="icon-circle"><svg viewBox="0 0 24 24"><path d="M12 2a9 9 0 1 0 0 18A9 9 0 0 0 12 2z"/><path d="M8 12s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/></svg></div><div class="pillar-name">Memory</div><div class="pillar-desc">Your memories, organized.</div><div class="pillar-arrow">›</div></div>
-      <div class="pillar-card education" data-pillar="Education"><div class="icon-circle"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div><div class="pillar-name">Education</div><div class="pillar-desc">Learn, grow, and master.</div><div class="pillar-arrow">›</div></div>
-      <div class="pillar-card income" data-pillar="Income"><div class="icon-circle"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="pillar-name">Income</div><div class="pillar-desc">Track, plan, and grow.</div><div class="pillar-arrow">›</div></div>
-    </div>
-    <div class="divider"><div class="divider-text">💫 ONE AI. EVERY PART OF YOUR LIFE. 💫</div></div>
-    <div class="input-capsule"><div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div><input type="text" class="input-field" id="mainInput" placeholder="Chat Aria..."><div class="send-circle" id="sendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div></div>
-    <div class="footer-note">By MrNicosh Eg</div>
+  <div class="header">
+    <div class="user-badge" id="userBadge">—</div>
+    <button class="signout-btn" id="signoutBtn" title="Sign out">⏻</button>
   </div>
+
+  <div class="welcome-card">
+    <div class="welcome-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
+      <svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
+      <svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
+    </div>
+    <div class="welcome-text">
+      <div class="welcome-greeting">Hey <span id="userNameDisplay">friend</span>, welcome back.</div>
+    </div>
+  </div>
+  <div class="timestamp" id="timestamp">—</div>
+
+  <div class="cards-grid">
+    <div class="feature-card card-memory" data-pillar="Memory">
+      <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M12 2a9 9 0 1 0 0 18A9 9 0 0 0 12 2z"/><path d="M8 12s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/></svg></div>
+      <div class="card-title">Memory</div>
+      <div class="card-desc">Your memories, organized.</div>
+      <div class="card-arrow"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
+    </div>
+    <div class="feature-card card-education" data-pillar="Education">
+      <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
+      <div class="card-title">Education</div>
+      <div class="card-desc">Learn, grow, and master.</div>
+      <div class="card-arrow"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
+    </div>
+    <div class="feature-card card-income" data-pillar="Income">
+      <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+      <div class="card-title">Income</div>
+      <div class="card-desc">Track, plan, and grow.</div>
+      <div class="card-arrow"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></div>
+    </div>
+  </div>
+
+  <div class="divider">
+    <div class="divider-text">💫 ONE AI. EVERY PART OF YOUR LIFE. 💫</div>
+  </div>
+
+  <div class="input-capsule">
+    <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+    <input type="text" class="input-field" id="mainInput" placeholder="Chat Aria...">
+    <div class="send-circle" id="sendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
+  </div>
+
+  <div class="footer-note">By MrNicosh Eg</div>
 </div>
 
-<!-- End of Part 1. Part 2 starts below -->
-  <div id="chatView" class="chat-view">
+<!-- Chat overlay -->
+<div id="chatView" class="chat-view">
   <div class="chat-header">
     <button class="back-btn" id="closeChatBtn">←</button>
     <div class="chat-actions">
@@ -109,11 +555,24 @@
     </div>
   </div>
   <div class="messages-area" id="messagesArea"></div>
-  <div class="input-capsule" style="margin-bottom:0;"><div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div><input type="text" class="input-field" id="chatInput" placeholder="Chat Aria..."><div class="send-circle" id="chatSendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div></div>
+  <div class="input-capsule" style="margin-bottom: 0;">
+    <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+    <input type="text" class="input-field" id="chatInput" placeholder="Chat Aria...">
+    <div class="send-circle" id="chatSendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
+  </div>
 </div>
-<div id="historyModal" class="history-modal"><div class="history-container"><button class="close-history" id="closeHistoryBtn">✕</button><h3 style="margin-bottom:16px;">📜 Conversation History</h3><div id="historyContent"></div></div></div>
 
-<script>
+<div id="historyModal" class="history-modal">
+  <div class="history-container">
+    <button class="close-history" id="closeHistoryBtn">✕</button>
+    <h3 style="margin-bottom:16px;">📜 Conversation History</h3>
+    <div id="historyContent"></div>
+  </div>
+</div>
+
+<!-- End of Part 1. Part 2 starts below -->
+  <script>
+  // Firebase config (same as yours)
   const firebaseConfig = {
     apiKey: "AIzaSyAfrs67qWlU8FjsjqHwNeivGgm7x_vHdJY",
     authDomain: "fiducia-148b9.firebaseapp.com",
@@ -124,146 +583,82 @@
   };
   firebase.initializeApp(firebaseConfig);
   const auth = firebase.auth();
+
   let currentUser = null;
   let lastAriaMessage = null;
 
-  // ============================================================
-  // STARFIELD – tiny, twinkling, realistic
-  // ============================================================
-  const canvas = document.getElementById('starCanvas');
-  const ctx = canvas.getContext('2d');
-  let width, height;
-  let stars = [];
-  let shootingStars = [];
-
-  function initStars() {
-    width = window.innerWidth;
-    height = window.innerHeight;
-    canvas.width = width;
-    canvas.height = height;
-    stars = [];
-    // Layer 1: extremely tiny, many (0.05–0.4px)
-    for (let i = 0; i < 220; i++) {
-      stars.push({
-        x: Math.random() * width, y: Math.random() * height,
-        radius: Math.random() * 0.35 + 0.05,
-        baseOpacity: Math.random() * 0.12 + 0.06,
-        twinkleSpeed: 0.005 + Math.random() * 0.015,
-        phase: Math.random() * Math.PI * 2
-      });
-    }
-    // Layer 2: medium (0.3–0.8px)
-    for (let i = 0; i < 80; i++) {
-      stars.push({
-        x: Math.random() * width, y: Math.random() * height,
-        radius: Math.random() * 0.5 + 0.3,
-        baseOpacity: Math.random() * 0.2 + 0.25,
-        twinkleSpeed: 0.003 + Math.random() * 0.012,
-        phase: Math.random() * Math.PI * 2
-      });
-    }
-    // Layer 3: bright with slight glow (0.7–1.3px)
-    for (let i = 0; i < 15; i++) {
-      stars.push({
-        x: Math.random() * width, y: Math.random() * height,
-        radius: Math.random() * 0.6 + 0.7,
-        baseOpacity: Math.random() * 0.15 + 0.65,
-        twinkleSpeed: 0.002 + Math.random() * 0.01,
-        phase: Math.random() * Math.PI * 2,
-        glow: true
-      });
-    }
-  }
-
-  let starTime = 0;
-  function drawStars() {
-    if (!ctx) return;
-    ctx.clearRect(0, 0, width, height);
-    starTime += 0.016;
-    for (let s of stars) {
-      const twinkle = 0.55 + 0.45 * Math.sin(starTime * s.twinkleSpeed + s.phase);
-      const opacity = s.baseOpacity * twinkle;
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
-      if (s.glow) { ctx.shadowBlur = 2; ctx.shadowColor = 'rgba(100,160,255,0.3)'; }
-      else { ctx.shadowBlur = 0; }
-      ctx.fillStyle = `rgba(255, 245, 235, ${opacity})`;
-      ctx.fill();
-    }
-    ctx.shadowBlur = 0;
-    requestAnimationFrame(drawStars);
-  }
-
-  window.addEventListener('resize', () => { initStars(); });
-  initStars();
-  drawStars();
-
-  // Shooting star – soft, multi-layer tail
-  function addShootingStar() {
-    if (shootingStars.length > 0) return;
-    const startX = width * (0.6 + Math.random() * 0.3);
-    const startY = height * (0.1 + Math.random() * 0.2);
-    const endX = startX - width * 0.35;
-    const endY = startY + height * 0.25;
-    shootingStars.push({
-      startX, startY, endX, endY, progress: 0, speed: 0.004,
-      angle: Math.atan2(endY - startY, endX - startX)
-    });
-  }
-
-  function drawShootingStars() {
-    if (!ctx) return;
-    for (let i = 0; i < shootingStars.length; i++) {
-      const ss = shootingStars[i];
-      ss.progress += ss.speed;
-      if (ss.progress >= 1) { shootingStars.splice(i,1); i--; continue; }
-      const x = ss.startX + (ss.endX - ss.startX) * ss.progress;
-      const y = ss.startY + (ss.endY - ss.startY) * ss.progress;
-      const tailX = x - Math.cos(ss.angle) * 45;
-      const tailY = y - Math.sin(ss.angle) * 45;
-      const opacity = Math.sin(ss.progress * Math.PI);
-      // Outer glow
-      ctx.beginPath(); ctx.moveTo(tailX, tailY); ctx.lineTo(x, y);
-      ctx.strokeStyle = `rgba(255,255,255,${opacity * 0.08})`; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.stroke();
-      // Middle glow
-      ctx.beginPath(); ctx.moveTo(tailX, tailY); ctx.lineTo(x, y);
-      ctx.strokeStyle = `rgba(255,255,255,${opacity * 0.25})`; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.stroke();
-      // Bright core
-      ctx.beginPath(); ctx.moveTo(tailX, tailY); ctx.lineTo(x, y);
-      ctx.strokeStyle = `rgba(255,255,255,${opacity * 0.8})`; ctx.lineWidth = 0.8; ctx.lineCap = 'round'; ctx.stroke();
-    }
-    requestAnimationFrame(drawShootingStars);
-  }
-  drawShootingStars();
-  setInterval(() => { if (Math.random() > 0.6) addShootingStar(); }, 26000);
-  addShootingStar();
-
-  // ============================================================
-  // UI logic (unchanged)
-  // ============================================================
+  // Time update (Lagos)
   function updateTimestamp() {
     const now = new Date();
-    const timeStr = now.toLocaleTimeString('en-NG', { hour:'2-digit', minute:'2-digit', timeZone:'Africa/Lagos' });
+    const timeStr = now.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos' });
     const el = document.getElementById('timestamp');
     if (el) el.textContent = timeStr;
   }
   updateTimestamp();
   setInterval(updateTimestamp, 60000);
 
+  // ============================================================
+  // STARFIELD GENERATION (CSS-based, working version)
+  // ============================================================
+  const starfield = document.getElementById('starfield');
+  function isNearDiagonal(x, y) {
+    // dense cluster along the milky way diagonal
+    return (x + y) > 1.2;
+  }
+  // Generate stars – tiny, dim, with varied sizes
+  for (let i = 0; i < 500; i++) {
+    const star = document.createElement('div');
+    star.className = 'star';
+    let x = Math.random();
+    let y = Math.random();
+    if (isNearDiagonal(x, y)) {
+      star.style.left = (x * 100) + '%';
+      star.style.top = (y * 100) + '%';
+      // smaller stars: 0.2–1.2px
+      star.style.width = (Math.random() * 1.0 + 0.2) + 'px';
+      star.style.height = star.style.width;
+      star.style.animationDuration = (Math.random() * 8 + 4) + 's';
+    } else {
+      // fewer stars outside diagonal
+      if (Math.random() > 0.65) continue;
+      star.style.left = (x * 100) + '%';
+      star.style.top = (y * 100) + '%';
+      star.style.width = (Math.random() * 0.8 + 0.1) + 'px';
+      star.style.height = star.style.width;
+      star.style.animationDuration = (Math.random() * 10 + 6) + 's';
+    }
+    star.style.animationDelay = (Math.random() * 8) + 's';
+    starfield.appendChild(star);
+  }
+  // Shooting stars – very slow, soft tail (CSS animation)
+  for (let i = 0; i < 6; i++) {
+    const shoot = document.createElement('div');
+    shoot.className = 'shooting-star';
+    shoot.style.left = (Math.random() * 80 + 10) + '%';
+    shoot.style.top = (Math.random() * 60) + '%';
+    // longer duration (8–14 seconds) for slower movement
+    shoot.style.animationDuration = (Math.random() * 6 + 8) + 's';
+    shoot.style.animationDelay = (Math.random() * 30) + 's';
+    starfield.appendChild(shoot);
+  }
+
+  // ============================================================
+  // UI Logic (chat, history, Firebase)
+  // ============================================================
   const mainUI = document.getElementById('mainUI');
   const chatView = document.getElementById('chatView');
   const mainInput = document.getElementById('mainInput');
   const chatInput = document.getElementById('chatInput');
   const messagesArea = document.getElementById('messagesArea');
   const userNameSpan = document.getElementById('userNameDisplay');
-  const userInitialsSpan = document.getElementById('userInitials');
+  const userBadge = document.getElementById('userBadge');
   const historyModal = document.getElementById('historyModal');
   const historyContent = document.getElementById('historyContent');
 
   function abbreviateName(fullName) {
     if (!fullName) return 'EN';
     const parts = fullName.trim().split(/\s+/);
-    if (parts.length === 1) return parts[0].substring(0,2).toUpperCase();
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
     return (parts[0][0] + (parts[1][0] || '')).toUpperCase();
   }
 
@@ -299,17 +694,20 @@
       if (data.context) {
         const lines = data.context.split('\n');
         let items = [];
-        let userMsg = null, ariaMsg = null;
+        let currentUserMsg = null;
+        let currentAriaMsg = null;
         for (let line of lines) {
           if (line.startsWith('User:')) {
-            if (userMsg && ariaMsg) items.push({ user: userMsg, aria: ariaMsg });
-            userMsg = line.substring(5).trim();
-            ariaMsg = null;
+            if (currentUserMsg && currentAriaMsg) {
+              items.push({ user: currentUserMsg, aria: currentAriaMsg });
+              currentUserMsg = null; currentAriaMsg = null;
+            }
+            currentUserMsg = line.substring(5).trim();
           } else if (line.startsWith('ARIA:')) {
-            ariaMsg = line.substring(5).trim();
+            currentAriaMsg = line.substring(5).trim();
           }
         }
-        if (userMsg && ariaMsg) items.push({ user: userMsg, aria: ariaMsg });
+        if (currentUserMsg && currentAriaMsg) items.push({ user: currentUserMsg, aria: currentAriaMsg });
         historyContent.innerHTML = '';
         items.slice(-10).forEach(item => {
           const div = document.createElement('div');
@@ -321,7 +719,10 @@
       } else {
         historyContent.innerHTML = '<p>No conversation history yet.</p>';
       }
-    } catch(e) { historyContent.innerHTML = '<p>Failed to load history.</p>'; }
+    } catch(e) {
+      console.warn(e);
+      historyContent.innerHTML = '<p>Failed to load history.</p>';
+    }
   }
 
   function addMessage(text, sender) {
@@ -335,18 +736,33 @@
     if (sender === 'aria') {
       actions.innerHTML = `<button class="message-action copy-msg">📋 Copy</button><button class="message-action speak-msg">🔊 Speak</button>`;
       actions.querySelector('.copy-msg').onclick = () => navigator.clipboard.writeText(text);
-      actions.querySelector('.speak-msg').onclick = () => { const u = new SpeechSynthesisUtterance(text); u.lang = 'en-US'; speechSynthesis.cancel(); speechSynthesis.speak(u); };
+      actions.querySelector('.speak-msg').onclick = () => {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'en-US';
+        speechSynthesis.cancel();
+        speechSynthesis.speak(utterance);
+      };
     }
     div.appendChild(bubble);
     if (sender === 'aria') div.appendChild(actions);
     messagesArea.appendChild(div);
-    messagesArea.scrollTo({ top: messagesArea.scrollHeight, behavior: 'smooth' });
+    messagesArea.scrollTop = messagesArea.scrollHeight;
     if (sender === 'aria') lastAriaMessage = text;
     return div;
   }
 
-  function addTyping() { const div = document.createElement('div'); div.className = 'message aria'; div.id = 'typingIndicator'; div.innerHTML = `<div class="message-bubble">✦ ✦ ✦</div>`; messagesArea.appendChild(div); messagesArea.scrollTo({ top: messagesArea.scrollHeight, behavior: 'smooth' }); }
-  function removeTyping() { const t = document.getElementById('typingIndicator'); if (t) t.remove(); }
+  function addTyping() {
+    const div = document.createElement('div');
+    div.className = 'message aria';
+    div.id = 'typingIndicator';
+    div.innerHTML = `<div class="message-bubble">✦ ✦ ✦</div>`;
+    messagesArea.appendChild(div);
+    messagesArea.scrollTop = messagesArea.scrollHeight;
+  }
+  function removeTyping() {
+    const t = document.getElementById('typingIndicator');
+    if (t) t.remove();
+  }
 
   async function sendToAria(message, inputElement) {
     if (!currentUser) return;
@@ -354,32 +770,102 @@
     inputElement.value = '';
     addTyping();
     try {
-      const res = await fetch('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, user_id: currentUser.uid, email: currentUser.email.toLowerCase() }) });
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: message,
+          user_id: currentUser.uid,
+          email: currentUser.email.toLowerCase()
+        })
+      });
       const data = await res.json();
       removeTyping();
       if (data.error) addMessage(`Error: ${data.error}`, 'aria');
       else addMessage(data.reply || '...', 'aria');
-    } catch(e) { removeTyping(); addMessage('Connection uncertain. Please try again.', 'aria'); }
+    } catch(e) {
+      removeTyping();
+      addMessage('Connection uncertain. Please try again.', 'aria');
+    }
   }
 
-  function openChat() { mainUI.style.display = 'none'; chatView.classList.add('active'); if (messagesArea.children.length === 0 && currentUser) { addMessage(`Hey ${abbreviateName(currentUser.displayName || currentUser.email.split('@')[0])}. I'm ARIA. What would you like to explore?`, 'aria'); } chatInput.focus(); }
-  function closeChat() { mainUI.style.display = 'flex'; chatView.classList.remove('active'); messagesArea.innerHTML = ''; }
-  async function signOut() { try { await auth.signOut(); window.location.href = '/login.html'; } catch(e) { console.error(e); } }
-  function showHistory() { fetchHistoryForModal(); historyModal.classList.add('active'); }
-  function closeHistory() { historyModal.classList.remove('active'); }
+  function openChat() {
+    mainUI.style.display = 'none';
+    chatView.classList.add('active');
+    if (messagesArea.children.length === 0 && currentUser) {
+      addMessage(`Hey ${abbreviateName(currentUser.displayName || currentUser.email.split('@')[0])}. I'm ARIA. What would you like to explore?`, 'aria');
+    }
+    chatInput.focus();
+  }
+
+  function closeChat() {
+    mainUI.style.display = 'flex';
+    chatView.classList.remove('active');
+    messagesArea.innerHTML = '';
+  }
+
+  async function signOut() {
+    try {
+      await auth.signOut();
+      window.location.href = '/login.html';
+    } catch(e) { console.error('Sign out error', e); }
+  }
+
+  function showHistory() {
+    fetchHistoryForModal();
+    historyModal.classList.add('active');
+  }
+
+  function closeHistory() {
+    historyModal.classList.remove('active');
+  }
 
   mainInput.addEventListener('focus', openChat);
-  document.querySelectorAll('.pillar-card').forEach(card => { card.addEventListener('click', () => { openChat(); addMessage(`Let's talk about ${card.querySelector('.pillar-name').textContent}. How can I help?`, 'aria'); }); });
+  document.querySelectorAll('.feature-card').forEach(card => {
+    card.addEventListener('click', () => {
+      openChat();
+      addMessage(`Let's talk about ${card.querySelector('.card-title').textContent}. How can I help?`, 'aria');
+    });
+  });
   document.getElementById('closeChatBtn').addEventListener('click', closeChat);
-  document.getElementById('chatSendBtn').addEventListener('click', () => { const msg = chatInput.value.trim(); if (msg) sendToAria(msg, chatInput); });
-  chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); const msg = chatInput.value.trim(); if (msg) sendToAria(msg, chatInput); } });
-  document.getElementById('sendBtn').addEventListener('click', () => { const msg = mainInput.value.trim(); if (msg) sendToAria(msg, mainInput); });
-  mainInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); const msg = mainInput.value.trim(); if (msg) sendToAria(msg, mainInput); } });
-  document.getElementById('copyLastMsgBtn').addEventListener('click', () => { if (lastAriaMessage) navigator.clipboard.writeText(lastAriaMessage); });
-  document.getElementById('speakLastMsgBtn').addEventListener('click', () => { if (lastAriaMessage) { const u = new SpeechSynthesisUtterance(lastAriaMessage); u.lang = 'en-US'; speechSynthesis.cancel(); speechSynthesis.speak(u); } });
+  document.getElementById('chatSendBtn').addEventListener('click', () => {
+    const msg = chatInput.value.trim();
+    if (msg) sendToAria(msg, chatInput);
+  });
+  chatInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const msg = chatInput.value.trim();
+      if (msg) sendToAria(msg, chatInput);
+    }
+  });
+  document.getElementById('sendBtn').addEventListener('click', () => {
+    const msg = mainInput.value.trim();
+    if (msg) sendToAria(msg, mainInput);
+  });
+  mainInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const msg = mainInput.value.trim();
+      if (msg) sendToAria(msg, mainInput);
+    }
+  });
+  document.getElementById('copyLastMsgBtn').addEventListener('click', () => {
+    if (lastAriaMessage) navigator.clipboard.writeText(lastAriaMessage);
+  });
+  document.getElementById('speakLastMsgBtn').addEventListener('click', () => {
+    if (lastAriaMessage) {
+      const utterance = new SpeechSynthesisUtterance(lastAriaMessage);
+      utterance.lang = 'en-US';
+      speechSynthesis.cancel();
+      speechSynthesis.speak(utterance);
+    }
+  });
   document.getElementById('historyBtn').addEventListener('click', showHistory);
   document.getElementById('closeHistoryBtn').addEventListener('click', closeHistory);
-  historyModal.addEventListener('click', (e) => { if (e.target === historyModal) closeHistory(); });
+  historyModal.addEventListener('click', (e) => {
+    if (e.target === historyModal) closeHistory();
+  });
   document.getElementById('signoutBtn').addEventListener('click', signOut);
 
   auth.onAuthStateChanged(async (user) => {
@@ -388,15 +874,25 @@
       const displayName = user.displayName || user.email.split('@')[0];
       const shortName = abbreviateName(displayName);
       userNameSpan.textContent = displayName;
-      userInitialsSpan.textContent = shortName;
+      userBadge.textContent = shortName;
       try {
-        await fetch('/set_user_name', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user.uid, email: user.email.toLowerCase(), name: displayName }) });
+        await fetch('/set_user_name', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: user.uid,
+            email: user.email.toLowerCase(),
+            name: displayName
+          })
+        });
         const uidRes = await fetch('/check_user?email=' + encodeURIComponent(user.email.toLowerCase()));
         const uidData = await uidRes.json();
         if (uidData.aria_uid) loadHistory(uidData.aria_uid);
       } catch(e) { console.warn(e); }
-    } else { window.location.href = '/login.html'; }
+    } else {
+      window.location.href = '/login.html';
+    }
   });
 </script>
 </body>
-</html>
+  </html>
