@@ -9,397 +9,73 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      -webkit-tap-highlight-color: transparent;
-    }
-    body {
-      background: #050A1A;
-      font-family: 'Inter', sans-serif;
-      color: #F8FAFC;
-      min-height: 100vh;
-      overflow-x: hidden;
-    }
-    .cosmic-bg {
-      position: fixed;
-      inset: 0;
-      background: #050A1A;
-      z-index: 0;
-    }
-    .galaxy-glow {
-      position: fixed;
-      width: 120%;
-      height: 120%;
-      top: -10%;
-      left: -10%;
-      background: radial-gradient(
-        ellipse 80% 60% at 65% 45%,
-        rgba(20, 48, 110, 0.45) 0%,
-        rgba(10, 20, 60, 0.25) 40%,
-        transparent 75%
-      );
-      pointer-events: none;
-      z-index: 0;
-    }
-    .star-canvas {
-      position: fixed;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      z-index: 1;
-    }
-    .app-container {
-      position: relative;
-      z-index: 2;
-      max-width: 620px;
-      margin: 0 auto;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      padding: 20px 20px 16px;
-    }
-    .top-right {
-      display: flex;
-      justify-content: flex-end;
-      margin-bottom: 24px;
-    }
-    .signout-block {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      background: rgba(255,255,255,0.03);
-      border: 0.5px solid rgba(255,255,255,0.08);
-      border-radius: 40px;
-      padding: 5px 12px 3px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .signout-block:hover {
-      background: rgba(255,255,255,0.06);
-      border-color: rgba(255,255,255,0.15);
-    }
-    .user-initials {
-      font-size: 13px;
-      font-weight: 500;
-      color: #E2E8F0;
-      letter-spacing: 0.5px;
-    }
-    .signout-label {
-      font-size: 7px;
-      font-weight: 400;
-      color: #7A8AAA;
-      margin-top: 1px;
-    }
-    .center-hero {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      text-align: center;
-    }
-    .greeting {
-      font-size: 24px;
-      font-weight: 300;
-      letter-spacing: -0.3px;
-      color: #F0F4FA;
-      line-height: 1.3;
-    }
-    .greeting span {
-      font-weight: 500;
-      color: #A78BFA;
-    }
-    .time {
-      font-size: 12px;
-      color: #7A8AAA;
-      margin-top: 8px;
-      font-weight: 300;
-      opacity: 0.7;
-    }
-    .bottom-block {
-      margin-top: auto;
-    }
-    .pillars-row {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-    .pillar-card {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 18px;
-      padding: 14px 10px;
-      backdrop-filter: blur(10px);
-      transition: background 0.2s;
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .pillar-card:hover {
-      background: rgba(255, 255, 255, 0.08);
-    }
-    .icon-circle {
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .memory .icon-circle { background: rgba(167, 139, 250, 0.15); }
-    .education .icon-circle { background: rgba(96, 165, 250, 0.15); }
-    .income .icon-circle { background: rgba(16, 185, 129, 0.15); }
-    .icon-circle svg {
-      width: 18px;
-      height: 18px;
-      fill: none;
-      stroke-width: 1.5;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { background: #050A1A; font-family: 'Inter', sans-serif; color: #F8FAFC; min-height: 100vh; overflow-x: hidden; }
+    .cosmic-bg { position: fixed; inset: 0; background: #050A1A; z-index: 0; }
+    .galaxy-glow { position: fixed; width: 120%; height: 120%; top: -10%; left: -10%; background: radial-gradient(ellipse 80% 60% at 65% 45%, rgba(20,48,110,0.45) 0%, rgba(10,20,60,0.25) 40%, transparent 75%); pointer-events: none; z-index: 0; }
+    .star-canvas { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+    .app-container { position: relative; z-index: 2; max-width: 620px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; padding: 20px 20px 16px; }
+    .top-right { display: flex; justify-content: flex-end; margin-bottom: 24px; }
+    .signout-block { display: flex; flex-direction: column; align-items: center; background: rgba(255,255,255,0.03); border: 0.5px solid rgba(255,255,255,0.08); border-radius: 40px; padding: 5px 12px 3px; cursor: pointer; transition: all 0.2s; }
+    .signout-block:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.15); }
+    .user-initials { font-size: 13px; font-weight: 500; color: #E2E8F0; letter-spacing: 0.5px; }
+    .signout-label { font-size: 7px; font-weight: 400; color: #7A8AAA; margin-top: 1px; }
+    .center-hero { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+    .greeting { font-size: 24px; font-weight: 300; letter-spacing: -0.3px; color: #F0F4FA; line-height: 1.3; }
+    .greeting span { font-weight: 500; color: #A78BFA; }
+    .time { font-size: 12px; color: #7A8AAA; margin-top: 8px; font-weight: 300; opacity: 0.7; }
+    .bottom-block { margin-top: auto; }
+    .pillars-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+    .pillar-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 14px 10px; backdrop-filter: blur(10px); transition: background 0.2s; cursor: pointer; display: flex; flex-direction: column; gap: 8px; }
+    .pillar-card:hover { background: rgba(255,255,255,0.08); }
+    .icon-circle { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .memory .icon-circle { background: rgba(167,139,250,0.15); }
+    .education .icon-circle { background: rgba(96,165,250,0.15); }
+    .income .icon-circle { background: rgba(16,185,129,0.15); }
+    .icon-circle svg { width: 18px; height: 18px; fill: none; stroke-width: 1.5; }
     .memory .icon-circle svg { stroke: #A78BFA; }
     .education .icon-circle svg { stroke: #60A5FA; }
     .income .icon-circle svg { stroke: #10B981; }
-    .pillar-name {
-      font-size: 14px;
-      font-weight: 600;
-      color: #F8FAFC;
-    }
-    .pillar-desc {
-      font-size: 11px;
-      color: #94A3B8;
-      line-height: 1.3;
-    }
-    .pillar-arrow {
-      font-size: 14px;
-      color: #64748B;
-      margin-top: auto;
-      text-align: right;
-    }
-    .divider {
-      text-align: center;
-      margin: 8px 0 12px;
-    }
-    .divider-text {
-      font-size: 8px;
-      letter-spacing: 1.2px;
-      color: #60A5FA;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      opacity: 0.6;
-    }
-    .input-capsule {
-      background: #0A0F1A;
-      border: 1px solid #3B82F6;
-      border-radius: 50px;
-      padding: 6px 12px 6px 18px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin: 8px 0 12px;
-      box-shadow: 0 0 6px rgba(59,130,246,0.1);
-    }
-    .input-icon-left svg {
-      width: 14px;
-      height: 14px;
-      stroke: #60A5FA;
-    }
-    .input-field {
-      flex: 1;
-      background: transparent;
-      border: none;
-      color: white;
-      font-size: 13px;
-      outline: none;
-      padding: 6px 0;
-    }
-    .input-field::placeholder {
-      color: #334155;
-      font-weight: 400;
-    }
-    .send-circle {
-      width: 30px;
-      height: 30px;
-      background: transparent;
-      border: 1px solid #1E40AF;
-      border-radius: 30px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-    }
-    .send-circle svg {
-      width: 12px;
-      height: 12px;
-      stroke: #3B82F6;
-      stroke-width: 2;
-    }
-    .footer-note {
-      text-align: center;
-      padding: 6px 0 20px;
-      font-size: 9px;
-      letter-spacing: 0.6px;
-      color: #4A5A7A;
-      border-top: 0.5px solid rgba(255,255,255,0.04);
-    }
-    .chat-view {
-      position: fixed;
-      inset: 0;
-      background: rgba(5, 10, 26, 0.85);
-      backdrop-filter: blur(4px);
-      z-index: 100;
-      padding: 20px;
-      display: none;
-      flex-direction: column;
-    }
-    .chat-view.active {
-      display: flex;
-    }
-    .chat-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 20px;
-    }
-    .back-btn {
-      background: transparent;
-      border: none;
-      color: white;
-      font-size: 26px;
-      cursor: pointer;
-    }
-    .chat-actions {
-      display: flex;
-      gap: 12px;
-    }
-    .chat-action {
-      background: transparent;
-      border: none;
-      font-size: 18px;
-      cursor: pointer;
-      filter: drop-shadow(0 0 3px currentColor);
-    }
+    .pillar-name { font-size: 14px; font-weight: 600; color: #F8FAFC; }
+    .pillar-desc { font-size: 11px; color: #94A3B8; line-height: 1.3; }
+    .pillar-arrow { font-size: 14px; color: #64748B; margin-top: auto; text-align: right; }
+    .divider { text-align: center; margin: 8px 0 12px; }
+    .divider-text { font-size: 8px; letter-spacing: 1.2px; color: #60A5FA; display: inline-flex; align-items: center; gap: 6px; opacity: 0.6; }
+    .input-capsule { background: #0A0F1A; border: 1px solid #3B82F6; border-radius: 50px; padding: 6px 12px 6px 18px; display: flex; align-items: center; gap: 8px; margin: 8px 0 12px; box-shadow: 0 0 6px rgba(59,130,246,0.1); }
+    .input-icon-left svg { width: 14px; height: 14px; stroke: #60A5FA; }
+    .input-field { flex: 1; background: transparent; border: none; color: white; font-size: 13px; outline: none; padding: 6px 0; }
+    .input-field::placeholder { color: #334155; font-weight: 400; }
+    .send-circle { width: 30px; height: 30px; background: transparent; border: 1px solid #1E40AF; border-radius: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .send-circle svg { width: 12px; height: 12px; stroke: #3B82F6; stroke-width: 2; }
+    .footer-note { text-align: center; padding: 6px 0 20px; font-size: 9px; letter-spacing: 0.6px; color: #4A5A7A; border-top: 0.5px solid rgba(255,255,255,0.04); }
+    .chat-view { position: fixed; inset: 0; background: rgba(5,10,26,0.85); backdrop-filter: blur(4px); z-index: 100; padding: 20px; display: none; flex-direction: column; }
+    .chat-view.active { display: flex; }
+    .chat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .back-btn { background: transparent; border: none; color: white; font-size: 26px; cursor: pointer; }
+    .chat-actions { display: flex; gap: 12px; }
+    .chat-action { background: transparent; border: none; font-size: 18px; cursor: pointer; filter: drop-shadow(0 0 3px currentColor); }
     .chat-action.copy { color: #60A5FA; }
     .chat-action.speak { color: #A78BFA; }
     .chat-action.history { color: #F59E0B; font-size: 18px; }
-    .messages-area {
-      flex: 1;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      margin-bottom: 16px;
-      scroll-behavior: smooth;
-    }
-    .message {
-      max-width: 80%;
-      animation: fadeUp 0.2s ease;
-    }
-    .message.user {
-      align-self: flex-end;
-    }
-    .message.aria {
-      align-self: flex-start;
-    }
-    .message-bubble {
-      padding: 10px 14px;
-      border-radius: 20px;
-      font-size: 14px;
-      background: rgba(255,255,255,0.1);
-      color: white;
-    }
-    .message.user .message-bubble {
-      background: rgba(96,165,250,0.2);
-      border: 0.5px solid rgba(96,165,250,0.3);
-    }
-    .message-actions {
-      display: flex;
-      gap: 10px;
-      margin-top: 6px;
-      opacity: 0;
-      transition: 0.2s;
-    }
-    .message:hover .message-actions {
-      opacity: 0.7;
-    }
-    .message-action {
-      background: transparent;
-      border: none;
-      font-size: 12px;
-      cursor: pointer;
-      color: #9CA3AF;
-    }
-    .message-action:hover {
-      color: #60A5FA;
-    }
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    .history-modal {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.8);
-      backdrop-filter: blur(8px);
-      z-index: 200;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      opacity: 0;
-      pointer-events: none;
-      transition: 0.2s;
-    }
-    .history-modal.active {
-      opacity: 1;
-      pointer-events: auto;
-    }
-    .history-container {
-      background: rgba(10,20,40,0.95);
-      border-radius: 24px;
-      max-width: 90%;
-      width: 500px;
-      max-height: 80%;
-      overflow-y: auto;
-      padding: 20px;
-      border: 1px solid rgba(255,255,255,0.1);
-    }
-    .history-item {
-      margin-bottom: 16px;
-      padding-bottom: 12px;
-      border-bottom: 0.5px solid rgba(255,255,255,0.1);
-    }
-    .history-user {
-      font-size: 12px;
-      color: #60A5FA;
-    }
-    .history-aria {
-      font-size: 12px;
-      color: #A78BFA;
-      margin-top: 4px;
-    }
-    .close-history {
-      background: transparent;
-      border: none;
-      color: white;
-      font-size: 20px;
-      float: right;
-      cursor: pointer;
-    }
-    @media (max-width: 640px) {
-      .app-container { padding: 16px 16px 12px; }
-      .greeting { font-size: 22px; }
-      .pillars-row { gap: 8px; }
-      .pillar-card { padding: 10px 6px; }
-      .pillar-name { font-size: 12px; }
-      .pillar-desc { font-size: 9px; }
-    }
+    .messages-area { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; scroll-behavior: smooth; }
+    .message { max-width: 80%; animation: fadeUp 0.2s ease; }
+    .message.user { align-self: flex-end; }
+    .message.aria { align-self: flex-start; }
+    .message-bubble { padding: 10px 14px; border-radius: 20px; font-size: 14px; background: rgba(255,255,255,0.1); color: white; }
+    .message.user .message-bubble { background: rgba(96,165,250,0.2); border: 0.5px solid rgba(96,165,250,0.3); }
+    .message-actions { display: flex; gap: 10px; margin-top: 6px; opacity: 0; transition: 0.2s; }
+    .message:hover .message-actions { opacity: 0.7; }
+    .message-action { background: transparent; border: none; font-size: 12px; cursor: pointer; color: #9CA3AF; }
+    .message-action:hover { color: #60A5FA; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    .history-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); z-index: 200; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: 0.2s; }
+    .history-modal.active { opacity: 1; pointer-events: auto; }
+    .history-container { background: rgba(10,20,40,0.95); border-radius: 24px; max-width: 90%; width: 500px; max-height: 80%; overflow-y: auto; padding: 20px; border: 1px solid rgba(255,255,255,0.1); }
+    .history-item { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 0.5px solid rgba(255,255,255,0.1); }
+    .history-user { font-size: 12px; color: #60A5FA; }
+    .history-aria { font-size: 12px; color: #A78BFA; margin-top: 4px; }
+    .close-history { background: transparent; border: none; color: white; font-size: 20px; float: right; cursor: pointer; }
+    @media (max-width: 640px) { .app-container { padding: 16px 16px 12px; } .greeting { font-size: 22px; } .pillars-row { gap: 8px; } .pillar-card { padding: 10px 6px; } .pillar-name { font-size: 12px; } .pillar-desc { font-size: 9px; } }
   </style>
 </head>
 <body>
@@ -408,45 +84,16 @@
 <canvas id="starCanvas" class="star-canvas"></canvas>
 
 <div class="app-container" id="mainUI">
-  <div class="top-right">
-    <div class="signout-block" id="signoutBtn">
-      <div class="user-initials" id="userInitials">EN</div>
-      <div class="signout-label">sign out</div>
-    </div>
-  </div>
-  <div class="center-hero">
-    <div class="greeting">Good evening, <span id="userNameDisplay">friend</span>.</div>
-    <div class="time" id="timestamp">—</div>
-  </div>
+  <div class="top-right"><div class="signout-block" id="signoutBtn"><div class="user-initials" id="userInitials">EN</div><div class="signout-label">sign out</div></div></div>
+  <div class="center-hero"><div class="greeting">Good evening, <span id="userNameDisplay">friend</span>.</div><div class="time" id="timestamp">—</div></div>
   <div class="bottom-block">
     <div class="pillars-row">
-      <div class="pillar-card memory" data-pillar="Memory">
-        <div class="icon-circle"><svg viewBox="0 0 24 24"><path d="M12 2a9 9 0 1 0 0 18A9 9 0 0 0 12 2z"/><path d="M8 12s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/></svg></div>
-        <div class="pillar-name">Memory</div>
-        <div class="pillar-desc">Your memories, organized.</div>
-        <div class="pillar-arrow">›</div>
-      </div>
-      <div class="pillar-card education" data-pillar="Education">
-        <div class="icon-circle"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
-        <div class="pillar-name">Education</div>
-        <div class="pillar-desc">Learn, grow, and master.</div>
-        <div class="pillar-arrow">›</div>
-      </div>
-      <div class="pillar-card income" data-pillar="Income">
-        <div class="icon-circle"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-        <div class="pillar-name">Income</div>
-        <div class="pillar-desc">Track, plan, and grow.</div>
-        <div class="pillar-arrow">›</div>
-      </div>
+      <div class="pillar-card memory" data-pillar="Memory"><div class="icon-circle"><svg viewBox="0 0 24 24"><path d="M12 2a9 9 0 1 0 0 18A9 9 0 0 0 12 2z"/><path d="M8 12s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/></svg></div><div class="pillar-name">Memory</div><div class="pillar-desc">Your memories, organized.</div><div class="pillar-arrow">›</div></div>
+      <div class="pillar-card education" data-pillar="Education"><div class="icon-circle"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div><div class="pillar-name">Education</div><div class="pillar-desc">Learn, grow, and master.</div><div class="pillar-arrow">›</div></div>
+      <div class="pillar-card income" data-pillar="Income"><div class="icon-circle"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="pillar-name">Income</div><div class="pillar-desc">Track, plan, and grow.</div><div class="pillar-arrow">›</div></div>
     </div>
-    <div class="divider">
-      <div class="divider-text">💫 ONE AI. EVERY PART OF YOUR LIFE. 💫</div>
-    </div>
-    <div class="input-capsule">
-      <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
-      <input type="text" class="input-field" id="mainInput" placeholder="Chat Aria...">
-      <div class="send-circle" id="sendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
-    </div>
+    <div class="divider"><div class="divider-text">💫 ONE AI. EVERY PART OF YOUR LIFE. 💫</div></div>
+    <div class="input-capsule"><div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div><input type="text" class="input-field" id="mainInput" placeholder="Chat Aria..."><div class="send-circle" id="sendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div></div>
     <div class="footer-note">By MrNicosh Eg</div>
   </div>
 </div>
@@ -462,20 +109,9 @@
     </div>
   </div>
   <div class="messages-area" id="messagesArea"></div>
-  <div class="input-capsule" style="margin-bottom: 0;">
-    <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
-    <input type="text" class="input-field" id="chatInput" placeholder="Chat Aria...">
-    <div class="send-circle" id="chatSendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
-  </div>
+  <div class="input-capsule" style="margin-bottom:0;"><div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div><input type="text" class="input-field" id="chatInput" placeholder="Chat Aria..."><div class="send-circle" id="chatSendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div></div>
 </div>
-
-<div id="historyModal" class="history-modal">
-  <div class="history-container">
-    <button class="close-history" id="closeHistoryBtn">✕</button>
-    <h3 style="margin-bottom:16px;">📜 Conversation History</h3>
-    <div id="historyContent"></div>
-  </div>
-</div>
+<div id="historyModal" class="history-modal"><div class="history-container"><button class="close-history" id="closeHistoryBtn">✕</button><h3 style="margin-bottom:16px;">📜 Conversation History</h3><div id="historyContent"></div></div></div>
 
 <script>
   const firebaseConfig = {
@@ -492,7 +128,7 @@
   let lastAriaMessage = null;
 
   // ============================================================
-  // WORKING STARFIELD (restored to original working version)
+  // STARFIELD – tiny, twinkling, realistic
   // ============================================================
   const canvas = document.getElementById('starCanvas');
   const ctx = canvas.getContext('2d');
@@ -505,17 +141,36 @@
     height = window.innerHeight;
     canvas.width = width;
     canvas.height = height;
-
     stars = [];
-    const starCount = 400;
-    for (let i = 0; i < starCount; i++) {
+    // Layer 1: extremely tiny, many (0.05–0.4px)
+    for (let i = 0; i < 220; i++) {
       stars.push({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        radius: Math.random() * 1.2 + 0.2,
-        alpha: Math.random() * 0.5 + 0.2,
-        twinkleSpeed: 0.001 + Math.random() * 0.003,
+        x: Math.random() * width, y: Math.random() * height,
+        radius: Math.random() * 0.35 + 0.05,
+        baseOpacity: Math.random() * 0.12 + 0.06,
+        twinkleSpeed: 0.005 + Math.random() * 0.015,
         phase: Math.random() * Math.PI * 2
+      });
+    }
+    // Layer 2: medium (0.3–0.8px)
+    for (let i = 0; i < 80; i++) {
+      stars.push({
+        x: Math.random() * width, y: Math.random() * height,
+        radius: Math.random() * 0.5 + 0.3,
+        baseOpacity: Math.random() * 0.2 + 0.25,
+        twinkleSpeed: 0.003 + Math.random() * 0.012,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+    // Layer 3: bright with slight glow (0.7–1.3px)
+    for (let i = 0; i < 15; i++) {
+      stars.push({
+        x: Math.random() * width, y: Math.random() * height,
+        radius: Math.random() * 0.6 + 0.7,
+        baseOpacity: Math.random() * 0.15 + 0.65,
+        twinkleSpeed: 0.002 + Math.random() * 0.01,
+        phase: Math.random() * Math.PI * 2,
+        glow: true
       });
     }
   }
@@ -525,68 +180,70 @@
     if (!ctx) return;
     ctx.clearRect(0, 0, width, height);
     starTime += 0.016;
-
     for (let s of stars) {
-      const twinkle = 0.6 + 0.4 * Math.sin(starTime * s.twinkleSpeed + s.phase);
+      const twinkle = 0.55 + 0.45 * Math.sin(starTime * s.twinkleSpeed + s.phase);
+      const opacity = s.baseOpacity * twinkle;
       ctx.beginPath();
       ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(255, 245, 235, ${s.alpha * twinkle})`;
+      if (s.glow) { ctx.shadowBlur = 2; ctx.shadowColor = 'rgba(100,160,255,0.3)'; }
+      else { ctx.shadowBlur = 0; }
+      ctx.fillStyle = `rgba(255, 245, 235, ${opacity})`;
       ctx.fill();
     }
-
+    ctx.shadowBlur = 0;
     requestAnimationFrame(drawStars);
   }
 
-  window.addEventListener('resize', () => {
-    initStars();
-  });
+  window.addEventListener('resize', () => { initStars(); });
   initStars();
   drawStars();
 
-  // Very slow shooting star (once every 20-30 seconds)
+  // Shooting star – soft, multi-layer tail
   function addShootingStar() {
     if (shootingStars.length > 0) return;
     const startX = width * (0.6 + Math.random() * 0.3);
     const startY = height * (0.1 + Math.random() * 0.2);
     const endX = startX - width * 0.35;
     const endY = startY + height * 0.25;
-    shootingStars.push({ startX, startY, endX, endY, progress: 0, speed: 0.004 });
+    shootingStars.push({
+      startX, startY, endX, endY, progress: 0, speed: 0.004,
+      angle: Math.atan2(endY - startY, endX - startX)
+    });
   }
 
   function drawShootingStars() {
+    if (!ctx) return;
     for (let i = 0; i < shootingStars.length; i++) {
       const ss = shootingStars[i];
       ss.progress += ss.speed;
-      if (ss.progress >= 1) {
-        shootingStars.splice(i, 1);
-        i--;
-        continue;
-      }
+      if (ss.progress >= 1) { shootingStars.splice(i,1); i--; continue; }
       const x = ss.startX + (ss.endX - ss.startX) * ss.progress;
       const y = ss.startY + (ss.endY - ss.startY) * ss.progress;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      const tailX = x - (ss.startX - ss.endX) * 0.07;
-      const tailY = y - (ss.startY - ss.endY) * 0.07;
-      ctx.lineTo(tailX, tailY);
-      ctx.strokeStyle = `rgba(255, 255, 255, ${0.8 * (1 - ss.progress)})`;
-      ctx.lineWidth = 1;
-      ctx.stroke();
+      const tailX = x - Math.cos(ss.angle) * 45;
+      const tailY = y - Math.sin(ss.angle) * 45;
+      const opacity = Math.sin(ss.progress * Math.PI);
+      // Outer glow
+      ctx.beginPath(); ctx.moveTo(tailX, tailY); ctx.lineTo(x, y);
+      ctx.strokeStyle = `rgba(255,255,255,${opacity * 0.08})`; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.stroke();
+      // Middle glow
+      ctx.beginPath(); ctx.moveTo(tailX, tailY); ctx.lineTo(x, y);
+      ctx.strokeStyle = `rgba(255,255,255,${opacity * 0.25})`; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.stroke();
+      // Bright core
+      ctx.beginPath(); ctx.moveTo(tailX, tailY); ctx.lineTo(x, y);
+      ctx.strokeStyle = `rgba(255,255,255,${opacity * 0.8})`; ctx.lineWidth = 0.8; ctx.lineCap = 'round'; ctx.stroke();
     }
     requestAnimationFrame(drawShootingStars);
   }
   drawShootingStars();
-  setInterval(() => {
-    if (Math.random() > 0.6) addShootingStar();
-  }, 25000);
+  setInterval(() => { if (Math.random() > 0.6) addShootingStar(); }, 26000);
   addShootingStar();
 
   // ============================================================
-  // Rest of UI
+  // UI logic (unchanged)
   // ============================================================
   function updateTimestamp() {
     const now = new Date();
-    const timeStr = now.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos' });
+    const timeStr = now.toLocaleTimeString('en-NG', { hour:'2-digit', minute:'2-digit', timeZone:'Africa/Lagos' });
     const el = document.getElementById('timestamp');
     if (el) el.textContent = timeStr;
   }
@@ -606,7 +263,7 @@
   function abbreviateName(fullName) {
     if (!fullName) return 'EN';
     const parts = fullName.trim().split(/\s+/);
-    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    if (parts.length === 1) return parts[0].substring(0,2).toUpperCase();
     return (parts[0][0] + (parts[1][0] || '')).toUpperCase();
   }
 
@@ -642,20 +299,17 @@
       if (data.context) {
         const lines = data.context.split('\n');
         let items = [];
-        let currentUserMsg = null;
-        let currentAriaMsg = null;
+        let userMsg = null, ariaMsg = null;
         for (let line of lines) {
           if (line.startsWith('User:')) {
-            if (currentUserMsg && currentAriaMsg) {
-              items.push({ user: currentUserMsg, aria: currentAriaMsg });
-              currentUserMsg = null; currentAriaMsg = null;
-            }
-            currentUserMsg = line.substring(5).trim();
+            if (userMsg && ariaMsg) items.push({ user: userMsg, aria: ariaMsg });
+            userMsg = line.substring(5).trim();
+            ariaMsg = null;
           } else if (line.startsWith('ARIA:')) {
-            currentAriaMsg = line.substring(5).trim();
+            ariaMsg = line.substring(5).trim();
           }
         }
-        if (currentUserMsg && currentAriaMsg) items.push({ user: currentUserMsg, aria: currentAriaMsg });
+        if (userMsg && ariaMsg) items.push({ user: userMsg, aria: ariaMsg });
         historyContent.innerHTML = '';
         items.slice(-10).forEach(item => {
           const div = document.createElement('div');
@@ -667,10 +321,7 @@
       } else {
         historyContent.innerHTML = '<p>No conversation history yet.</p>';
       }
-    } catch(e) {
-      console.warn(e);
-      historyContent.innerHTML = '<p>Failed to load history.</p>';
-    }
+    } catch(e) { historyContent.innerHTML = '<p>Failed to load history.</p>'; }
   }
 
   function addMessage(text, sender) {
@@ -684,7 +335,7 @@
     if (sender === 'aria') {
       actions.innerHTML = `<button class="message-action copy-msg">📋 Copy</button><button class="message-action speak-msg">🔊 Speak</button>`;
       actions.querySelector('.copy-msg').onclick = () => navigator.clipboard.writeText(text);
-      actions.querySelector('.speak-msg').onclick = () => { const utterance = new SpeechSynthesisUtterance(text); utterance.lang = 'en-US'; speechSynthesis.cancel(); speechSynthesis.speak(utterance); };
+      actions.querySelector('.speak-msg').onclick = () => { const u = new SpeechSynthesisUtterance(text); u.lang = 'en-US'; speechSynthesis.cancel(); speechSynthesis.speak(u); };
     }
     div.appendChild(bubble);
     if (sender === 'aria') div.appendChild(actions);
@@ -694,19 +345,8 @@
     return div;
   }
 
-  function addTyping() {
-    const div = document.createElement('div');
-    div.className = 'message aria';
-    div.id = 'typingIndicator';
-    div.innerHTML = `<div class="message-bubble">✦ ✦ ✦</div>`;
-    messagesArea.appendChild(div);
-    messagesArea.scrollTo({ top: messagesArea.scrollHeight, behavior: 'smooth' });
-  }
-
-  function removeTyping() {
-    const t = document.getElementById('typingIndicator');
-    if (t) t.remove();
-  }
+  function addTyping() { const div = document.createElement('div'); div.className = 'message aria'; div.id = 'typingIndicator'; div.innerHTML = `<div class="message-bubble">✦ ✦ ✦</div>`; messagesArea.appendChild(div); messagesArea.scrollTo({ top: messagesArea.scrollHeight, behavior: 'smooth' }); }
+  function removeTyping() { const t = document.getElementById('typingIndicator'); if (t) t.remove(); }
 
   async function sendToAria(message, inputElement) {
     if (!currentUser) return;
@@ -714,102 +354,32 @@
     inputElement.value = '';
     addTyping();
     try {
-      const res = await fetch('/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: message,
-          user_id: currentUser.uid,
-          email: currentUser.email.toLowerCase()
-        })
-      });
+      const res = await fetch('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, user_id: currentUser.uid, email: currentUser.email.toLowerCase() }) });
       const data = await res.json();
       removeTyping();
       if (data.error) addMessage(`Error: ${data.error}`, 'aria');
       else addMessage(data.reply || '...', 'aria');
-    } catch(e) {
-      removeTyping();
-      addMessage('Connection uncertain. Please try again.', 'aria');
-    }
+    } catch(e) { removeTyping(); addMessage('Connection uncertain. Please try again.', 'aria'); }
   }
 
-  function openChat() {
-    mainUI.style.display = 'none';
-    chatView.classList.add('active');
-    if (messagesArea.children.length === 0 && currentUser) {
-      addMessage(`Hey ${abbreviateName(currentUser.displayName || currentUser.email.split('@')[0])}. I'm ARIA. What would you like to explore?`, 'aria');
-    }
-    chatInput.focus();
-  }
-
-  function closeChat() {
-    mainUI.style.display = 'flex';
-    chatView.classList.remove('active');
-    messagesArea.innerHTML = '';
-  }
-
-  async function signOut() {
-    try {
-      await auth.signOut();
-      window.location.href = '/login.html';
-    } catch(e) { console.error('Sign out error', e); }
-  }
-
-  function showHistory() {
-    fetchHistoryForModal();
-    historyModal.classList.add('active');
-  }
-
-  function closeHistory() {
-    historyModal.classList.remove('active');
-  }
+  function openChat() { mainUI.style.display = 'none'; chatView.classList.add('active'); if (messagesArea.children.length === 0 && currentUser) { addMessage(`Hey ${abbreviateName(currentUser.displayName || currentUser.email.split('@')[0])}. I'm ARIA. What would you like to explore?`, 'aria'); } chatInput.focus(); }
+  function closeChat() { mainUI.style.display = 'flex'; chatView.classList.remove('active'); messagesArea.innerHTML = ''; }
+  async function signOut() { try { await auth.signOut(); window.location.href = '/login.html'; } catch(e) { console.error(e); } }
+  function showHistory() { fetchHistoryForModal(); historyModal.classList.add('active'); }
+  function closeHistory() { historyModal.classList.remove('active'); }
 
   mainInput.addEventListener('focus', openChat);
-  document.querySelectorAll('.pillar-card').forEach(card => {
-    card.addEventListener('click', () => {
-      openChat();
-      addMessage(`Let's talk about ${card.querySelector('.pillar-name').textContent}. How can I help?`, 'aria');
-    });
-  });
+  document.querySelectorAll('.pillar-card').forEach(card => { card.addEventListener('click', () => { openChat(); addMessage(`Let's talk about ${card.querySelector('.pillar-name').textContent}. How can I help?`, 'aria'); }); });
   document.getElementById('closeChatBtn').addEventListener('click', closeChat);
-  document.getElementById('chatSendBtn').addEventListener('click', () => {
-    const msg = chatInput.value.trim();
-    if (msg) sendToAria(msg, chatInput);
-  });
-  chatInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const msg = chatInput.value.trim();
-      if (msg) sendToAria(msg, chatInput);
-    }
-  });
-  document.getElementById('sendBtn').addEventListener('click', () => {
-    const msg = mainInput.value.trim();
-    if (msg) sendToAria(msg, mainInput);
-  });
-  mainInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const msg = mainInput.value.trim();
-      if (msg) sendToAria(msg, mainInput);
-    }
-  });
-  document.getElementById('copyLastMsgBtn').addEventListener('click', () => {
-    if (lastAriaMessage) navigator.clipboard.writeText(lastAriaMessage);
-  });
-  document.getElementById('speakLastMsgBtn').addEventListener('click', () => {
-    if (lastAriaMessage) {
-      const utterance = new SpeechSynthesisUtterance(lastAriaMessage);
-      utterance.lang = 'en-US';
-      speechSynthesis.cancel();
-      speechSynthesis.speak(utterance);
-    }
-  });
+  document.getElementById('chatSendBtn').addEventListener('click', () => { const msg = chatInput.value.trim(); if (msg) sendToAria(msg, chatInput); });
+  chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); const msg = chatInput.value.trim(); if (msg) sendToAria(msg, chatInput); } });
+  document.getElementById('sendBtn').addEventListener('click', () => { const msg = mainInput.value.trim(); if (msg) sendToAria(msg, mainInput); });
+  mainInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); const msg = mainInput.value.trim(); if (msg) sendToAria(msg, mainInput); } });
+  document.getElementById('copyLastMsgBtn').addEventListener('click', () => { if (lastAriaMessage) navigator.clipboard.writeText(lastAriaMessage); });
+  document.getElementById('speakLastMsgBtn').addEventListener('click', () => { if (lastAriaMessage) { const u = new SpeechSynthesisUtterance(lastAriaMessage); u.lang = 'en-US'; speechSynthesis.cancel(); speechSynthesis.speak(u); } });
   document.getElementById('historyBtn').addEventListener('click', showHistory);
   document.getElementById('closeHistoryBtn').addEventListener('click', closeHistory);
-  historyModal.addEventListener('click', (e) => {
-    if (e.target === historyModal) closeHistory();
-  });
+  historyModal.addEventListener('click', (e) => { if (e.target === historyModal) closeHistory(); });
   document.getElementById('signoutBtn').addEventListener('click', signOut);
 
   auth.onAuthStateChanged(async (user) => {
@@ -820,23 +390,13 @@
       userNameSpan.textContent = displayName;
       userInitialsSpan.textContent = shortName;
       try {
-        await fetch('/set_user_name', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            user_id: user.uid,
-            email: user.email.toLowerCase(),
-            name: displayName
-          })
-        });
+        await fetch('/set_user_name', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: user.uid, email: user.email.toLowerCase(), name: displayName }) });
         const uidRes = await fetch('/check_user?email=' + encodeURIComponent(user.email.toLowerCase()));
         const uidData = await uidRes.json();
         if (uidData.aria_uid) loadHistory(uidData.aria_uid);
       } catch(e) { console.warn(e); }
-    } else {
-      window.location.href = '/login.html';
-    }
+    } else { window.location.href = '/login.html'; }
   });
 </script>
 </body>
-  </html>
+</html>
