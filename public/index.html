@@ -22,14 +22,12 @@
       min-height: 100vh;
       overflow-x: hidden;
     }
-    /* Base cosmic background */
     .cosmic-bg {
       position: fixed;
       inset: 0;
       background: #050A1A;
       z-index: 0;
     }
-    /* Milky Way glow – realistic galaxy depth */
     .galaxy-glow {
       position: fixed;
       width: 120%;
@@ -45,16 +43,14 @@
       pointer-events: none;
       z-index: 0;
     }
-    /* Star canvas (realistic stars) */
     .star-canvas {
       position: fixed;
       inset: 0;
       width: 100%;
       height: 100%;
       pointer-events: none;
-      z-index: 0;
+      z-index: 1;
     }
-    /* Main container */
     .app-container {
       position: relative;
       z-index: 2;
@@ -65,7 +61,6 @@
       flex-direction: column;
       padding: 20px 20px 16px;
     }
-    /* Top right sign-out */
     .top-right {
       display: flex;
       justify-content: flex-end;
@@ -98,8 +93,6 @@
       color: #7A8AAA;
       margin-top: 1px;
     }
-
-    /* Centered welcome message */
     .center-hero {
       flex: 1;
       display: flex;
@@ -126,13 +119,9 @@
       font-weight: 300;
       opacity: 0.7;
     }
-
-    /* Bottom block – cards, divider, input, footer */
     .bottom-block {
       margin-top: auto;
     }
-
-    /* 3 compact glass cards (Memory, Education, Income) */
     .pillars-row {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -190,7 +179,6 @@
       margin-top: auto;
       text-align: right;
     }
-
     .divider {
       text-align: center;
       margin: 8px 0 12px;
@@ -204,7 +192,6 @@
       gap: 6px;
       opacity: 0.6;
     }
-
     .input-capsule {
       background: #0A0F1A;
       border: 1px solid #3B82F6;
@@ -251,7 +238,6 @@
       stroke: #3B82F6;
       stroke-width: 2;
     }
-
     .footer-note {
       text-align: center;
       padding: 6px 0 20px;
@@ -260,12 +246,11 @@
       color: #4A5A7A;
       border-top: 0.5px solid rgba(255,255,255,0.04);
     }
-
-    /* Chat overlay */
     .chat-view {
       position: fixed;
       inset: 0;
-      background: #050A1A;
+      background: rgba(5, 10, 26, 0.85);
+      backdrop-filter: blur(4px);
       z-index: 100;
       padding: 20px;
       display: none;
@@ -300,6 +285,7 @@
     }
     .chat-action.copy { color: #60A5FA; }
     .chat-action.speak { color: #A78BFA; }
+    .chat-action.history { color: #F59E0B; font-size: 18px; }
     .messages-area {
       flex: 1;
       overflow-y: auto;
@@ -323,11 +309,11 @@
       padding: 10px 14px;
       border-radius: 20px;
       font-size: 14px;
-      background: rgba(255,255,255,0.05);
+      background: rgba(255,255,255,0.1);
       color: white;
     }
     .message.user .message-bubble {
-      background: rgba(96,165,250,0.15);
+      background: rgba(96,165,250,0.2);
       border: 0.5px solid rgba(96,165,250,0.3);
     }
     .message-actions {
@@ -354,7 +340,63 @@
       from { opacity: 0; transform: translateY(6px); }
       to { opacity: 1; transform: translateY(0); }
     }
-
+    /* History modal */
+    .history-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      backdrop-filter: blur(8px);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: 0.2s;
+    }
+    .history-modal.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .history-container {
+      background: rgba(10,20,40,0.95);
+      border-radius: 24px;
+      max-width: 90%;
+      width: 500px;
+      max-height: 80%;
+      overflow-y: auto;
+      padding: 20px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .history-item {
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 0.5px solid rgba(255,255,255,0.1);
+    }
+    .history-user {
+      font-size: 12px;
+      color: #60A5FA;
+    }
+    .history-aria {
+      font-size: 12px;
+      color: #A78BFA;
+      margin-top: 4px;
+    }
+    .history-text {
+      font-size: 13px;
+      margin-top: 4px;
+    }
+    .close-history {
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 20px;
+      float: right;
+      cursor: pointer;
+    }
     @media (max-width: 640px) {
       .app-container { padding: 16px 16px 12px; }
       .greeting { font-size: 22px; }
@@ -377,47 +419,34 @@
       <div class="signout-label">sign out</div>
     </div>
   </div>
-
   <div class="center-hero">
     <div class="greeting">Good evening, <span id="userNameDisplay">friend</span>.</div>
     <div class="time" id="timestamp">—</div>
   </div>
-
   <div class="bottom-block">
     <div class="pillars-row">
-      <!-- Memory card -->
       <div class="pillar-card memory" data-pillar="Memory">
-        <div class="icon-circle">
-          <svg viewBox="0 0 24 24"><path d="M12 2a9 9 0 1 0 0 18A9 9 0 0 0 12 2z"/><path d="M8 12s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/></svg>
-        </div>
+        <div class="icon-circle"><svg viewBox="0 0 24 24"><path d="M12 2a9 9 0 1 0 0 18A9 9 0 0 0 12 2z"/><path d="M8 12s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/></svg></div>
         <div class="pillar-name">Memory</div>
         <div class="pillar-desc">Your memories, organized.</div>
         <div class="pillar-arrow">›</div>
       </div>
-      <!-- Education card -->
       <div class="pillar-card education" data-pillar="Education">
-        <div class="icon-circle">
-          <svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
-        </div>
+        <div class="icon-circle"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
         <div class="pillar-name">Education</div>
         <div class="pillar-desc">Learn, grow, and master.</div>
         <div class="pillar-arrow">›</div>
       </div>
-      <!-- Income card -->
       <div class="pillar-card income" data-pillar="Income">
-        <div class="icon-circle">
-          <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-        </div>
+        <div class="icon-circle"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
         <div class="pillar-name">Income</div>
         <div class="pillar-desc">Track, plan, and grow.</div>
         <div class="pillar-arrow">›</div>
       </div>
     </div>
-
     <div class="divider">
       <div class="divider-text">💫 ONE AI. EVERY PART OF YOUR LIFE. 💫</div>
     </div>
-
     <div class="input-capsule">
       <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
       <input type="text" class="input-field" id="mainInput" placeholder="Chat Aria...">
@@ -426,14 +455,15 @@
     <div class="footer-note">By MrNicosh Eg</div>
   </div>
 </div>
-  
-<!-- Part 1 ends here. Part 2 begins with chat overlay and JavaScript. -->
+
+<!-- End of Part 1. Part 2 starts below -->
   <div id="chatView" class="chat-view">
   <div class="chat-header">
     <button class="back-btn" id="closeChatBtn">←</button>
     <div class="chat-actions">
       <button class="chat-action copy" id="copyLastMsgBtn" title="Copy last response">📋</button>
       <button class="chat-action speak" id="speakLastMsgBtn" title="Speak last response">🔊</button>
+      <button class="chat-action history" id="historyBtn" title="View conversation history">🕘</button>
     </div>
   </div>
   <div class="messages-area" id="messagesArea"></div>
@@ -441,6 +471,14 @@
     <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
     <input type="text" class="input-field" id="chatInput" placeholder="Chat Aria...">
     <div class="send-circle" id="chatSendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
+  </div>
+</div>
+
+<div id="historyModal" class="history-modal">
+  <div class="history-container">
+    <button class="close-history" id="closeHistoryBtn">✕</button>
+    <h3 style="margin-bottom:16px;">📜 Conversation History</h3>
+    <div id="historyContent"></div>
   </div>
 </div>
 
@@ -458,7 +496,7 @@
   let currentUser = null;
   let lastAriaMessage = null;
 
-  // Starfield – three layers (tiny, medium, bright with glow) + shooting star
+  // Starfield – twinkling, realistic (restored)
   const canvas = document.getElementById('starCanvas');
   const ctx = canvas.getContext('2d');
   let width, height;
@@ -474,30 +512,28 @@
 
   function generateStars() {
     stars = [];
-    // Tiny background stars (many, dim)
-    for (let i = 0; i < 240; i++) {
+    // Type 1: tiny background stars (many, dim)
+    for (let i = 0; i < 220; i++) {
       stars.push({
         x: Math.random() * width,
         y: Math.random() * height,
         radius: 0.3 + Math.random() * 0.5,
         opacity: 0.15 + Math.random() * 0.3,
-        glow: false,
         twinkleSpeed: 0.002 + Math.random() * 0.003
       });
     }
-    // Medium stars
-    for (let i = 0; i < 90; i++) {
+    // Type 2: medium stars
+    for (let i = 0; i < 80; i++) {
       stars.push({
         x: Math.random() * width,
         y: Math.random() * height,
-        radius: 0.6 + Math.random() * 0.8,
+        radius: 0.7 + Math.random() * 0.8,
         opacity: 0.4 + Math.random() * 0.35,
-        glow: false,
         twinkleSpeed: 0.001 + Math.random() * 0.002
       });
     }
-    // Bright stars with blue glow
-    for (let i = 0; i < 18; i++) {
+    // Type 3: bright stars with subtle glow
+    for (let i = 0; i < 20; i++) {
       stars.push({
         x: Math.random() * width,
         y: Math.random() * height,
@@ -507,14 +543,14 @@
         twinkleSpeed: 0.0008 + Math.random() * 0.0015
       });
     }
-    // Cluster near galaxy glow (top-right area)
-    for (let i = 0; i < 40; i++) {
+    // clustered near galaxy glow
+    for (let i = 0; i < 50; i++) {
       stars.push({
         x: width * (0.6 + Math.random() * 0.3),
         y: height * (0.2 + Math.random() * 0.5),
         radius: 0.5 + Math.random() * 1.0,
         opacity: 0.3 + Math.random() * 0.5,
-        glow: Math.random() > 0.7,
+        glow: Math.random() > 0.8,
         twinkleSpeed: 0.001 + Math.random() * 0.002
       });
     }
@@ -526,12 +562,12 @@
   function createShootingStar() {
     const startX = width * (0.7 + Math.random() * 0.2);
     const startY = height * (0.1 + Math.random() * 0.3);
-    const endX = startX - width * 0.4;
-    const endY = startY + height * 0.4;
+    const endX = startX - width * 0.35;
+    const endY = startY + height * 0.35;
     shootingStars.push({
       startX, startY, endX, endY,
       progress: 0,
-      speed: 0.005 + Math.random() * 0.004,
+      speed: 0.004 + Math.random() * 0.003,
       active: true
     });
   }
@@ -541,13 +577,13 @@
     ctx.clearRect(0, 0, width, height);
     time += 0.016;
     for (let s of stars) {
-      const twinkle = 0.7 + 0.3 * Math.sin(time * s.twinkleSpeed * 15);
+      const twinkle = 0.6 + 0.4 * Math.sin(time * s.twinkleSpeed * 12);
       const finalOpacity = s.opacity * twinkle;
       ctx.beginPath();
       ctx.arc(s.x, s.y, s.radius, 0, Math.PI*2);
       if (s.glow) {
-        ctx.shadowColor = 'rgba(100, 160, 255, 0.8)';
-        ctx.shadowBlur = 6;
+        ctx.shadowColor = 'rgba(100, 160, 255, 0.5)';
+        ctx.shadowBlur = 5;
       } else {
         ctx.shadowBlur = 0;
       }
@@ -566,21 +602,24 @@
       const y = ss.startY + (ss.endY - ss.startY) * ss.progress;
       ctx.beginPath();
       ctx.moveTo(x, y);
-      const tailX = x - (ss.startX - ss.endX) * 0.08;
-      const tailY = y - (ss.startY - ss.endY) * 0.08;
+      const tailX = x - (ss.startX - ss.endX) * 0.06;
+      const tailY = y - (ss.startY - ss.endY) * 0.06;
       ctx.lineTo(tailX, tailY);
-      ctx.strokeStyle = `rgba(255, 255, 255, ${0.8 * (1 - ss.progress)})`;
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.7 * (1 - ss.progress)})`;
       ctx.lineWidth = 1.2;
       ctx.stroke();
     }
     requestAnimationFrame(drawStars);
   }
 
-  window.addEventListener('resize', () => { resizeCanvas(); generateStars(); });
+  window.addEventListener('resize', () => {
+    resizeCanvas();
+    generateStars();
+  });
   resizeCanvas();
   generateStars();
   drawStars();
-  setInterval(() => { if (Math.random() > 0.5) createShootingStar(); }, 25000);
+  setInterval(() => { if (Math.random() > 0.5) createShootingStar(); }, 26000);
   createShootingStar();
 
   function updateTimestamp() {
@@ -599,6 +638,8 @@
   const messagesArea = document.getElementById('messagesArea');
   const userNameSpan = document.getElementById('userNameDisplay');
   const userInitialsSpan = document.getElementById('userInitials');
+  const historyModal = document.getElementById('historyModal');
+  const historyContent = document.getElementById('historyContent');
 
   function abbreviateName(fullName) {
     if (!fullName) return 'EN';
@@ -626,6 +667,48 @@
         if (current) addMessage(current.trim(), 'aria');
       }
     } catch(e) { console.warn('History load failed', e); }
+  }
+
+  async function fetchHistoryForModal() {
+    if (!currentUser) return;
+    try {
+      const uidRes = await fetch('/check_user?email=' + encodeURIComponent(currentUser.email.toLowerCase()));
+      const uidData = await uidRes.json();
+      if (!uidData.aria_uid) return;
+      const res = await fetch(`/context?uid=${uidData.aria_uid}`);
+      const data = await res.json();
+      if (data.context) {
+        const lines = data.context.split('\n');
+        let items = [];
+        let currentUserMsg = null;
+        let currentAriaMsg = null;
+        for (let line of lines) {
+          if (line.startsWith('User:')) {
+            if (currentUserMsg && currentAriaMsg) {
+              items.push({ user: currentUserMsg, aria: currentAriaMsg });
+              currentUserMsg = null; currentAriaMsg = null;
+            }
+            currentUserMsg = line.substring(5).trim();
+          } else if (line.startsWith('ARIA:')) {
+            currentAriaMsg = line.substring(5).trim();
+          }
+        }
+        if (currentUserMsg && currentAriaMsg) items.push({ user: currentUserMsg, aria: currentAriaMsg });
+        historyContent.innerHTML = '';
+        items.slice(-10).forEach(item => {
+          const div = document.createElement('div');
+          div.className = 'history-item';
+          div.innerHTML = `<div class="history-user">🧑 ${item.user}</div><div class="history-aria">🤖 ${item.aria}</div>`;
+          historyContent.appendChild(div);
+        });
+        if (items.length === 0) historyContent.innerHTML = '<p>No conversation history yet.</p>';
+      } else {
+        historyContent.innerHTML = '<p>No conversation history yet.</p>';
+      }
+    } catch(e) {
+      console.warn(e);
+      historyContent.innerHTML = '<p>Failed to load history.</p>';
+    }
   }
 
   function addMessage(text, sender) {
@@ -700,6 +783,7 @@
   function closeChat() {
     mainUI.style.display = 'flex';
     chatView.classList.remove('active');
+    messagesArea.innerHTML = '';
   }
 
   async function signOut() {
@@ -707,6 +791,15 @@
       await auth.signOut();
       window.location.href = '/login.html';
     } catch(e) { console.error('Sign out error', e); }
+  }
+
+  function showHistory() {
+    fetchHistoryForModal();
+    historyModal.classList.add('active');
+  }
+
+  function closeHistory() {
+    historyModal.classList.remove('active');
   }
 
   mainInput.addEventListener('focus', openChat);
@@ -749,6 +842,11 @@
       speechSynthesis.cancel();
       speechSynthesis.speak(utterance);
     }
+  });
+  document.getElementById('historyBtn').addEventListener('click', showHistory);
+  document.getElementById('closeHistoryBtn').addEventListener('click', closeHistory);
+  historyModal.addEventListener('click', (e) => {
+    if (e.target === historyModal) closeHistory();
   });
   document.getElementById('signoutBtn').addEventListener('click', signOut);
 
