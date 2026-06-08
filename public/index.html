@@ -21,7 +21,7 @@
       overflow-x: hidden;
       min-height: 100vh;
     }
-    /* Cosmic background layers */
+    /* Cosmic background layers (visible behind chat) */
     .cosmic-bg {
       position: fixed;
       inset: 0;
@@ -55,7 +55,6 @@
       40% { opacity: 0.9; transform: scale(1); }
       100% { opacity: 0; transform: scale(0.6); }
     }
-    /* Shooting star – no tail, just a soft glowing dot */
     .shooting-star {
       position: absolute;
       width: 2px;
@@ -288,12 +287,11 @@
       border-top: 0.5px solid rgba(255,255,255,0.04);
       width: 100%;
     }
-    /* Chat overlay (same cosmic background) */
+    /* CHAT OVERLAY – transparent background, shows cosmic layers */
     .chat-view {
       position: fixed;
       inset: 0;
-      background: rgba(3, 5, 10, 0.85);
-      backdrop-filter: blur(4px);
+      background: transparent;
       z-index: 100;
       padding: 20px;
       display: none;
@@ -307,11 +305,18 @@
       margin-bottom: 20px;
     }
     .back-btn {
-      background: transparent;
+      background: rgba(0,0,0,0.4);
+      backdrop-filter: blur(8px);
       border: none;
       color: white;
       font-size: 26px;
       cursor: pointer;
+      width: 40px;
+      height: 40px;
+      border-radius: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .chat-actions {
       display: flex;
@@ -319,14 +324,21 @@
       margin-left: auto;
     }
     .chat-action {
-      background: transparent;
+      background: rgba(0,0,0,0.4);
+      backdrop-filter: blur(8px);
       border: none;
       font-size: 18px;
       cursor: pointer;
-      color: #9CA3AF;
+      color: white;
+      width: 40px;
+      height: 40px;
+      border-radius: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       transition: 0.1s;
     }
-    .chat-action:hover { color: #60A5FA; }
+    .chat-action:hover { background: rgba(0,0,0,0.6); }
     .messages-area {
       flex: 1;
       overflow-y: auto;
@@ -345,12 +357,13 @@
       padding: 10px 14px;
       border-radius: 20px;
       font-size: 14px;
-      background: rgba(255,255,255,0.08);
+      background: rgba(0,0,0,0.5);
+      backdrop-filter: blur(4px);
       color: white;
     }
     .user .message-bubble {
-      background: rgba(96,165,250,0.15);
-      border: 0.5px solid rgba(96,165,250,0.3);
+      background: rgba(96,165,250,0.3);
+      border: 0.5px solid rgba(96,165,250,0.5);
     }
     .message-actions {
       display: flex;
@@ -359,22 +372,26 @@
       opacity: 0;
       transition: opacity 0.2s;
     }
-    .message:hover .message-actions { opacity: 0.7; }
+    .message:hover .message-actions { opacity: 0.8; }
     .message-action {
-      background: transparent;
+      background: rgba(0,0,0,0.4);
+      backdrop-filter: blur(4px);
       border: none;
       font-size: 12px;
       cursor: pointer;
-      color: #9CA3AF;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 16px;
     }
-    .message-action:hover { color: #60A5FA; }
+    .message-action:hover { background: rgba(0,0,0,0.6); }
     /* Typing indicator (glowing dots) */
     .typing-indicator {
       display: flex;
       align-items: center;
       gap: 4px;
       padding: 8px 12px;
-      background: rgba(255,255,255,0.05);
+      background: rgba(0,0,0,0.4);
+      backdrop-filter: blur(4px);
       border-radius: 20px;
       width: fit-content;
       animation: glowPulse 1.2s infinite;
@@ -397,7 +414,7 @@
       50% { box-shadow: 0 0 10px rgba(96,165,250,0.3); }
       100% { box-shadow: 0 0 0 rgba(96,165,250,0); }
     }
-    /* History modal */
+    /* History modal (unchanged) */
     .history-modal {
       position: fixed;
       top: 0;
@@ -497,7 +514,7 @@
           <div class="card-title">Education</div><div class="card-desc">Learn, grow, and master.</div>
         </div>
         <div class="feature-card card-income" data-pillar="Income">
-          <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <div class->card-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
           <div class="card-title">Income</div><div class="card-desc">Track, plan, and grow.</div>
         </div>
       </div>
@@ -511,7 +528,7 @@
     </div>
   </div>
 
-  <!-- Chat overlay -->
+  <!-- Chat overlay (transparent background -> stars visible) -->
   <div id="chatView" class="chat-view">
     <div class="chat-header">
       <button class="back-btn" id="closeChatBtn">←</button>
@@ -521,7 +538,7 @@
       </div>
     </div>
     <div class="messages-area" id="messagesArea"></div>
-    <div class="input-capsule" style="margin-bottom: 0;">
+    <div class="input-capsule" style="margin-bottom: 0; background: rgba(10,15,26,0.7);">
       <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
       <input type="text" class="input-field" id="chatInput" placeholder="Message ARIA...">
       <div class="send-circle" id="chatSendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
