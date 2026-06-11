@@ -21,7 +21,7 @@
       overflow-x: hidden;
       min-height: 100vh;
     }
-    /* Cosmic background layers (visible behind chat) */
+    /* Cosmic background layers (same as before) */
     .cosmic-bg {
       position: fixed;
       inset: 0;
@@ -171,17 +171,18 @@
       margin-top: auto;
       width: 100%;
     }
+    /* Four cards grid – fixed to always show 4 columns */
     .cards-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
       margin-bottom: 16px;
     }
     .feature-card {
       background: rgba(20,22,40,0.5);
       backdrop-filter: blur(8px);
-      border-radius: 20px;
-      padding: 14px 8px 10px;
+      border-radius: 18px;
+      padding: 12px 6px 8px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -192,34 +193,36 @@
     }
     .feature-card:hover { background: rgba(20,22,40,0.7); }
     .card-icon {
-      width: 36px;
-      height: 36px;
-      border-radius: 18px;
+      width: 32px;
+      height: 32px;
+      border-radius: 16px;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
     .card-memory .card-icon { background: rgba(167,139,250,0.15); }
     .card-education .card-icon { background: rgba(96,165,250,0.15); }
     .card-income .card-icon { background: rgba(16,185,129,0.15); }
+    .card-decisions .card-icon { background: rgba(245,158,11,0.15); }
     .card-icon svg {
-      width: 18px;
-      height: 18px;
+      width: 16px;
+      height: 16px;
       fill: none;
       stroke-width: 1.5;
     }
     .card-memory .card-icon svg { stroke: #A78BFA; }
     .card-education .card-icon svg { stroke: #60A5FA; }
     .card-income .card-icon svg { stroke: #10B981; }
+    .card-decisions .card-icon svg { stroke: #F59E0B; }
     .card-title {
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
       color: white;
       margin-bottom: 2px;
     }
     .card-desc {
-      font-size: 9px;
+      font-size: 8px;
       color: #9CA3AF;
     }
     .divider {
@@ -287,11 +290,12 @@
       border-top: 0.5px solid rgba(255,255,255,0.04);
       width: 100%;
     }
-    /* CHAT OVERLAY – transparent background, shows cosmic layers */
+    /* Chat overlay (transparent background) */
     .chat-view {
       position: fixed;
       inset: 0;
-      background: transparent;
+      background: rgba(3, 5, 10, 0.85);
+      backdrop-filter: blur(4px);
       z-index: 100;
       padding: 20px;
       display: none;
@@ -384,7 +388,23 @@
       border-radius: 16px;
     }
     .message-action:hover { background: rgba(0,0,0,0.6); }
-    /* Typing indicator (glowing dots) */
+    /* Rating stars row */
+    .rating-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+      justify-content: flex-start;
+    }
+    .rating-star {
+      font-size: 14px;
+      cursor: pointer;
+      background: transparent;
+      border: none;
+      opacity: 0.6;
+      transition: 0.1s;
+    }
+    .rating-star:hover { opacity: 1; transform: scale(1.1); }
+    /* Typing indicator */
     .typing-indicator {
       display: flex;
       align-items: center;
@@ -414,7 +434,7 @@
       50% { box-shadow: 0 0 10px rgba(96,165,250,0.3); }
       100% { box-shadow: 0 0 0 rgba(96,165,250,0); }
     }
-    /* History modal (unchanged) */
+    /* History modal */
     .history-modal {
       position: fixed;
       top: 0;
@@ -472,10 +492,12 @@
       to { opacity: 1; transform: translateY(0); }
     }
     @media (max-width: 640px) {
-      .cards-grid { gap: 8px; }
-      .feature-card { padding: 10px 4px 6px; }
-      .card-title { font-size: 11px; }
+      .cards-grid { gap: 6px; }
+      .feature-card { padding: 8px 3px 6px; }
+      .card-title { font-size: 10px; }
       .card-desc { font-size: 7px; }
+      .card-icon { width: 28px; height: 28px; }
+      .card-icon svg { width: 14px; height: 14px; }
     }
   </style>
 </head>
@@ -514,8 +536,12 @@
           <div class="card-title">Education</div><div class="card-desc">Learn, grow, and master.</div>
         </div>
         <div class="feature-card card-income" data-pillar="Income">
-          <div class->card-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
           <div class="card-title">Income</div><div class="card-desc">Track, plan, and grow.</div>
+        </div>
+        <div class="feature-card card-decisions" data-pillar="Decisions">
+          <div class="card-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg></div>
+          <div class="card-title">Decisions</div><div class="card-desc">Get clarity. Make better calls.</div>
         </div>
       </div>
       <div class="divider"><div class="divider-text">💫 ONE AI. EVERY PART OF YOUR LIFE. 💫</div></div>
@@ -528,7 +554,7 @@
     </div>
   </div>
 
-  <!-- Chat overlay (transparent background -> stars visible) -->
+  <!-- Chat overlay -->
   <div id="chatView" class="chat-view">
     <div class="chat-header">
       <button class="back-btn" id="closeChatBtn">←</button>
@@ -538,7 +564,7 @@
       </div>
     </div>
     <div class="messages-area" id="messagesArea"></div>
-    <div class="input-capsule" style="margin-bottom: 0; background: rgba(10,15,26,0.7);">
+    <div class="input-capsule" style="margin-bottom: 0;">
       <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
       <input type="text" class="input-field" id="chatInput" placeholder="Message ARIA...">
       <div class="send-circle" id="chatSendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
@@ -581,7 +607,6 @@
         star.style.animationDelay = (Math.random() * 8) + 's';
         starfield.appendChild(star);
       }
-      // Shooting stars – no tail, just a soft dot
       for (let i = 0; i < 6; i++) {
         const shoot = document.createElement('div');
         shoot.className = 'shooting-star';
@@ -608,6 +633,7 @@
 
     let currentUser = null;
     let lastAriaMessage = null;
+    let currentRatingDiv = null;  // for inline rating stars
 
     function updateTimestamp() {
       const now = new Date();
@@ -637,6 +663,7 @@
     const historyModal = document.getElementById('historyModal');
     const historyContent = document.getElementById('historyContent');
 
+    // Add message with rating stars (5 emoji buttons)
     function addMessage(text, sender) {
       const div = document.createElement('div');
       div.className = `message ${sender}`;
@@ -644,8 +671,9 @@
       bubble.className = 'message-bubble';
       bubble.innerHTML = marked.parse(text);
       div.appendChild(bubble);
-      // Add copy & speak buttons for ARIA messages
+      
       if (sender === 'aria') {
+        // Add copy & speak actions
         const actions = document.createElement('div');
         actions.className = 'message-actions';
         actions.innerHTML = `<button class="message-action copy-msg">📋 Copy</button><button class="message-action speak-msg">🔊 Speak</button>`;
@@ -657,11 +685,39 @@
           speechSynthesis.speak(utterance);
         };
         div.appendChild(actions);
+        
+        // Add rating stars
+        const ratingDiv = document.createElement('div');
+        ratingDiv.className = 'rating-row';
+        const stars = ['👎', '😐', '👍', '🔥', '💯'];
+        stars.forEach((emoji, idx) => {
+          const star = document.createElement('button');
+          star.className = 'rating-star';
+          star.textContent = emoji;
+          star.dataset.score = idx + 1;
+          star.onclick = (e) => {
+            e.stopPropagation();
+            const score = parseInt(star.dataset.score);
+            sendRating(score, ratingDiv);
+          };
+          ratingDiv.appendChild(star);
+        });
+        div.appendChild(ratingDiv);
       }
+      
       messagesArea.appendChild(div);
       messagesArea.scrollTop = messagesArea.scrollHeight;
-      if (sender === 'aria') lastAriaMessage = text;
       return div;
+    }
+
+    function sendRating(score, ratingDiv) {
+      if (!currentUser) return;
+      fetch('/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: currentUser.uid, score: score })
+      }).catch(e => console.warn);
+      ratingDiv.innerHTML = `<span style="font-size:11px; color:#60A5FA;">✓ Rated ${score}/5</span>`;
     }
 
     function showTyping() {
@@ -712,16 +768,18 @@
       messagesArea.innerHTML = '';
     }
 
-    // History modal
+    // History modal using correct uid from localStorage
     async function fetchHistory() {
       if (!currentUser) return;
+      const ariaUid = localStorage.getItem('aria_uid');
+      if (!ariaUid) {
+        historyContent.innerHTML = '<p>No conversation history yet.</p>';
+        return;
+      }
       try {
-        const uidRes = await fetch('/check_user?email=' + encodeURIComponent(currentUser.email.toLowerCase()));
-        const uidData = await uidRes.json();
-        if (!uidData.aria_uid) return;
-        const res = await fetch(`/context?uid=${uidData.aria_uid}`);
+        const res = await fetch(`/context?uid=${encodeURIComponent(ariaUid)}`);
         const data = await res.json();
-        if (data.context) {
+        if (data.context && data.context.trim()) {
           const lines = data.context.split('\n');
           let items = [];
           let currentUserMsg = null;
