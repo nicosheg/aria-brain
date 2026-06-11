@@ -1348,8 +1348,8 @@ def ask(m, u, api):
     
     # ── 3. Knowledge base check ────────────────────────
     original_m = m
-    m = compress_message(m, 800)
-    kb_result = search_knowledge_base(m) if len(m) > 30 else None
+    m_compressed = compress_message(m, 800)
+    kb_result = search_knowledge_base(m_compressed) if len(m_compressed) > 30 else None
     if kb_result and kb_result["found"]:
         stage, _ = get_aria_stage()
         prefix = get_stage_prefix(stage)
@@ -1360,10 +1360,8 @@ def ask(m, u, api):
         cx = get_full_history(u)
     else:
         cx = get_context(u)
-    print(f"🔍 CONTEXT LENGTH: {len(cx)} characters")
-    print(f"🔍 CONTEXT PREVIEW: {cx[:200] if cx else 'EMPTY'}")
     
-    # ── 5. Get persistent facts from PostgreSQL ──
+    # ── 5. Load persistent facts from PostgreSQL ──
     try:
         user_memory = load_user_memory(u)
         if user_memory["facts"]:
@@ -1374,79 +1372,88 @@ def ask(m, u, api):
         print(f"Memory load error: {e}")
         user_facts = ""
     
-    # ── 6. Greetings & Owner check (no wait) ──────────
-    # Extract user name from facts if present
-    user_name = None
-    for line in user_facts.split("\n"):
-        if line.lower().startswith("name:"):
-            user_name = line.split(":", 1)[1].strip()
-            break
+    # ── 5b. Load adaptive scores ──
+    adaptive = load_adaptive_scores(u)
+    adaptive_summary = ""
+    if adaptive.get("learning_style"):
+        adaptive_summary += f"User learning style (probabilities): {json.dumps(adaptive['learning_style'])}\n"
+    if adaptive.get("communication_preference"):
+        adaptive_summary += f"User communication preference: {json.dumps(adaptive['communication_preference'])}\n"
+    if adaptive.get("decision_pattern"):
+        adaptive_summary += f"User decision pattern: {json.dumps(adaptive['decision_pattern'])}\n"
     
-    if m.lower() in ["hi", "hello", "hey", "start", "intro"]:
-        if user_name:
-            return f"Hey {user_name}! 👋 Welcome back. What's on your mind today?"
-        else:
-            return "Hey! 👋 I'm ARIA 3.5. What's your name?"
+    # ── 6. Detect strong long‑term goal signals (for possible confirmation after response) ──
+    goal_confirmation = None
+    strong_goal_patterns = [
+        r'\bmy (long.?term|life|main) goal\b',
+        r'\bi (want|plan) to become\b',
+        r'\bi (want|plan) to (build|start|create|launch)\b',
+        r'\bmy (dream|mission|purpose)\b',
+        r'\bmy aim is to\b'
+    ]
+    if any(re.search(p, original_m, re.IGNORECASE) for p in strong_goal_patterns):
+        goal_confirmation = " Should I remember this as one of your long‑term goals? (Say yes or no.)"
     
-    if any(w in m.lower() for w in ["creator", "who made you", "who built you", "owner"]):
-        if verify_owner(m):
-            global OWNER_UID
-            OWNER_UID = u
-            return "✅ OWNER VERIFIED. Welcome back, nicholas. [OWNER MODE ACTIVE]"
-        else:
-            return "ARIA 3.5 was created by Egwame Nicholas (nicosheg), a builder from Lagos, Nigeria. github.com/nicosheg 🇳🇬"
-    
-    # ── 7. Build prompt ─────────────────────────────
+    # ── 7. Build unified prompt with adaptive injection ──
     nz = timezone(timedelta(hours=1))
     cd = datetime.now(nz).strftime("%A, %B %d, %Y at %H:%M")
-    
     is_owner = (u == OWNER_UID) if OWNER_UID else False
     owner_note = "\n[OWNER MODE ACTIVE — Push harder, no mercy]" if is_owner else ""
-    
     tone = detect_tone(m, u)
     mode = detect_mode(m, u)
     topic = detect_topic(m)
-    
     stage, conf = get_aria_stage()
     stage_ctx = f"\nARIA STAGE: {stage} (confidence: {round(conf*100)}%)\n{get_stage_prefix(stage)}"
-    compress_note = f"\n[Input compressed: {len(original_m)}→{len(m)} chars]" if len(original_m) > 800 else ""
-    
+    compress_note = f"\n[Input compressed: {len(original_m)}→{len(m_compressed)} chars]" if len(original_m) > 800 else ""
     meta = f"\n\nMODE: {mode.upper()} | TONE: {tone} | TOPIC: {topic}{owner_note}{stage_ctx}{compress_note}"
-    
     lesson_injection = get_relevant_lessons(m)
     behavior_guidance = get_behavior_guidance()
+    
     final_sp = SP
     if lesson_injection or behavior_guidance:
         final_sp = final_sp + "\n\n## LEARNED PATTERNS FROM THIS COMMUNITY\n" + lesson_injection + behavior_guidance
     
-    # ── UNIFIED USER CONTEXT (FACTS + MEMORY TOGETHER) ──
-    unified_context = ""
-    if user_facts or cx:
-        unified_context = "The following information is ALL about the SAME USER. Their facts AND our conversation history belong to one person.\n\n"
+    # ── Inject adaptive summary into system prompt ──
+    if adaptive_summary:
+        final_sp += f"\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nUSER ADAPTIVE PROFILE (probabilities)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n{adaptive_summary}\n\n"
+    
+    # Combine facts + adaptive scores into memory section
+    memory_section = ""
+    if user_facts or adaptive_summary:
+        memory_section = "## USER CONTEXT (Facts + Adaptive Understanding)\n\n"
         if user_facts:
-            unified_context += f"WHAT I KNOW ABOUT THIS USER:\n{user_facts}\n\n"
-        if cx:
-            unified_context += f"OUR PREVIOUS CONVERSATION:\n{cx}\n\n"
-        unified_context += "IMPORTANT: The facts and conversation above are about the SAME person. Use both to understand who they are.\n"
+            memory_section += f"### KNOWN FACTS:\n{user_facts}\n\n"
+        if adaptive_summary:
+            memory_section += f"### ADAPTIVE PROBABILITIES (use to tailor your response):\n{adaptive_summary}\n\n"
+    if cx:
+        memory_section += f"## RECENT CONVERSATION\n{cx}\n\n"
     
-    prompt = f"{unified_context}TIME (Lagos): {cd}\n\n{m}{meta}"
+    prompt = f"{memory_section}TIME (Lagos): {cd}\n\n{m}{meta}"
     
-    # ── 8. Parallel API call ──────────────────────────
+    # ── 8. API call (sequential Groq first) ──
     resp = try_all_apis_parallel(prompt, final_sp)
     
     if resp:
         # Save memory in background
         save_memory(u, original_m, resp)
         cache_response(m, u, resp)
+        # Extract and save name (simple)
+        name_match = re.search(r'(?:my name is|call me|i am)\s+(\w+)', original_m, re.IGNORECASE)
+        if name_match:
+            try:
+                save_user_fact(u, "name", name_match.group(1))
+            except NameError:
+                pass
+        # Append goal confirmation after the answer (if needed)
+        if goal_confirmation:
+            resp += goal_confirmation
         return resp
     
-    # ── 9. Fallback to cache ──────────────────────────
+    # ── 9. Fallback to cache ──
     fallback = get_cached(m, u)
     if fallback:
         return f"[From memory] {fallback}\n\n(APIs busy, serving saved knowledge)"
-    
     return "I'm thinking slower than usual right now. Give me a moment? 🤔"
-
 # ════════════════════════════════════════════════════════════════════
 # [S10] HTML UI
 #  Edit the interface here.
