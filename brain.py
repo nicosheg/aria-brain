@@ -2117,100 +2117,54 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._json({"error": "Upload past questions first (PDF or image) to enable predictions."}, 400)
 
-        # ── /upload-image (receives base64 image from frontend) ──
-        elif self.path == "/upload-image":
-            data = self._body()  # Uses your existing _body() method
-            email = data.get("email", "").strip().lower()
-            image_b64 = data.get("image_base64", "")
-            name = data.get("name", "image")
-            
-            if not email or not image_b64:
-                self._json({"error": "Missing email or image_base64"}, 400)
-                return
-            
-            uid_result = generate_aria_uid(email)
-            if "error" in uid_result:
-                self._json({"error": uid_result["error"]}, 500)
-                return
-            u = uid_result["aria_uid"]
-            
-            # Decode base64 to bytes
-            import base64
-            try:
-                image_bytes = base64.b64decode(image_b64)
-            except Exception as e:
-                self._json({"error": f"Invalid base64: {e}"}, 400)
-                return
-            
-            # Extract text from image (requires easyocr)
-            text = extract_text_from_image(image_bytes)
-            if not text:
-                self._json({"error": "OCR failed. Please type the question manually."}, 400)
-                return
-            
-            # Store globally
-            status, doc_id = store_global_document(text, "image", name, "general")
-            # Link to user
-            if db:
-                db.collection("users").document(u).collection("uploads").add({
-                    "global_doc_id": doc_id,
-                    "type": "image",
-                    "uploaded_at": datetime.now().isoformat()
-                })
-            self._json({
-                "status": "ok",
-                "storage": status,
-                "extracted_text": text[:500],
-                "full_length": len(text)
-            })
-            return
-
-        # ── /upload-pdf (receives base64 PDF from frontend) ──
-        elif self.path == "/upload-pdf":
+        # ── /upload-file (unified for images and PDFs) ──
+        elif self.path == "/upload-file":
             data = self._body()
-            email = data.get("email", "").strip().lower()
-            pdf_b64 = data.get("pdf_base64", "")
-            name = data.get("name", "document")
-            
-            if not email or not pdf_b64:
-                self._json({"error": "Missing email or pdf_base64"}, 400)
+            user_id = data.get("user_id", "")
+            file_b64 = data.get("file_base64", "")
+            file_name = data.get("file_name", "file")
+            file_type = data.get("file_type", "image")   # "image" or "pdf"
+            mime_type = data.get("mime_type", "")
+
+            if not user_id or not file_b64:
+                self._json({"error": "Missing user_id or file_base64"}, 400)
                 return
-            
-            uid_result = generate_aria_uid(email)
-            if "error" in uid_result:
-                self._json({"error": uid_result["error"]}, 500)
-                return
-            u = uid_result["aria_uid"]
-            
+
+            # Optional size check (already done on frontend)
             import base64
             try:
-                pdf_bytes = base64.b64decode(pdf_b64)
+                file_bytes = base64.b64decode(file_b64)
+
+                if file_type == "pdf":
+                    # Use existing extract_pdf_text (PyMuPDF)
+                    chunks, word_count = extract_pdf_text(file_bytes)
+                    if chunks is None:
+                        self._json({"error": "PDF processing failed. PyMuPDF missing?"}, 500)
+                        return
+                    # Store chunks globally (or per-user, your choice)
+                    saved = save_pdf_chunks(user_id, file_name, chunks, topic="uploaded")
+                    self._json({
+                        "status": "PDF processed",
+                        "type": "pdf",
+                        "chunks": len(chunks),
+                        "words": word_count,
+                        "saved": saved
+                    })
+                elif file_type == "image":
+                    # Store image in Firestore (or better, Firebase Storage)
+                    saved = save_image_file(user_id, file_name, file_bytes, mime_type)
+                    self._json({
+                        "status": "Image uploaded",
+                        "type": "image",
+                        "size_kb": round(len(file_bytes) / 1024, 2),
+                        "saved": saved
+                    })
+                else:
+                    self._json({"error": "Invalid file_type. Use 'image' or 'pdf'."}, 400)
+
             except Exception as e:
-                self._json({"error": f"Invalid base64: {e}"}, 400)
-                return
-            
-            # Extract text from PDF
-            text = extract_pdf_text(pdf_bytes)
-            if not text:
-                self._json({"error": "PDF text extraction failed. Ensure it's a text-based PDF."}, 400)
-                return
-            
-            # Store globally
-            status, doc_id = store_global_document(text, "pdf", name, "general")
-            # Link to user
-            if db:
-                db.collection("users").document(u).collection("uploads").add({
-                    "global_doc_id": doc_id,
-                    "type": "pdf",
-                    "uploaded_at": datetime.now().isoformat()
-                })
-            self._json({
-                "status": "ok",
-                "storage": status,
-                "extracted_text": text[:500],
-                "full_length": len(text)
-            })
-            return
+                print(f"Upload error: {e}")
+                self._json({"error": f"Upload failed: {str(e)}"}, 500)
         
         else:
             self.send_response(404)
