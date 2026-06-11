@@ -540,12 +540,10 @@
         <div class="signout-label">sign out</div>
       </div>
     </div>
-
     <div class="center-message">
       <div class="greeting">Hey <span id="userName">friend</span>.</div>
       <div class="timestamp" id="timestamp">—</div>
     </div>
-
     <div class="bottom-block">
       <div class="cards-grid">
         <div class="feature-card card-memory" data-pillar="Memory">
@@ -578,8 +576,6 @@
       <div class="footer">By MrNicosh Eg</div>
     </div>
   </div>
-
-  <!-- Chat overlay (transparent) -->
   <div id="chatView" class="chat-view">
     <div class="chat-header">
       <button class="back-btn" id="closeChatBtn">←</button>
@@ -603,7 +599,6 @@
       <div class="send-circle" id="chatSendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
     </div>
   </div>
-
   <div id="historyModal" class="history-modal">
     <div class="history-container">
       <button class="close-history" id="closeHistoryBtn">✕</button>
@@ -611,9 +606,7 @@
       <div id="historyContent"></div>
     </div>
   </div>
-
   <script>
-    // ========== STARFIELD GENERATION (same as before) ==========
     (function() {
       const starfield = document.getElementById('starfield');
       function isNearDiagonal(x, y) { return (x + y) > 1.2; }
@@ -652,7 +645,6 @@
     })();
   </script>
   <script>
-    // ========== FIREBASE AUTH & HELPERS ==========
     const firebaseConfig = {
       apiKey: "AIzaSyAfrs67qWlU8FjsjqHwNeivGgm7x_vHdJY",
       authDomain: "fiducia-148b9.firebaseapp.com",
@@ -682,7 +674,6 @@
       return (parts[0][0] + (parts[1][0] || '')).toUpperCase();
     }
 
-    // ========== CHAT LOGIC ==========
     const mainUI = document.getElementById('mainUI');
     const chatView = document.getElementById('chatView');
     const mainInput = document.getElementById('mainInput');
@@ -701,7 +692,6 @@
       bubble.className = 'message-bubble';
       bubble.innerHTML = marked.parse(text);
       div.appendChild(bubble);
-      
       if (sender === 'aria') {
         const actions = document.createElement('div');
         actions.className = 'message-actions';
@@ -714,8 +704,6 @@
           speechSynthesis.speak(utterance);
         };
         div.appendChild(actions);
-        
-        // Premium star rating row
         const ratingDiv = document.createElement('div');
         ratingDiv.className = 'rating-row';
         for (let i = 1; i <= 5; i++) {
@@ -738,7 +726,6 @@
         }
         div.appendChild(ratingDiv);
       }
-      
       messagesArea.appendChild(div);
       messagesArea.scrollTop = messagesArea.scrollHeight;
       return div;
@@ -894,51 +881,14 @@
       } catch(e) { console.error(e); }
     });
 
-    // File upload handler (image/PDF)
-    async function uploadFile(file, email) {
-      const reader = new FileReader();
-      reader.onload = async function(e) {
-        const base64 = e.target.result.split(',')[1];
-        const isPdf = file.type === 'application/pdf';
-        const endpoint = isPdf ? '/upload-pdf' : '/upload-image';
-        try {
-          const res = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: email,
-              image_base64: isPdf ? undefined : base64,
-              pdf_base64: isPdf ? base64 : undefined,
-              name: file.name
-            })
-          });
-          const data = await res.json();
-          if (data.status === 'ok') {
-            addMessage(`📄 Uploaded "${file.name}" (${data.extracted_text ? data.extracted_text.length + ' chars' : 'PDF processed'})`, 'aria');
-          } else {
-            addMessage(`Upload failed: ${data.error || 'Unknown error'}`, 'aria');
-          }
-        } catch(err) {
-          addMessage(`Upload error: ${err.message}`, 'aria');
-        }
-      };
-      reader.readAsDataURL(file);
+    // Temporary placeholder for upload (backend not ready yet)
+    function tempUpload() {
+      addMessage("📎 Upload feature coming soon. You'll be able to send images and PDFs for ARIA to learn from.", 'aria');
     }
-
-    function triggerUpload(email) {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*,application/pdf';
-      input.onchange = (e) => {
-        if (e.target.files.length) uploadFile(e.target.files[0], email);
-      };
-      input.click();
-    }
-
     const uploadBtn = document.getElementById('uploadBtn');
     const chatUploadBtn = document.getElementById('chatUploadBtn');
-    if (uploadBtn) uploadBtn.onclick = () => { if (currentUser) triggerUpload(currentUser.email); };
-    if (chatUploadBtn) chatUploadBtn.onclick = () => { if (currentUser) triggerUpload(currentUser.email); };
+    if (uploadBtn) uploadBtn.onclick = tempUpload;
+    if (chatUploadBtn) chatUploadBtn.onclick = tempUpload;
 
     auth.onAuthStateChanged(async (user) => {
       if (user) {
@@ -962,6 +912,6 @@
         window.location.href = '/login.html';
       }
     });
-</script>
+  </script>
 </body>
 </html>
