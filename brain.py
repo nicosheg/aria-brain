@@ -1311,6 +1311,58 @@ def clear_pending_goal(user_id):
     if user_id in pending_goals:
         del pending_goals[user_id]
 
+# ════════════════════════════════════════════════════════════════════
+# Predictive Exam Question Generation (uses global_documents)
+# ════════════════════════════════════════════════════════════════════
+def analyze_past_questions(user_id=None):
+    """Extract topics from GLOBAL document collection (shared across users)."""
+    if not db:
+        return {}
+    topics = {}
+    try:
+        docs = list(db.collection("global_documents").limit(200).stream())
+        for doc in docs:
+            text = doc.to_dict().get("text_snippet", "").lower()
+            keywords = [
+                "physics", "chemistry", "biology", "math", "mathematics",
+                "economics", "government", "literature", "history", "geography",
+                "accounts", "commerce", "civic", "agric", "computer"
+            ]
+            for kw in keywords:
+                if kw in text:
+                    topics[kw] = topics.get(kw, 0) + 1
+        return topics
+    except Exception as e:
+        print(f"analyze_past_questions error: {e}")
+        return {}
+
+def generate_predicted_questions(user_id, subject, num_questions=5):
+    """Generate exam predictions based on uploaded past questions."""
+    topics = analyze_past_questions(user_id)  # user_id kept for compatibility but not used
+    if not topics:
+        return None
+    # Get top 3 most frequent topics
+    sorted_topics = sorted(topics.items(), key=lambda x: x[1], reverse=True)[:3]
+    top_topics_str = ", ".join([t[0] for t in sorted_topics])
+    
+    prompt = f"""Based on past question analysis, the most frequent topics for {subject} are: {top_topics_str}.
+Generate {num_questions} likely exam questions for a Nigerian university exam in {subject}.
+Include options for objective questions. Output each question as:
+
+--- Q1 ---
+(question text)
+A) ...
+B) ...
+C) ...
+D) ...
+ANSWER: (letter)
+EXPLANATION: (1 sentence)
+
+Do not add any extra text."""
+    
+    system = "You are an expert Nigerian exam predictor. Use past patterns to predict future questions."
+    response = try_all_apis_parallel(prompt, system)
+    return response if response else "Failed to generate predictions."
 
 def get_memory_breakdown():
     """Full memory usage report for /memory-debug endpoint"""
