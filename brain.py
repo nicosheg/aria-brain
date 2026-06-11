@@ -32,6 +32,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import psycopg2
 from psycopg2 import pool
+pending_goals = {}
 
 # Optional pattern miner – ignore if missing
 try:
