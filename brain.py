@@ -1861,6 +1861,14 @@ class Handler(BaseHTTPRequestHandler):
             self._json(profile)
             return
 
+        # ── Check pattern_miner status (temporary) ──
+        if self.path == "/check_pattern_miner":
+            self._json({
+                "HAS_PATTERN_MINER": HAS_PATTERN_MINER,
+                "mine_patterns_exists": mine_patterns is not None
+            })
+            return
+
         # ── Get body for other endpoints ──
         data = self._body()
 
@@ -1896,7 +1904,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         # ── /feedback ─────────────────────────────
-        elif self.path == "/feedback":
+        if self.path == "/feedback":
             u = data.get("user_id", "default_user")
             score = data.get("score", 0)
             if db:
@@ -1920,14 +1928,6 @@ class Handler(BaseHTTPRequestHandler):
                 except:
                     pass
             self._json({"status": "Feedback recorded", "score": score})
-            return
-
-                # ── Check if pattern_miner is available (temporary) ──
-        elif self.path == "/check_pattern_miner":
-            self._json({
-                "HAS_PATTERN_MINER": HAS_PATTERN_MINER,
-                "mine_patterns_exists": mine_patterns is not None
-            })
             return
 
         else:
