@@ -22,6 +22,7 @@
 # ════════════════════════════════════════════════════════════════════
 # [S1] IMPORTS
 # ════════════════════════════════════════════════════════════════════
+# [S1] IMPORTS
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from collections import OrderedDict
 from datetime import datetime, timezone, timedelta
@@ -32,7 +33,16 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import psycopg2
 from psycopg2 import pool
-from pattern_miner import mine_patterns
+
+# Optional pattern miner – ignore if missing
+try:
+    from pattern_miner import mine_patterns
+    HAS_PATTERN_MINER = True
+    print("✅ pattern_miner loaded")          # <-- DEBUG LINE
+except ImportError:
+    HAS_PATTERN_MINER = False
+    mine_patterns = None
+    print("⚠️ pattern_miner not found – /mine endpoint disabled")   # <-- DEBUG LINE
 
 # ════════════════════════════════════════════════════════════════════
 # SUPABASE CONNECTION TEST (runs once at startup)
