@@ -1376,18 +1376,6 @@ def ask(m, u, api):
     if adaptive.get("decision_pattern"):
         adaptive_summary += f"User decision pattern: {json.dumps(adaptive['decision_pattern'])}\n"
     
-    # ── 6. Detect strong long‑term goal signals (for possible confirmation after response) ──
-    goal_confirmation = None
-    strong_goal_patterns = [
-        r'\bmy (long.?term|life|main) goal\b',
-        r'\bi (want|plan) to become\b',
-        r'\bi (want|plan) to (build|start|create|launch)\b',
-        r'\bmy (dream|mission|purpose)\b',
-        r'\bmy aim is to\b'
-    ]
-    if any(re.search(p, original_m, re.IGNORECASE) for p in strong_goal_patterns):
-        goal_confirmation = " Should I remember this as one of your long‑term goals? (Say yes or no.)"
-    
     # ── 7. Build unified prompt with adaptive injection ──
     nz = timezone(timedelta(hours=1))
     cd = datetime.now(nz).strftime("%A, %B %d, %Y at %H:%M")
