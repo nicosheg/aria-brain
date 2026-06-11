@@ -21,7 +21,6 @@
       overflow-x: hidden;
       min-height: 100vh;
     }
-    /* Cosmic background layers */
     .cosmic-bg {
       position: fixed;
       inset: 0;
@@ -81,7 +80,6 @@
       display: flex;
       flex-direction: column;
     }
-    /* Header with sign-out button */
     .header {
       display: flex;
       justify-content: flex-end;
@@ -131,7 +129,6 @@
       color: #94A3B8;
       margin-top: 4px;
     }
-    /* Centered welcome message */
     .center-message {
       flex: 1;
       display: flex;
@@ -166,12 +163,10 @@
       margin-top: 8px;
       opacity: 0.7;
     }
-    /* Bottom block (cards + divider + input) */
     .bottom-block {
       margin-top: auto;
       width: 100%;
     }
-    /* 3 cards grid (Memory, Education, Income) */
     .cards-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -279,6 +274,22 @@
       stroke: #3B82F6;
       stroke-width: 2;
     }
+    .upload-btn {
+      background: rgba(255,255,255,0.05);
+      border-radius: 30px;
+      width: 34px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: #60A5FA;
+      transition: all 0.2s;
+    }
+    .upload-btn:hover {
+      background: rgba(255,255,255,0.1);
+      color: #A78BFA;
+    }
     .footer {
       text-align: center;
       padding: 8px 0 12px;
@@ -288,7 +299,6 @@
       border-top: 0.5px solid rgba(255,255,255,0.04);
       width: 100%;
     }
-    /* Chat overlay – transparent background (cosmic visible) */
     .chat-view {
       position: fixed;
       inset: 0;
@@ -385,29 +395,41 @@
       border-radius: 16px;
     }
     .message-action:hover { background: rgba(0,0,0,0.6); }
-    /* Gemini-style glowing rating stars */
+    /* Premium star rating – Apple grade, tiny, responsive */
     .rating-row {
       display: flex;
-      gap: 8px;
-      margin-top: 8px;
-      justify-content: flex-start;
+      gap: 6px;
+      justify-content: flex-end;
+      margin-top: 6px;
+      padding: 2px 0;
     }
     .rating-star {
-      background: transparent;
-      border: none;
-      font-size: 18px;
+      width: 18px;
+      height: 18px;
       cursor: pointer;
-      transition: all 0.2s;
-      color: #FFD966;
-      text-shadow: 0 0 0px rgba(255,217,102,0);
-      filter: drop-shadow(0 0 0px #FFD966);
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.3);
+      stroke-width: 1.5;
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+                  filter 0.3s,
+                  fill 0.2s;
     }
-    .rating-star:hover {
-      transform: scale(1.15);
-      text-shadow: 0 0 6px #FFD966;
-      filter: drop-shadow(0 0 4px #FFD966);
+    .rating-star.active {
+      fill: #ffffff;
+      stroke: #3b82f6;
+      filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.8)) 
+              drop-shadow(0 0 10px rgba(167, 139, 250, 0.4));
+      transform: scale(1.05);
     }
-    /* Typing indicator */
+    @media (max-width: 640px) {
+      .rating-star {
+        width: 22px;
+        height: 22px;
+      }
+      .rating-row {
+        gap: 8px;
+      }
+    }
     .typing-indicator {
       display: flex;
       align-items: center;
@@ -437,7 +459,6 @@
       50% { box-shadow: 0 0 10px rgba(96,165,250,0.3); }
       100% { box-shadow: 0 0 0 rgba(96,165,250,0); }
     }
-    /* History modal */
     .history-modal {
       position: fixed;
       top: 0;
@@ -508,8 +529,7 @@
   <div class="cosmic-bg"></div>
   <div class="space-glow"></div>
   <div class="starfield" id="starfield"></div>
-
-  <div class="app-container" id="mainUI">
+    <div class="app-container" id="mainUI">
     <div class="header">
       <div class="title-section">
         <div class="main-title">ARIA</div>
@@ -545,6 +565,14 @@
       <div class="input-capsule">
         <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
         <input type="text" class="input-field" id="mainInput" placeholder="Message ARIA...">
+        <div class="upload-btn" id="uploadBtn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+            <line x1="8" y1="21" x2="16" y2="21"></line>
+            <line x1="12" y1="17" x2="12" y2="21"></line>
+            <path d="M12 2v5m-2-2 2-2 2 2"/>
+          </svg>
+        </div>
         <div class="send-circle" id="sendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
       </div>
       <div class="footer">By MrNicosh Eg</div>
@@ -564,6 +592,14 @@
     <div class="input-capsule" style="margin-bottom: 0;">
       <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
       <input type="text" class="input-field" id="chatInput" placeholder="Message ARIA...">
+      <div class="upload-btn" id="chatUploadBtn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+          <line x1="8" y1="21" x2="16" y2="21"></line>
+          <line x1="12" y1="17" x2="12" y2="21"></line>
+          <path d="M12 2v5m-2-2 2-2 2 2"/>
+        </svg>
+      </div>
       <div class="send-circle" id="chatSendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
     </div>
   </div>
@@ -577,7 +613,7 @@
   </div>
 
   <script>
-    // ========== STARFIELD GENERATION ==========
+    // ========== STARFIELD GENERATION (same as before) ==========
     (function() {
       const starfield = document.getElementById('starfield');
       function isNearDiagonal(x, y) { return (x + y) > 1.2; }
@@ -615,7 +651,7 @@
       }
     })();
   </script>
-    <script>
+  <script>
     // ========== FIREBASE AUTH & HELPERS ==========
     const firebaseConfig = {
       apiKey: "AIzaSyAfrs67qWlU8FjsjqHwNeivGgm7x_vHdJY",
@@ -666,7 +702,6 @@
       bubble.innerHTML = marked.parse(text);
       div.appendChild(bubble);
       
-      // Add copy & speak actions for ARIA messages
       if (sender === 'aria') {
         const actions = document.createElement('div');
         actions.className = 'message-actions';
@@ -680,18 +715,24 @@
         };
         div.appendChild(actions);
         
-        // Add rating stars (Gemini style)
+        // Premium star rating row
         const ratingDiv = document.createElement('div');
         ratingDiv.className = 'rating-row';
         for (let i = 1; i <= 5; i++) {
-          const star = document.createElement('button');
-          star.className = 'rating-star';
-          star.textContent = '⭐';
+          const star = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+          star.setAttribute("class", "rating-star");
+          star.setAttribute("viewBox", "0 0 24 24");
+          star.innerHTML = '<path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>';
           star.dataset.score = i;
           star.onclick = (e) => {
             e.stopPropagation();
             const score = parseInt(star.dataset.score);
             sendRating(score, ratingDiv);
+            const allStars = ratingDiv.querySelectorAll('.rating-star');
+            allStars.forEach((s, idx) => {
+              if (idx < score) s.classList.add('active');
+              else s.classList.remove('active');
+            });
           };
           ratingDiv.appendChild(star);
         }
@@ -761,12 +802,10 @@
       messagesArea.innerHTML = '';
     }
 
-    // History modal: retrieve aria_uid from localStorage, fallback to /check_user if missing
     async function fetchHistory() {
       if (!currentUser) return;
       let ariaUid = localStorage.getItem('aria_uid');
       if (!ariaUid) {
-        // Try to get it via /check_user using email
         try {
           const checkRes = await fetch(`/check_user?email=${encodeURIComponent(currentUser.email.toLowerCase())}`);
           const checkData = await checkRes.json();
@@ -855,6 +894,52 @@
       } catch(e) { console.error(e); }
     });
 
+    // File upload handler (image/PDF)
+    async function uploadFile(file, email) {
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        const base64 = e.target.result.split(',')[1];
+        const isPdf = file.type === 'application/pdf';
+        const endpoint = isPdf ? '/upload-pdf' : '/upload-image';
+        try {
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: email,
+              image_base64: isPdf ? undefined : base64,
+              pdf_base64: isPdf ? base64 : undefined,
+              name: file.name
+            })
+          });
+          const data = await res.json();
+          if (data.status === 'ok') {
+            addMessage(`📄 Uploaded "${file.name}" (${data.extracted_text ? data.extracted_text.length + ' chars' : 'PDF processed'})`, 'aria');
+          } else {
+            addMessage(`Upload failed: ${data.error || 'Unknown error'}`, 'aria');
+          }
+        } catch(err) {
+          addMessage(`Upload error: ${err.message}`, 'aria');
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function triggerUpload(email) {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*,application/pdf';
+      input.onchange = (e) => {
+        if (e.target.files.length) uploadFile(e.target.files[0], email);
+      };
+      input.click();
+    }
+
+    const uploadBtn = document.getElementById('uploadBtn');
+    const chatUploadBtn = document.getElementById('chatUploadBtn');
+    if (uploadBtn) uploadBtn.onclick = () => { if (currentUser) triggerUpload(currentUser.email); };
+    if (chatUploadBtn) chatUploadBtn.onclick = () => { if (currentUser) triggerUpload(currentUser.email); };
+
     auth.onAuthStateChanged(async (user) => {
       if (user) {
         currentUser = user;
@@ -879,4 +964,4 @@
     });
   </script>
 </body>
-</html>
+  </html>
