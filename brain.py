@@ -890,6 +890,52 @@ def is_new_session(u):
         return diff > 1800  # New session if >30 mins
     except: return False
 
+def save_adaptive_score(aria_uid, dimension, scores):
+    """Save or update adaptive probability scores for a user."""
+    if not _postgres_pool:
+        init_postgres()
+    if not aria_uid or not dimension or not scores:
+        return
+    try:
+        content = json.dumps(scores)
+        conn = _postgres_pool.getconn()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM memory_nodes WHERE aria_uid = %s AND node_type = 'fact' AND content LIKE %s",
+                    (aria_uid, f'adaptive_{dimension}%'))
+        cur.execute("INSERT INTO memory_nodes (aria_uid, node_type, content, importance) VALUES (%s, %s, %s, %s)",
+                    (aria_uid, 'fact', f'adaptive_{dimension}: {content}', 80))
+        conn.commit()
+        cur.close()
+        _postgres_pool.putconn(conn)
+    except Exception as e:
+        print(f"save_adaptive_score error: {e}")
+
+def load_adaptive_scores(aria_uid):
+    """Load all adaptive scores for user. Returns dict."""
+    result = {"learning_style": {}, "communication_preference": {}, "decision_pattern": {}}
+    if not _postgres_pool:
+        return result
+    try:
+        conn = _postgres_pool.getconn()
+        cur = conn.cursor()
+        cur.execute("SELECT content FROM memory_nodes WHERE aria_uid = %s AND node_type = 'fact' AND content LIKE 'adaptive_%'", (aria_uid,))
+        rows = cur.fetchall()
+        for (content,) in rows:
+            if content.startswith('adaptive_learning_style:'):
+                scores_str = content.split(':',1)[1].strip()
+                result["learning_style"] = json.loads(scores_str)
+            elif content.startswith('adaptive_communication_preference:'):
+                scores_str = content.split(':',1)[1].strip()
+                result["communication_preference"] = json.loads(scores_str)
+            elif content.startswith('adaptive_decision_pattern:'):
+                scores_str = content.split(':',1)[1].strip()
+                result["decision_pattern"] = json.loads(scores_str)
+        cur.close()
+        _postgres_pool.putconn(conn)
+    except Exception as e:
+        print(f"load_adaptive_scores error: {e}")
+    return result
+
 def save_memory(u, m, r):
     """Save conversation to Firestore for history (field names match get_context)."""
     if not db:
