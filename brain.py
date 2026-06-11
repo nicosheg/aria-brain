@@ -1632,13 +1632,20 @@ class Handler(BaseHTTPRequestHandler):
             parsed = urlparse(self.path)
             params = parse_qs(parsed.query)
             uid = params.get("uid", [""])[0]
-            if not uid:
-                self._json({"error": "Missing uid"})
+            email = params.get("email", [""])[0]
+            if not uid and not email:
+                self._json({"error": "Missing uid or email"})
                 return
+            if email:
+                # Convert email to aria_uid
+                uid_result = generate_aria_uid(email.lower())
+                if "error" in uid_result:
+                    self._json({"error": uid_result["error"]})
+                    return
+                uid = uid_result["aria_uid"]
             history = get_full_history(uid) or get_context(uid)
             self._json({"context": history})
             return
-
         # ── 404 for everything else ─────────────────
         else:
             self.send_response(404)
