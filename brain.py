@@ -33,16 +33,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import psycopg2
 from psycopg2 import pool
-
-# Optional pattern miner – ignore if missing
-try:
-    from pattern_miner import mine_patterns
-    HAS_PATTERN_MINER = True
-    print("✅ pattern_miner loaded")          # <-- DEBUG LINE
-except ImportError:
-    HAS_PATTERN_MINER = False
-    mine_patterns = None
-    print("⚠️ pattern_miner not found – /mine endpoint disabled")   # <-- DEBUG LINE
+from pattern_miner import mine_patterns
 
 # ════════════════════════════════════════════════════════════════════
 # SUPABASE CONNECTION TEST (runs once at startup)
