@@ -1219,7 +1219,6 @@ def set_pending_goal(user_id, goal_text, detected_type):
     """Store a pending goal awaiting user confirmation."""
     pending_goals[user_id] = {
         "goal": goal_text,
-        "detected_type": detected_type,
         "timestamp": time.time()
     }
 
