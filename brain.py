@@ -2003,6 +2003,30 @@ class Handler(BaseHTTPRequestHandler):
                     pass
             self._json({"status": "Feedback recorded", "score": score})
             return
+        # ── /predict (exam prediction) ───────────────
+        elif self.path == "/predict":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length)
+            try:
+                data = json.loads(body)
+            except:
+                self._json({"error": "Invalid JSON"}, 400)
+                return
+            email = data.get("email", "").strip().lower()
+            subject = data.get("subject", "")
+            if not email or not subject:
+                self._json({"error": "Missing email or subject"}, 400)
+                return
+            uid_result = generate_aria_uid(email)
+            if "error" in uid_result:
+                self._json({"error": uid_result["error"]}, 500)
+                return
+            u = uid_result["aria_uid"]
+            predictions = generate_predicted_questions(u, subject, num_questions=5)
+            if predictions:
+                self._json({"predictions": predictions})
+            else:
+                self._json({"error": "Upload past questions first (PDF or image) to enable predictions."}, 400)
 
         else:
             self.send_response(404)
