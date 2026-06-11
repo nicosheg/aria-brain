@@ -1274,7 +1274,7 @@ def try_all_apis_parallel(prompt, system_prompt):
                 },
                 headers={"Authorization": f"Bearer {k}"},
                 timeout=20
-            )  # <-- CLOSING PARENTHESIS
+             )
             if r.status_code == 200:
                 print("Groq success")
                 return r.json()["choices"][0]["message"]["content"]
