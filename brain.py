@@ -1174,8 +1174,6 @@ def check_rate_limit(user_id):
 
 # ════════════════════════════════════════════════════════════════════
 # [S8] UTILITIES
-#  Compression, tone detection, mode detection, pattern extraction.
-#  Add new utility functions here.
 # ════════════════════════════════════════════════════════════════════
 
 def compress_message(m, max_len=800):
@@ -1187,7 +1185,6 @@ def compress_message(m, max_len=800):
     )]
     result = " ".join(important[:5]) if important else " ".join(sentences[:3])
     return result[:max_len] + "..." if len(result) > max_len else result
-
 
 def detect_topic(message):
     """Auto-detect topic category"""
@@ -1206,7 +1203,6 @@ def detect_topic(message):
             return topic
     return "general"
 
-
 def detect_tone(message, user_id):
     """Detect the right response tone from user's message"""
     m = message.lower()
@@ -1220,7 +1216,6 @@ def detect_tone(message, user_id):
         return "COMPASSIONATE"
     return "BALANCED"
 
-
 def detect_mode(message, user_id):
     """Detect the best response mode"""
     m = message.lower()
@@ -1228,7 +1223,6 @@ def detect_mode(message, user_id):
     if any(w in m for w in ["should","how do i","roadmap","architecture","strategy","next"]): return "strategist"
     if any(w in m for w in ["customer","revenue","market","launch","users","business"]): return "marketer"
     return "general"
-
 
 def extract_decision(m, r):
     """Extract any decisions made in the conversation"""
@@ -1238,36 +1232,26 @@ def extract_decision(m, r):
         if matches: return matches[0][-1][:80]
     return None
 
-
 def extract_long_term_goal(message):
-    """Return goal text if strong long-term signal, else None.
-    Triggers only on commitment-level statements, not casual wants.
-    """
+    """Return goal text if strong long-term signal, else None."""
     m = message.lower()
     patterns = [
-        # Explicit long-term indicators
         r'\bmy (long.?term|life|main|ultimate|dream) goal (is|:)?\s*(.+)',
         r'\bmy (dream|mission|purpose) (is|:)?\s*(.+)',
         r'\bmy aim is to\s+(.+)',
-        # Commitment to become something
         r'\bi (want|plan|aspire) to become\s+(.+)',
-        # Building/creating/launching something
         r'\bi (want|plan) to (build|start|create|launch)\s+(.+)',
-        # Family/priority statements
         r'\bmy priority is to\s+(.+)',
         r'\bi want to help my (family|parents|siblings)\s+(.+)',
     ]
     for pat in patterns:
         match = re.search(pat, m, re.IGNORECASE)
         if match:
-            # The goal is the last captured group
             goal = match.group(match.lastindex or len(match.groups()))
-            # Clean up and limit length
             goal = goal.strip().strip('.,!?')[:100]
             if goal and len(goal) > 5:
                 return goal
     return None
-
 
 def extract_interest(m):
     """Extract interests/values mentioned"""
@@ -1276,7 +1260,6 @@ def extract_interest(m):
         matches = re.findall(p, m.lower())
         if matches: return matches[0][-1][:80]
     return None
-
 
 def extract_pattern(m, r, rating):
     """Extract a learning pattern from a high-rated interaction"""
@@ -1289,27 +1272,52 @@ def extract_pattern(m, r, rating):
         return "Detailed strategy works when user is stuck"
     return None
 
-def set_pending_goal(user_id, goal_text, detected_type):
-    """Store a pending goal awaiting user confirmation."""
-    pending_goals[user_id] = {
-        "goal": goal_text,
-        "timestamp": time.time()
-    }
+# ── Pending goal helpers (in-memory, no detected_type needed) ──
+def set_pending_goal(user_id, goal_text):
+    pending_goals[user_id] = {"goal": goal_text, "timestamp": time.time()}
 
 def get_pending_goal(user_id):
-    """Retrieve pending goal if it exists and is less than 5 minutes old."""
-    if user_id in pending_goals:
-        data = pending_goals[user_id]
-        if time.time() - data["timestamp"] < 300:
-            return data
-        else:
-            del pending_goals[user_id]
+    data = pending_goals.get(user_id)
+    if data and time.time() - data["timestamp"] < 300:
+        return data
+    elif data:
+        del pending_goals[user_id]
     return None
 
 def clear_pending_goal(user_id):
-    """Clear pending goal after processing."""
-    if user_id in pending_goals:
-        del pending_goals[user_id]
+    pending_goals.pop(user_id, None)
+
+# ════════════════════════════════════════════════════════════════════
+# OCR Functions (for image uploads)
+# ════════════════════════════════════════════════════════════════════
+_ocr_reader = None
+
+def get_ocr_reader():
+    global _ocr_reader
+    if _ocr_reader is None:
+        try:
+            import easyocr
+            _ocr_reader = easyocr.Reader(['en'], gpu=False, verbose=False)
+        except ImportError:
+            _ocr_reader = False
+    return _ocr_reader
+
+def extract_text_from_image(image_bytes):
+    """Extract text from image bytes using EasyOCR. Returns string or None."""
+    reader = get_ocr_reader()
+    if not reader:
+        return None
+    try:
+        from PIL import Image
+        import io
+        import numpy as np
+        img = Image.open(io.BytesIO(image_bytes))
+        img_np = np.array(img)
+        result = reader.readtext(img_np, detail=0, paragraph=True)
+        return " ".join(result) if result else None
+    except Exception as e:
+        print(f"OCR error: {e}")
+        return None
 
 # ════════════════════════════════════════════════════════════════════
 # Predictive Exam Question Generation (uses global_documents)
@@ -1338,10 +1346,9 @@ def analyze_past_questions(user_id=None):
 
 def generate_predicted_questions(user_id, subject, num_questions=5):
     """Generate exam predictions based on uploaded past questions."""
-    topics = analyze_past_questions(user_id)  # user_id kept for compatibility but not used
+    topics = analyze_past_questions(user_id)
     if not topics:
         return None
-    # Get top 3 most frequent topics
     sorted_topics = sorted(topics.items(), key=lambda x: x[1], reverse=True)[:3]
     top_topics_str = ", ".join([t[0] for t in sorted_topics])
     
@@ -1382,64 +1389,6 @@ def get_memory_breakdown():
             breakdown["aria_stage"], breakdown["aria_confidence"] = get_aria_stage()
         except: pass
     return breakdown
-# ════════════════════════════════════════════════════════════════════
-# Predictive Exam Question Generation
-# ════════════════════════════════════════════════════════════════════
-def analyze_past_questions(user_id):
-    """Extract topics and frequency from user's uploaded documents."""
-    if not db:
-        return {}
-    topics = {}
-    try:
-        # Get all documents for this user
-        docs = list(db.collection("users").document(user_id).collection("documents").stream())
-        for doc in docs:
-            # Get all chunks for this document
-            chunks = list(doc.reference.collection("chunks").stream())
-            for chunk in chunks:
-                text = chunk.to_dict().get("text", "").lower()
-                # Simple keyword extraction (expandable)
-                keywords = [
-                    "physics", "chemistry", "biology", "math", "mathematics",
-                    "economics", "government", "literature", "history", "geography",
-                    "accounts", "commerce", "civic", "agric", "computer"
-                ]
-                for kw in keywords:
-                    if kw in text:
-                        topics[kw] = topics.get(kw, 0) + 1
-        return topics
-    except Exception as e:
-        print(f"analyze_past_questions error: {e}")
-        return {}
-
-def generate_predicted_questions(user_id, subject, num_questions=5):
-    """Generate exam predictions based on uploaded past questions."""
-    topics = analyze_past_questions(user_id)
-    if not topics:
-        return None
-    # Get top 3 most frequent topics
-    sorted_topics = sorted(topics.items(), key=lambda x: x[1], reverse=True)[:3]
-    top_topics_str = ", ".join([t[0] for t in sorted_topics])
-    
-    prompt = f"""Based on past question analysis, the most frequent topics for {subject} are: {top_topics_str}.
-Generate {num_questions} likely exam questions for a Nigerian university exam in {subject}.
-Include options for objective questions. Output each question as:
-
---- Q1 ---
-(question text)
-A) ...
-B) ...
-C) ...
-D) ...
-ANSWER: (letter)
-EXPLANATION: (1 sentence)
-
-Do not add any extra text."""
-    
-    system = "You are an expert Nigerian exam predictor. Use past patterns to predict future questions."
-    response = try_all_apis_parallel(prompt, system)
-    return response if response else "Failed to generate predictions."
-
 
 # ════════════════════════════════════════════════════════════════════
 # [S9] MAIN ask() FUNCTION (OPTIMIZED + MEMORY)
