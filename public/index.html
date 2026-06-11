@@ -247,7 +247,6 @@
       height: 16px;
       stroke: #60A5FA;
     }
-    /* Textarea style (replaces input) */
     .input-field {
       flex: 1;
       background: transparent;
@@ -256,10 +255,6 @@
       font-size: 14px;
       outline: none;
       padding: 8px 0;
-      font-family: 'Inter', sans-serif;
-      resize: none;
-      overflow-y: auto;
-      max-height: 100px;
     }
     .input-field::placeholder { color: #334155; }
     .send-circle {
@@ -272,7 +267,6 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      flex-shrink: 0;
     }
     .send-circle svg {
       width: 14px;
@@ -293,7 +287,6 @@
       transition: all 0.25s ease;
       border: 0.5px solid rgba(96,165,250,0.3);
       position: relative;
-      flex-shrink: 0;
     }
     .upload-btn:hover {
       background: rgba(96,165,250,0.3);
@@ -435,17 +428,16 @@
       border-radius: 16px;
     }
     .message-action:hover { background: rgba(0,0,0,0.6); }
-    /* Premium star rating – smaller size */
     .rating-row {
       display: flex;
-      gap: 4px;
+      gap: 6px;
       justify-content: flex-end;
       margin-top: 6px;
       padding: 2px 0;
     }
     .rating-star {
-      width: 14px;
-      height: 14px;
+      width: 18px;
+      height: 18px;
       cursor: pointer;
       fill: none;
       stroke: rgba(255, 255, 255, 0.3);
@@ -457,17 +449,17 @@
     .rating-star.active {
       fill: #ffffff;
       stroke: #3b82f6;
-      filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.8)) 
-              drop-shadow(0 0 8px rgba(167, 139, 250, 0.4));
+      filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.8)) 
+              drop-shadow(0 0 10px rgba(167, 139, 250, 0.4));
       transform: scale(1.05);
     }
     @media (max-width: 640px) {
       .rating-star {
-        width: 16px;
-        height: 16px;
+        width: 22px;
+        height: 22px;
       }
       .rating-row {
-        gap: 6px;
+        gap: 8px;
       }
     }
     .typing-indicator {
@@ -602,8 +594,8 @@
       <div class="divider"><div class="divider-text">💫 ONE AI. EVERY PART OF YOUR LIFE. 💫</div></div>
       <div class="input-capsule">
         <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
-        <textarea rows="1" class="input-field" id="mainInput" placeholder="Message ARIA..."></textarea>
-        <div class="upload-btn" id="uploadBtn" aria-label="Upload image or PDF">
+        <input type="text" class="input-field" id="mainInput" placeholder="Message ARIA...">
+        <div class="upload-btn" id="uploadBtn">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
             <line x1="8" y1="21" x2="16" y2="21"></line>
@@ -627,8 +619,8 @@
     <div class="messages-area" id="messagesArea"></div>
     <div class="input-capsule" style="margin-bottom: 0;">
       <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
-      <textarea rows="1" class="input-field" id="chatInput" placeholder="Message ARIA..."></textarea>
-      <div class="upload-btn" id="chatUploadBtn" aria-label="Upload image or PDF">
+      <input type="text" class="input-field" id="chatInput" placeholder="Message ARIA...">
+      <div class="upload-btn" id="chatUploadBtn">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
           <line x1="8" y1="21" x2="16" y2="21"></line>
@@ -798,8 +790,6 @@
       if (!currentUser) return;
       addMessage(message, 'user');
       inputElement.value = '';
-      // Reset textarea height
-      inputElement.style.height = 'auto';
       showTyping();
       try {
         const res = await fetch('/chat', {
@@ -815,23 +805,6 @@
         hideTyping();
         addMessage('Connection uncertain. Please try again.', 'aria');
       }
-    }
-
-    // Auto-expand textarea
-    function autoExpand(textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = Math.min(textarea.scrollHeight, 100) + 'px';
-    }
-
-    function handleKeyPress(e, inputElement) {
-      // Send only on Ctrl+Enter or Cmd+Enter; otherwise insert newline
-      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        const msg = inputElement.value.trim();
-        if (msg) sendToAria(msg, inputElement);
-      }
-      // For plain Enter, let default behavior insert newline (already happens)
-      autoExpand(inputElement);
     }
 
     function openChat() {
@@ -918,25 +891,15 @@
       const msg = chatInput.value.trim();
       if (msg) sendToAria(msg, chatInput);
     });
-    chatInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        const msg = chatInput.value.trim();
-        if (msg) sendToAria(msg, chatInput);
-      }
-      autoExpand(chatInput);
+    chatInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); const msg = chatInput.value.trim(); if (msg) sendToAria(msg, chatInput); }
     });
     document.getElementById('sendBtn').addEventListener('click', () => {
       const msg = mainInput.value.trim();
       if (msg) sendToAria(msg, mainInput);
     });
-    mainInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        const msg = mainInput.value.trim();
-        if (msg) sendToAria(msg, mainInput);
-      }
-      autoExpand(mainInput);
+    mainInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); const msg = mainInput.value.trim(); if (msg) sendToAria(msg, mainInput); }
     });
 
     document.getElementById('historyBtn').addEventListener('click', showHistory);
@@ -950,51 +913,56 @@
       } catch(e) { console.error(e); }
     });
 
-    // Real file upload handler (image/PDF)
-    async function uploadFile(file, email) {
+    // ==================== UPDATED UPLOAD FUNCTION ====================
+    async function uploadFile(file, uid) {
+      if (file.size > 25 * 1024 * 1024) {
+        addMessage("❌ File too large. Max 25MB.", 'aria');
+        return;
+      }
       const reader = new FileReader();
-      reader.onload = async function(e) {
+      reader.onload = async (e) => {
         const base64 = e.target.result.split(',')[1];
-        const isPdf = file.type === 'application/pdf';
-        const endpoint = isPdf ? '/upload-pdf' : '/upload-image';
+        const fileType = file.type.includes('pdf') ? 'pdf' : 'image';
         try {
-          const res = await fetch(endpoint, {
+          const res = await fetch('/upload-file', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              email: email,
-              image_base64: isPdf ? undefined : base64,
-              pdf_base64: isPdf ? base64 : undefined,
-              name: file.name
+              user_id: uid,
+              file_base64: base64,
+              file_name: file.name,
+              file_type: fileType,
+              mime_type: file.type
             })
           });
           const data = await res.json();
-          if (data.status === 'ok') {
-            addMessage(`📄 Uploaded "${file.name}" (${data.extracted_text ? data.extracted_text.length + ' chars' : 'PDF processed'})`, 'aria');
+          if (data.status === 'PDF processed' || data.status === 'Image uploaded') {
+            addMessage(`📄 Uploaded "${file.name}" – ${data.type} processed.`, 'aria');
           } else {
             addMessage(`Upload failed: ${data.error || 'Unknown error'}`, 'aria');
           }
-        } catch(err) {
+        } catch (err) {
           addMessage(`Upload error: ${err.message}`, 'aria');
         }
       };
       reader.readAsDataURL(file);
     }
 
-    function triggerUpload(email) {
+    function triggerUpload(uid) {
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*,application/pdf';
       input.onchange = (e) => {
-        if (e.target.files.length) uploadFile(e.target.files[0], email);
+        if (e.target.files.length) uploadFile(e.target.files[0], uid);
       };
       input.click();
     }
 
     const uploadBtn = document.getElementById('uploadBtn');
     const chatUploadBtn = document.getElementById('chatUploadBtn');
-    if (uploadBtn) uploadBtn.onclick = () => { if (currentUser) triggerUpload(currentUser.email); };
-    if (chatUploadBtn) chatUploadBtn.onclick = () => { if (currentUser) triggerUpload(currentUser.email); };
+    if (uploadBtn) uploadBtn.onclick = () => { if (currentUser) triggerUpload(currentUser.uid); };
+    if (chatUploadBtn) chatUploadBtn.onclick = () => { if (currentUser) triggerUpload(currentUser.uid); };
+    // ===============================================================
 
     auth.onAuthStateChanged(async (user) => {
       if (user) {
