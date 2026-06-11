@@ -2164,6 +2164,54 @@ class Handler(BaseHTTPRequestHandler):
                 "full_length": len(text)
             })
             return
+
+        # ── /upload-pdf (receives base64 PDF from frontend) ──
+        elif self.path == "/upload-pdf":
+            data = self._body()
+            email = data.get("email", "").strip().lower()
+            pdf_b64 = data.get("pdf_base64", "")
+            name = data.get("name", "document")
+            
+            if not email or not pdf_b64:
+                self._json({"error": "Missing email or pdf_base64"}, 400)
+                return
+            
+            uid_result = generate_aria_uid(email)
+            if "error" in uid_result:
+                self._json({"error": uid_result["error"]}, 500)
+                return
+            u = uid_result["aria_uid"]
+            
+            import base64
+            try:
+                pdf_bytes = base64.b64decode(pdf_b64)
+            except Exception as e:
+                self._json({"error": f"Invalid base64: {e}"}, 400)
+                return
+            
+            # Extract text from PDF
+            text = extract_pdf_text(pdf_bytes)
+            if not text:
+                self._json({"error": "PDF text extraction failed. Ensure it's a text-based PDF."}, 400)
+                return
+            
+            # Store globally
+            status, doc_id = store_global_document(text, "pdf", name, "general")
+            # Link to user
+            if db:
+                db.collection("users").document(u).collection("uploads").add({
+                    "global_doc_id": doc_id,
+                    "type": "pdf",
+                    "uploaded_at": datetime.now().isoformat()
+                })
+            self._json({
+                "status": "ok",
+                "storage": status,
+                "extracted_text": text[:500],
+                "full_length": len(text)
+            })
+            return
+        
         else:
             self.send_response(404)
             self.end_headers()
