@@ -1250,7 +1250,7 @@ def get_relevant_lessons(question): return _startup_lessons
 def get_behavior_guidance(): return _startup_behaviors
 
 def try_all_apis_parallel(prompt, system_prompt):
-    """Try at most 15 Groq keys sequentially with delay"""
+    """Try Groq keys sequentially – first working wins."""
     import time
     count = 0
     for k in KEYS['groq']:
@@ -1282,66 +1282,8 @@ def try_all_apis_parallel(prompt, system_prompt):
                 print(f"Groq status {r.status_code}")
         except Exception as e:
             print(f"Groq error: {e}")
-        time.sleep(1.5)  # Wait 1.5 seconds before next key
+        time.sleep(1.5)
     return None
-    
-    def call_deepseek(key):
-        if results["response"]: return
-        try:
-            r = requests.post(
-                "https://api.deepseek.com/chat/completions",
-                json={
-                    "model": "deepseek-chat",
-                    "temperature": 0.7,
-                    "max_tokens": 400,
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": prompt}
-                    ]
-                },
-                headers={"Authorization": f"Bearer {key}"},
-                timeout=10
-            )
-            if r.status_code == 200:
-                resp = r.json()["choices"][0]["message"]["content"]
-                with results["lock"]:
-                    if not results["response"]:
-                        results["response"] = resp
-        except: pass
-        time.sleep(0.5)
-    
-    def call_gemini(key):
-        if results["response"]: return
-        try:
-            r = requests.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}",
-                json={"contents": [{"role": "user", "parts": [{"text": f"{system_prompt}\n\n{prompt}"}]}]},
-                timeout=10
-            )
-            if r.status_code == 200:
-                resp = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-                with results["lock"]:
-                    if not results["response"]:
-                        results["response"] = resp
-        except: pass
-        time.sleep(0.5)
-    
-    # Run all API calls in parallel
-    with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
-        futures = []
-        for k in KEYS['groq']:
-            if k: futures.append(executor.submit(call_groq, k))
-        for k in KEYS['deepseek']:
-            if k: futures.append(executor.submit(call_deepseek, k))
-        for k in KEYS['gemini']:
-            if k: futures.append(executor.submit(call_gemini, k))
-        
-        try:
-            concurrent.futures.wait(futures, timeout=8, return_when=concurrent.futures.FIRST_COMPLETED)
-        except: pass
-        time.sleep(0.5)
-    
-    return results["response"]
 
 def ask(m, u, api):
     # ── 1. Rate limit ──────────────────────────────
