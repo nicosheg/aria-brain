@@ -1194,6 +1194,29 @@ def extract_pattern(m, r, rating):
         return "Detailed strategy works when user is stuck"
     return None
 
+def set_pending_goal(user_id, goal_text, detected_type):
+    """Store a pending goal awaiting user confirmation."""
+    pending_goals[user_id] = {
+        "goal": goal_text,
+        "detected_type": detected_type,
+        "timestamp": time.time()
+    }
+
+def get_pending_goal(user_id):
+    """Retrieve pending goal if it exists and is less than 5 minutes old."""
+    if user_id in pending_goals:
+        data = pending_goals[user_id]
+        if time.time() - data["timestamp"] < 300:
+            return data
+        else:
+            del pending_goals[user_id]
+    return None
+
+def clear_pending_goal(user_id):
+    """Clear pending goal after processing."""
+    if user_id in pending_goals:
+        del pending_goals[user_id]
+
 
 def get_memory_breakdown():
     """Full memory usage report for /memory-debug endpoint"""
