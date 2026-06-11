@@ -2102,6 +2102,50 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._json({"error": "Upload past questions first (PDF or image) to enable predictions."}, 400)
 
+        # ── /upload-image (screenshot of past question) ──
+        elif self.path == "/upload-image":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length)
+            try:
+                data = json.loads(body)
+            except:
+                self._json({"error": "Invalid JSON"}, 400)
+                return
+            email = data.get("email", "").strip().lower()
+            image_b64 = data.get("image_base64", "")
+            if not email or not image_b64:
+                self._json({"error": "Missing email or image_base64"}, 400)
+                return
+            import base64
+            uid_result = generate_aria_uid(email)
+            if "error" in uid_result:
+                self._json({"error": uid_result["error"]}, 500)
+                return
+            u = uid_result["aria_uid"]
+            try:
+                image_bytes = base64.b64decode(image_b64)
+                text = extract_text_from_image(image_bytes)
+                if text:
+                    # Store in GLOBAL collection (deduplicated)
+                    status, doc_id = store_global_document(text, "image", f"user_{u}_screenshot", "general")
+                    # Link to user for reference
+                    if db:
+                        db.collection("users").document(u).collection("uploads").add({
+                            "global_doc_id": doc_id,
+                            "type": "image",
+                            "uploaded_at": datetime.now().isoformat()
+                        })
+                    self._json({
+                        "status": "ok",
+                        "storage": status,
+                        "extracted_text": text[:500],
+                        "full_length": len(text)
+                    })
+                else:
+                    self._json({"error": "OCR failed. Please type the question manually."}, 400)
+            except Exception as e:
+                self._json({"error": str(e)}, 500)
+
         else:
             self.send_response(404)
             self.end_headers()
