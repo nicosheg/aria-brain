@@ -2157,41 +2157,54 @@ class Handler(BaseHTTPRequestHandler):
             user_id = data.get("user_id", "")
             file_b64 = data.get("file_base64", "")
             file_name = data.get("file_name", "file")
-            file_type = data.get("file_type", "image")   # "image" or "pdf"
+            file_type = data.get("file_type", "image")
             mime_type = data.get("mime_type", "")
 
             if not user_id or not file_b64:
                 self._json({"error": "Missing user_id or file_base64"}, 400)
                 return
 
-            # Optional size check (already done on frontend)
             import base64
             try:
                 file_bytes = base64.b64decode(file_b64)
 
                 if file_type == "pdf":
-                    # Use existing extract_pdf_text (PyMuPDF)
-                    chunks, word_count = extract_pdf_text(file_bytes)
-                    if chunks is None:
-                        self._json({"error": "PDF processing failed. PyMuPDF missing?"}, 500)
+                    extracted_text = extract_pdf_text(file_bytes)
+                    if not extracted_text:
+                        self._json({"error": "PDF text extraction failed. Ensure PyMuPDF installed."}, 500)
                         return
-                    # Store chunks globally (or per-user, your choice)
-                    saved = save_pdf_chunks(user_id, file_name, chunks, topic="uploaded")
+                    status, doc_id = store_global_document(extracted_text, "pdf", file_name, "general")
+                    if db:
+                        db.collection("users").document(user_id).collection("uploads").add({
+                            "global_doc_id": doc_id,
+                            "type": "pdf",
+                            "name": file_name,
+                            "uploaded_at": datetime.now().isoformat()
+                        })
                     self._json({
                         "status": "PDF processed",
                         "type": "pdf",
-                        "chunks": len(chunks),
-                        "words": word_count,
-                        "saved": saved
+                        "characters": len(extracted_text),
+                        "storage": status
                     })
                 elif file_type == "image":
-                    # Store image in Firestore (or better, Firebase Storage)
-                    saved = save_image_file(user_id, file_name, file_bytes, mime_type)
+                    extracted_text = extract_text_from_image(file_bytes)
+                    if not extracted_text:
+                        self._json({"error": "OCR failed. Could not extract text from image."}, 400)
+                        return
+                    status, doc_id = store_global_document(extracted_text, "image", file_name, "general")
+                    if db:
+                        db.collection("users").document(user_id).collection("uploads").add({
+                            "global_doc_id": doc_id,
+                            "type": "image",
+                            "name": file_name,
+                            "uploaded_at": datetime.now().isoformat()
+                        })
                     self._json({
                         "status": "Image uploaded",
                         "type": "image",
-                        "size_kb": round(len(file_bytes) / 1024, 2),
-                        "saved": saved
+                        "extracted_text": extracted_text[:200],
+                        "storage": status
                     })
                 else:
                     self._json({"error": "Invalid file_type. Use 'image' or 'pdf'."}, 400)
