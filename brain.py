@@ -2165,6 +2165,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             import base64
+            import traceback
             try:
                 file_bytes = base64.b64decode(file_b64)
 
@@ -2210,6 +2211,8 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"error": "Invalid file_type. Use 'image' or 'pdf'."}, 400)
 
             except Exception as e:
+                # Print full traceback to Render logs
+                traceback.print_exc()
                 print(f"Upload error: {e}")
                 self._json({"error": f"Upload failed: {str(e)}"}, 500)
         
