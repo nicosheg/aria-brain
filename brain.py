@@ -1543,6 +1543,75 @@ class Handler(BaseHTTPRequestHandler):
                     continue
                 try:
                     r = requests.post("https://api.groq.com/openai/v1/chat/completions",
+    def do_GET(self):
+        if self.path == "/db_test":
+            import os, psycopg2
+            db_url = os.environ.get("SUPABASE_DB_URL", "")
+            if not db_url:
+                self._json({"error": "SUPABASE_DB_URL missing"})
+                return
+            try:
+                conn = psycopg2.connect(db_url)
+                cur = conn.cursor()
+                cur.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name='users');")
+                users_ok = cur.fetchone()[0]
+                cur.execute("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name='memory_nodes');")
+                nodes_ok = cur.fetchone()[0]
+                cur.close()
+                conn.close()
+                self._json({"users_table": users_ok, "memory_nodes_table": nodes_ok})
+            except Exception as e:
+                self._json({"error": str(e)})
+            return
+        print("Has _json?", hasattr(self, "_json"))
+        if self.path == "/ping":
+            self.send_response(200)
+            self.send_header("Content-type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"pong")
+            return
+
+        # ── Login/Index pages ──
+        if self.path == "/login.html":
+            try:
+                with open("public/login.html", "r") as f:
+                    self.send_response(200)
+                    self.send_header("Content-type", "text/html")
+                    self.end_headers()
+                    self.wfile.write(f.read().encode())
+                return
+            except:
+                self.send_response(404)
+                self.end_headers()
+                return
+
+        elif self.path == "/index.html" or self.path == "/":
+            try:
+                with open("public/index.html", "r") as f:
+                    self.send_response(200)
+                    self.send_header("Content-type", "text/html")
+                    self.end_headers()
+                    self.wfile.write(f.read().encode())
+                return
+            except:
+                self.send_response(404)
+                self.end_headers()
+                return
+
+        elif self.path == "/health":
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ARIA 3.5 alive 💚", "stage": get_aria_stage()[0]}).encode())
+            return
+
+        elif self.path == "/debug":
+            results = {}
+            for i, k in enumerate(KEYS['groq']):
+                if not k:
+                    continue
+                try:
+                    r = requests.post("https://api.groq.com/openai/v1/chat/completions",
                         json={"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": "test"}]},
                         headers={"Authorization": f"Bearer {k}"}, timeout=5)
                     results[f"groq_{i+1}"] = f"✅ {r.status_code}"
@@ -1593,32 +1662,27 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"error": str(e)}, 500)
             return
 
-            # ── /pattern-miner ────────────────────────
+        # ── /pattern-miner ────────────────────────
         elif self.path == "/pattern-miner":
             try:
                 if not db:
                     self._json({"error":"Firebase not connected"})
                     return
-
-                # Get all learning interactions
+                
                 docs = list(db.collection("aria_learning").limit(500).stream())
-
                 patterns = {}
                 topics = {}
-
+                
                 for doc in docs:
                     data = doc.to_dict()
                     rating = data.get("feedback_score", 0)
                     topic = data.get("topic", "general")
                     pattern = data.get("pattern")
-
-                    # Count by topic
+                    
                     topics[topic] = topics.get(topic, 0) + 1
-
-                    # Track high‑confidence patterns
                     if rating >= 4 and pattern:
                         patterns[pattern] = patterns.get(pattern, 0) + 1
-
+                
                 self._json({
                     "status": "Pattern miner active",
                     "total_interactions": len(docs),
@@ -1630,6 +1694,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._json({"error": str(e)}, 500)
                 return
+
         # ── 404 for everything else ─────────────────
         else:
             self.send_response(404)
