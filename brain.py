@@ -1830,6 +1830,27 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"status": "error", "message": str(e)}, 500)
                 return
 
+        # ── /my_profile (show user's stored facts and adaptive scores) ──
+        if self.path == "/my_profile":
+            data = self._body()
+            email = data.get("email", "").strip().lower()
+            if not email:
+                self._json({"error": "Missing email"}, 400)
+                return
+            uid_result = generate_aria_uid(email)
+            if "error" in uid_result:
+                self._json({"error": uid_result["error"]}, 500)
+                return
+            aria_uid = uid_result["aria_uid"]
+            facts = load_user_memory(aria_uid)
+            adaptive = load_adaptive_scores(aria_uid)
+            profile = {
+                "facts": facts.get("facts", []),
+                "adaptive_scores": adaptive
+            }
+            self._json(profile)
+            return
+
         # ── Get body for other endpoints ──
         data = self._body()
 
@@ -1889,6 +1910,7 @@ class Handler(BaseHTTPRequestHandler):
                 except:
                     pass
             self._json({"status": "Feedback recorded", "score": score})
+            return
 
         else:
             self.send_response(404)
