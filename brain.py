@@ -1645,44 +1645,38 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"error": str(e)}, 500)
             return
 
-        # ── /mine ───────────────────────────────────
-        if self.path.startswith("/mine"):
-            key = self.path.split("?key=")[-1] if "?key=" in self.path else ""
-            if key != "aria_mine_nicholas_2026":
-                self.send_response(403)
-                self.end_headers()
-                self.wfile.write(b"Access denied.")
-                return
-            results = mine_patterns(db)
-            self._json(results)
-            return
-
-        # ── /seed ──────────────────────────────────
-        if self.path.startswith("/seed"):
-            self.seed_aria_lessons()
-            return
-
-        # ── /check_user ────────────────────────────
-        if self.path.startswith("/check_user"):
-            from urllib.parse import urlparse, parse_qs
-            parsed = urlparse(self.path)
-            params = parse_qs(parsed.query)
-            email = params.get("email", [""])[0].strip().lower()
-            if not email:
-                self._json({"error": "Missing email"})
-                return
-            uid_result = generate_aria_uid(email)
-            self._json(uid_result)
-            return
-            
-        elif self.path == "/reset_pool":
-            global _postgres_pool
-            if _postgres_pool:
-                _postgres_pool.closeall()
-            _postgres_pool = None
-            init_postgres()
-            self._json({"status": "pool reset"})
-            return
+                # ── /pattern-miner ────────────────────────
+        elif self.path == "/pattern-miner":
+            try:
+                if not db:
+                    self._json({"error":"Firebase not connected"})
+                    return
+                
+                docs = list(db.collection("aria_learning").limit(500).stream())
+                patterns = {}
+                topics = {}
+                
+                for doc in docs:
+                    data = doc.to_dict()
+                    rating = data.get("feedback_score", 0)
+                    topic = data.get("topic", "general")
+                    pattern = data.get("pattern")
+                    
+                    topics[topic] = topics.get(topic, 0) + 1
+                    if rating >= 4 and pattern:
+                        patterns[pattern] = patterns.get(pattern, 0) + 1
+                
+                self._json({
+                    "status": "Pattern miner active",
+                    "total_interactions": len(docs),
+                    "topics_discovered": topics,
+                    "high_confidence_patterns": patterns,
+                    "timestamp": datetime.now().isoformat()
+                })
+                return   # <-- ADD THIS
+            except Exception as e:
+                self._json({"error": str(e)}, 500)
+                return   # <-- ALSO ADD THISqq
         # ── 404 for everything else ─────────────────
         else:
             self.send_response(404)
