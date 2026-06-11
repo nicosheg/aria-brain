@@ -1165,12 +1165,33 @@ def extract_decision(m, r):
     return None
 
 
-def extract_goal(m):
-    """Extract goals mentioned in the message"""
-    patterns = [r"(want to|goal|dream|target|aim|need to)\s+([^.!?]+)"]
-    for p in patterns:
-        matches = re.findall(p, m.lower())
-        if matches: return matches[0][-1][:80]
+def extract_long_term_goal(message):
+    """Return goal text if strong long-term signal, else None.
+    Triggers only on commitment-level statements, not casual wants.
+    """
+    m = message.lower()
+    patterns = [
+        # Explicit long-term indicators
+        r'\bmy (long.?term|life|main|ultimate|dream) goal (is|:)?\s*(.+)',
+        r'\bmy (dream|mission|purpose) (is|:)?\s*(.+)',
+        r'\bmy aim is to\s+(.+)',
+        # Commitment to become something
+        r'\bi (want|plan|aspire) to become\s+(.+)',
+        # Building/creating/launching something
+        r'\bi (want|plan) to (build|start|create|launch)\s+(.+)',
+        # Family/priority statements
+        r'\bmy priority is to\s+(.+)',
+        r'\bi want to help my (family|parents|siblings)\s+(.+)',
+    ]
+    for pat in patterns:
+        match = re.search(pat, m, re.IGNORECASE)
+        if match:
+            # The goal is the last captured group
+            goal = match.group(match.lastindex or len(match.groups()))
+            # Clean up and limit length
+            goal = goal.strip().strip('.,!?')[:100]
+            if goal and len(goal) > 5:
+                return goal
     return None
 
 
