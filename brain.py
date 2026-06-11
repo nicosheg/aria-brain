@@ -1416,6 +1416,26 @@ def ask(m, u, api):
     resp = try_all_apis_parallel(prompt, final_sp)
     
     if resp:
+        # ── Long-term goal confirmation (answer first, then ask) ──
+        goal = extract_long_term_goal(original_m)
+        pending = get_pending_goal(u)
+        
+        if goal and not pending:
+            # New long-term goal detected – ask for confirmation after answering
+            set_pending_goal(u, goal)
+            resp += f"\n\nShould I remember \"{goal}\" as a long-term goal and check in on your progress? (Say yes or no)"
+        
+        elif pending:
+            # User might be responding to a previous confirmation
+            user_response = original_m.lower().strip()
+            if user_response in ["yes", "yeah", "yep", "sure", "ok", "okay", "please do"]:
+                save_goal_with_type(u, pending["goal"], "long_term")
+                clear_pending_goal(u)
+                resp += "\n\n✓ Saved your long-term goal. I'll check in from time to time."
+            elif user_response in ["no", "nah", "no thanks", "nevermind", "cancel"]:
+                clear_pending_goal(u)
+                resp += "\n\nNo problem, I won't save that goal."
+            # If user said something else, ignore the pending goal (don't append anything)
         # Save memory in background
         save_memory(u, original_m, resp)
         cache_response(m, u, resp)
