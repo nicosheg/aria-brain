@@ -1922,6 +1922,14 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"status": "Feedback recorded", "score": score})
             return
 
+                # ── Check if pattern_miner is available (temporary) ──
+        elif self.path == "/check_pattern_miner":
+            self._json({
+                "HAS_PATTERN_MINER": HAS_PATTERN_MINER,
+                "mine_patterns_exists": mine_patterns is not None
+            })
+            return
+
         else:
             self.send_response(404)
             self.end_headers()
