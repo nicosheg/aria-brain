@@ -1626,6 +1626,19 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"error": str(e)}, 500)
                 return
 
+        # ── /context ───────────────────────────────
+        elif self.path.startswith("/context"):
+            from urllib.parse import urlparse, parse_qs
+            parsed = urlparse(self.path)
+            params = parse_qs(parsed.query)
+            uid = params.get("uid", [""])[0]
+            if not uid:
+                self._json({"error": "Missing uid"})
+                return
+            history = get_full_history(uid) or get_context(uid)
+            self._json({"context": history})
+            return
+
         # ── 404 for everything else ─────────────────
         else:
             self.send_response(404)
