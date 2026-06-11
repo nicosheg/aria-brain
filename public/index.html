@@ -21,7 +21,7 @@
       overflow-x: hidden;
       min-height: 100vh;
     }
-    /* Cosmic background layers (same as before) */
+    /* Cosmic background layers */
     .cosmic-bg {
       position: fixed;
       inset: 0;
@@ -171,18 +171,18 @@
       margin-top: auto;
       width: 100%;
     }
-    /* Four cards grid – fixed to always show 4 columns */
+    /* 3 cards grid (Memory, Education, Income) */
     .cards-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 10px;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
       margin-bottom: 16px;
     }
     .feature-card {
       background: rgba(20,22,40,0.5);
       backdrop-filter: blur(8px);
       border-radius: 18px;
-      padding: 12px 6px 8px;
+      padding: 14px 8px 10px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -193,36 +193,34 @@
     }
     .feature-card:hover { background: rgba(20,22,40,0.7); }
     .card-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 16px;
+      width: 36px;
+      height: 36px;
+      border-radius: 18px;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
     }
     .card-memory .card-icon { background: rgba(167,139,250,0.15); }
     .card-education .card-icon { background: rgba(96,165,250,0.15); }
     .card-income .card-icon { background: rgba(16,185,129,0.15); }
-    .card-decisions .card-icon { background: rgba(245,158,11,0.15); }
     .card-icon svg {
-      width: 16px;
-      height: 16px;
+      width: 18px;
+      height: 18px;
       fill: none;
       stroke-width: 1.5;
     }
     .card-memory .card-icon svg { stroke: #A78BFA; }
     .card-education .card-icon svg { stroke: #60A5FA; }
     .card-income .card-icon svg { stroke: #10B981; }
-    .card-decisions .card-icon svg { stroke: #F59E0B; }
     .card-title {
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 600;
       color: white;
       margin-bottom: 2px;
     }
     .card-desc {
-      font-size: 8px;
+      font-size: 9px;
       color: #9CA3AF;
     }
     .divider {
@@ -290,12 +288,11 @@
       border-top: 0.5px solid rgba(255,255,255,0.04);
       width: 100%;
     }
-    /* Chat overlay (transparent background) */
+    /* Chat overlay – transparent background (cosmic visible) */
     .chat-view {
       position: fixed;
       inset: 0;
-      background: rgba(3, 5, 10, 0.85);
-      backdrop-filter: blur(4px);
+      background: transparent;
       z-index: 100;
       padding: 20px;
       display: none;
@@ -388,22 +385,28 @@
       border-radius: 16px;
     }
     .message-action:hover { background: rgba(0,0,0,0.6); }
-    /* Rating stars row */
+    /* Gemini-style glowing rating stars */
     .rating-row {
       display: flex;
       gap: 8px;
-      margin-top: 6px;
+      margin-top: 8px;
       justify-content: flex-start;
     }
     .rating-star {
-      font-size: 14px;
-      cursor: pointer;
       background: transparent;
       border: none;
-      opacity: 0.6;
-      transition: 0.1s;
+      font-size: 18px;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: #FFD966;
+      text-shadow: 0 0 0px rgba(255,217,102,0);
+      filter: drop-shadow(0 0 0px #FFD966);
     }
-    .rating-star:hover { opacity: 1; transform: scale(1.1); }
+    .rating-star:hover {
+      transform: scale(1.15);
+      text-shadow: 0 0 6px #FFD966;
+      filter: drop-shadow(0 0 4px #FFD966);
+    }
     /* Typing indicator */
     .typing-indicator {
       display: flex;
@@ -492,12 +495,12 @@
       to { opacity: 1; transform: translateY(0); }
     }
     @media (max-width: 640px) {
-      .cards-grid { gap: 6px; }
-      .feature-card { padding: 8px 3px 6px; }
-      .card-title { font-size: 10px; }
-      .card-desc { font-size: 7px; }
-      .card-icon { width: 28px; height: 28px; }
-      .card-icon svg { width: 14px; height: 14px; }
+      .cards-grid { gap: 8px; }
+      .feature-card { padding: 10px 4px 6px; }
+      .card-title { font-size: 11px; }
+      .card-desc { font-size: 8px; }
+      .card-icon { width: 30px; height: 30px; }
+      .card-icon svg { width: 16px; height: 16px; }
     }
   </style>
 </head>
@@ -518,13 +521,11 @@
       </div>
     </div>
 
-    <!-- Centered welcome message -->
     <div class="center-message">
       <div class="greeting">Hey <span id="userName">friend</span>.</div>
       <div class="timestamp" id="timestamp">—</div>
     </div>
 
-    <!-- Bottom block: cards, divider, input, footer -->
     <div class="bottom-block">
       <div class="cards-grid">
         <div class="feature-card card-memory" data-pillar="Memory">
@@ -539,10 +540,6 @@
           <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
           <div class="card-title">Income</div><div class="card-desc">Track, plan, and grow.</div>
         </div>
-        <div class="feature-card card-decisions" data-pillar="Decisions">
-          <div class="card-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg></div>
-          <div class="card-title">Decisions</div><div class="card-desc">Get clarity. Make better calls.</div>
-        </div>
       </div>
       <div class="divider"><div class="divider-text">💫 ONE AI. EVERY PART OF YOUR LIFE. 💫</div></div>
       <div class="input-capsule">
@@ -554,7 +551,7 @@
     </div>
   </div>
 
-  <!-- Chat overlay -->
+  <!-- Chat overlay (transparent) -->
   <div id="chatView" class="chat-view">
     <div class="chat-header">
       <button class="back-btn" id="closeChatBtn">←</button>
@@ -619,7 +616,7 @@
     })();
   </script>
     <script>
-    // ========== FIREBASE AUTH ==========
+    // ========== FIREBASE AUTH & HELPERS ==========
     const firebaseConfig = {
       apiKey: "AIzaSyAfrs67qWlU8FjsjqHwNeivGgm7x_vHdJY",
       authDomain: "fiducia-148b9.firebaseapp.com",
@@ -633,7 +630,6 @@
 
     let currentUser = null;
     let lastAriaMessage = null;
-    let currentRatingDiv = null;  // for inline rating stars
 
     function updateTimestamp() {
       const now = new Date();
@@ -643,7 +639,6 @@
     updateTimestamp();
     setInterval(updateTimestamp, 60000);
 
-    // Helper: user initials
     function getUserInitials(displayName, email) {
       if (!displayName) return email.substring(0,2).toUpperCase();
       const parts = displayName.trim().split(/\s+/);
@@ -663,8 +658,7 @@
     const historyModal = document.getElementById('historyModal');
     const historyContent = document.getElementById('historyContent');
 
-    // Add message with rating stars (5 emoji buttons)
-    function addMessage(text, sender) {
+    function addMessage(text, sender, showRating = false, msgId = null) {
       const div = document.createElement('div');
       div.className = `message ${sender}`;
       const bubble = document.createElement('div');
@@ -672,8 +666,8 @@
       bubble.innerHTML = marked.parse(text);
       div.appendChild(bubble);
       
+      // Add copy & speak actions for ARIA messages
       if (sender === 'aria') {
-        // Add copy & speak actions
         const actions = document.createElement('div');
         actions.className = 'message-actions';
         actions.innerHTML = `<button class="message-action copy-msg">📋 Copy</button><button class="message-action speak-msg">🔊 Speak</button>`;
@@ -686,22 +680,21 @@
         };
         div.appendChild(actions);
         
-        // Add rating stars
+        // Add rating stars (Gemini style)
         const ratingDiv = document.createElement('div');
         ratingDiv.className = 'rating-row';
-        const stars = ['👎', '😐', '👍', '🔥', '💯'];
-        stars.forEach((emoji, idx) => {
+        for (let i = 1; i <= 5; i++) {
           const star = document.createElement('button');
           star.className = 'rating-star';
-          star.textContent = emoji;
-          star.dataset.score = idx + 1;
+          star.textContent = '⭐';
+          star.dataset.score = i;
           star.onclick = (e) => {
             e.stopPropagation();
             const score = parseInt(star.dataset.score);
             sendRating(score, ratingDiv);
           };
           ratingDiv.appendChild(star);
-        });
+        }
         div.appendChild(ratingDiv);
       }
       
@@ -768,10 +761,21 @@
       messagesArea.innerHTML = '';
     }
 
-    // History modal using correct uid from localStorage
+    // History modal: retrieve aria_uid from localStorage, fallback to /check_user if missing
     async function fetchHistory() {
       if (!currentUser) return;
-      const ariaUid = localStorage.getItem('aria_uid');
+      let ariaUid = localStorage.getItem('aria_uid');
+      if (!ariaUid) {
+        // Try to get it via /check_user using email
+        try {
+          const checkRes = await fetch(`/check_user?email=${encodeURIComponent(currentUser.email.toLowerCase())}`);
+          const checkData = await checkRes.json();
+          if (checkData.aria_uid) {
+            ariaUid = checkData.aria_uid;
+            localStorage.setItem('aria_uid', ariaUid);
+          }
+        } catch(e) { console.warn(e); }
+      }
       if (!ariaUid) {
         historyContent.innerHTML = '<p>No conversation history yet.</p>';
         return;
@@ -859,11 +863,15 @@
         const initials = getUserInitials(user.displayName, user.email);
         userInitialsSpan.textContent = initials;
         try {
-          await fetch('/set_user_name', {
+          const nameRes = await fetch('/set_user_name', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_id: user.uid, email: user.email.toLowerCase(), name: displayName })
           });
+          const nameData = await nameRes.json();
+          if (nameData.aria_uid) {
+            localStorage.setItem('aria_uid', nameData.aria_uid);
+          }
         } catch(e) { console.warn(e); }
       } else {
         window.location.href = '/login.html';
