@@ -1593,27 +1593,32 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"error": str(e)}, 500)
             return
 
-                # ── /pattern-miner ────────────────────────
+            # ── /pattern-miner ────────────────────────
         elif self.path == "/pattern-miner":
             try:
                 if not db:
                     self._json({"error":"Firebase not connected"})
                     return
-                
+
+                # Get all learning interactions
                 docs = list(db.collection("aria_learning").limit(500).stream())
+
                 patterns = {}
                 topics = {}
-                
+
                 for doc in docs:
                     data = doc.to_dict()
                     rating = data.get("feedback_score", 0)
                     topic = data.get("topic", "general")
                     pattern = data.get("pattern")
-                    
+
+                    # Count by topic
                     topics[topic] = topics.get(topic, 0) + 1
+
+                    # Track high‑confidence patterns
                     if rating >= 4 and pattern:
                         patterns[pattern] = patterns.get(pattern, 0) + 1
-                
+
                 self._json({
                     "status": "Pattern miner active",
                     "total_interactions": len(docs),
