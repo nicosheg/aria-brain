@@ -1333,6 +1333,40 @@ def extract_pdf_text(pdf_bytes):
         print(f"PDF extraction error: {e}")
         return None
 
+def save_image_file(user_id, file_name, file_bytes, mime_type):
+    """Store image metadata + hex data in Firestore (per‑user)."""
+    if not db:
+        return False
+    try:
+        db.collection("users").document(user_id).collection("images").add({
+            "name": file_name,
+            "mime_type": mime_type,
+            "size_bytes": len(file_bytes),
+            "timestamp": datetime.now().isoformat(),
+            "data_hex": file_bytes.hex()
+        })
+        return True
+    except Exception as e:
+        print(f"save_image_file error: {e}")
+        return False
+
+def save_pdf_chunks(user_id, file_name, text, topic="uploaded"):
+    """Store PDF text in Firestore (per‑user)."""
+    if not db or not text:
+        return False
+    try:
+        db.collection("users").document(user_id).collection("pdfs").add({
+            "name": file_name,
+            "topic": topic,
+            "text": text[:10000],
+            "full_length": len(text),
+            "timestamp": datetime.now().isoformat()
+        })
+        return True
+    except Exception as e:
+        print(f"save_pdf_chunks error: {e}")
+        return False
+
 # ════════════════════════════════════════════════════════════════════
 # Predictive Exam Question Generation (uses global_documents)
 # ════════════════════════════════════════════════════════════════════
