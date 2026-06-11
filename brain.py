@@ -1621,10 +1621,10 @@ class Handler(BaseHTTPRequestHandler):
                     "high_confidence_patterns": patterns,
                     "timestamp": datetime.now().isoformat()
                 })
-                return   # <-- ADD THIS
+                return
             except Exception as e:
                 self._json({"error": str(e)}, 500)
-                return   # <-- ALSO ADD THISqq
+                return
         # ── 404 for everything else ─────────────────
         else:
             self.send_response(404)
