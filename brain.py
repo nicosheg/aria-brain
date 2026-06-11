@@ -1446,9 +1446,7 @@ def ask(m, u, api):
                 save_user_fact(u, "name", name_match.group(1))
             except NameError:
                 pass
-        # Append goal confirmation after the answer (if needed)
-        if goal_confirmation:
-            resp += goal_confirmation
+
         return resp
     
     # ── 9. Fallback to cache ──
