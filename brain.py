@@ -1046,7 +1046,81 @@ def save_user_fact(u, key, value):
             })
     except:
         pass
+# ════════════════════════════════════════════════════════════════════
+# [S6.5] Global Document Storage (shared across users, deduplicated)
+# ════════════════════════════════════════════════════════════════════
+import hashlib
 
+def get_document_hash(text):
+    """Generate SHA-256 hash of document text for deduplication."""
+    return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
+def store_global_document(text, source_type, source_name="unknown", topic="general"):
+    """
+    Store document in global collection if not already present.
+    Returns: (status, doc_id) where status is 'new' or 'existing'
+    """
+    if not db:
+        return ("error", None)
+    doc_hash = get_document_hash(text[:5000])  # Hash first 5000 chars
+    try:
+        # Check if already exists
+        existing = list(db.collection("global_documents")
+                        .where("hash", "==", doc_hash)
+                        .limit(1).stream())
+        if existing:
+            doc_id = existing[0].id
+            # Increment upload count
+            existing[0].reference.update({
+                "upload_count": firestore.Increment(1),
+                "last_used": datetime.now().isoformat()
+            })
+            return ("existing", doc_id)
+        # Store new
+        doc_ref = db.collection("global_documents").document()
+        doc_ref.set({
+            "hash": doc_hash,
+            "source_type": source_type,
+            "source_name": source_name,
+            "topic": topic,
+            "text_snippet": text[:2000],  # Store for search
+            "full_length": len(text),
+            "upload_count": 1,
+            "first_uploaded": datetime.now().isoformat(),
+            "last_used": datetime.now().isoformat()
+        })
+        return ("new", doc_ref.id)
+    except Exception as e:
+        print(f"store_global_document error: {e}")
+        return ("error", None)
+
+def search_global_documents(query, limit=3):
+    """
+    Search global document collection for relevant text chunks.
+    Simple keyword matching for MVP (can upgrade to vector search later).
+    """
+    if not db:
+        return ""
+    try:
+        docs = list(db.collection("global_documents").limit(50).stream())
+        results = []
+        query_words = set(query.lower().split())
+        for doc in docs:
+            data = doc.to_dict()
+            text = data.get("text_snippet", "")
+            # Simple relevance: count matching words
+            text_words = set(text.lower().split())
+            overlap = len(query_words & text_words)
+            if overlap > 0:
+                results.append((overlap, text[:500]))
+        results.sort(reverse=True)
+        if not results:
+            return ""
+        combined = "\n---\n".join([text for _, text in results[:limit]])
+        return f"📚 From ARIA's global knowledge base (shared across all users):\n{combined}"
+    except Exception as e:
+        print(f"search_global_documents error: {e}")
+        return ""
 
 # ════════════════════════════════════════════════════════════════════
 # [S7] SMART CACHE
