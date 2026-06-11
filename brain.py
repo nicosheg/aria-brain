@@ -1646,6 +1646,19 @@ class Handler(BaseHTTPRequestHandler):
             history = get_full_history(uid) or get_context(uid)
             self._json({"context": history})
             return
+
+        # ── /check_user ───────────────────────────────
+        elif self.path.startswith("/check_user"):
+            from urllib.parse import urlparse, parse_qs
+            parsed = urlparse(self.path)
+            params = parse_qs(parsed.query)
+            email = params.get("email", [""])[0]
+            if not email:
+                self._json({"error": "Missing email parameter"})
+                return
+            result = generate_aria_uid(email.lower())
+            self._json(result)
+            return
         # ── 404 for everything else ─────────────────
         else:
             self.send_response(404)
