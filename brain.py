@@ -1975,6 +1975,10 @@ class Handler(BaseHTTPRequestHandler):
         # ── Get body for other endpoints ──
         data = self._body()
 
+        # ── /chat-test (bypass ask) ──
+        if self.path == "/chat-test":
+            self._json({"reply": "Chat test works!"})
+            return
         # ── /chat ──────────────────────────────────
         if self.path == "/chat":
             data = self._body()
