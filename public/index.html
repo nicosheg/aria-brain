@@ -913,85 +913,85 @@
       } catch(e) { console.error(e); }
     });
 
-// ==================== UPLOAD FUNCTIONS (2-space indent) ====================
-async function uploadFile(file, uid) {
-  if (file.size > 25 * 1024 * 1024) {
-    addMessage("❌ File too large. Max 25MB.", 'aria');
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    const base64 = e.target.result.split(',')[1];
-    const fileType = file.type.includes('pdf') ? 'pdf' : 'image';
-
-    console.log("[UPLOAD] Sending...");
-    try {
-      const res = await fetch('/upload-file', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: uid,
-          file_base64: base64,
-          file_name: file.name,
-          file_type: fileType,
-          mime_type: file.type
-        })
-      });
-      const text = await res.text();
-      console.log("[UPLOAD] Response:", text);
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        addMessage("Server error: invalid response", 'aria');
+    // ==================== UPLOAD FUNCTIONS (2 spaces indent) ====================
+    async function uploadFile(file, uid) {
+      if (file.size > 25 * 1024 * 1024) {
+        addMessage("❌ File too large. Max 25MB.", 'aria');
         return;
       }
-      if (data.status && data.status.includes('Upload received')) {
-        addMessage(`📄 Uploaded "${file.name}" – received.`, 'aria');
-      } else {
-        addMessage(`Upload failed: ${data.error || 'Unknown'}`, 'aria');
-      }
-    } catch (err) {
-      addMessage(`Upload error: ${err.message}`, 'aria');
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const base64 = e.target.result.split(',')[1];
+        const fileType = file.type.includes('pdf') ? 'pdf' : 'image';
+
+        console.log("[UPLOAD] Sending...");
+        try {
+          const res = await fetch('/upload-file', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: uid,
+              file_base64: base64,
+              file_name: file.name,
+              file_type: fileType,
+              mime_type: file.type
+            })
+          });
+          const text = await res.text();
+          console.log("[UPLOAD] Response:", text);
+          let data;
+          try {
+            data = JSON.parse(text);
+          } catch (e) {
+            addMessage("Server error: invalid response", 'aria');
+            return;
+          }
+          if (data.status && data.status.includes('Upload received')) {
+            addMessage(`📄 Uploaded "${file.name}" – received.`, 'aria');
+          } else {
+            addMessage(`Upload failed: ${data.error || 'Unknown'}`, 'aria');
+          }
+        } catch (err) {
+          addMessage(`Upload error: ${err.message}`, 'aria');
+        }
+      };
+      reader.readAsDataURL(file);
     }
-  };
-  reader.readAsDataURL(file);
-}
 
-function triggerUpload(uid) {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'image/*,application/pdf';
-  input.onchange = (e) => {
-    if (e.target.files.length) uploadFile(e.target.files[0], uid);
-  };
-  input.click();
-}
+    function triggerUpload(uid) {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*,application/pdf';
+      input.onchange = (e) => {
+        if (e.target.files.length) uploadFile(e.target.files[0], uid);
+      };
+      input.click();
+    }
 
-// Attach upload buttons (no duplicates)
-const uploadBtn = document.getElementById('uploadBtn');
-const chatUploadBtn = document.getElementById('chatUploadBtn');
-if (uploadBtn) {
-  uploadBtn.onclick = () => {
-    if (currentUser && currentUser.uid) triggerUpload(currentUser.uid);
-    else addMessage("Please sign in first.", 'aria');
-  };
-}
-if (chatUploadBtn) {
-  chatUploadBtn.onclick = () => {
-    if (currentUser && currentUser.uid) triggerUpload(currentUser.uid);
-    else addMessage("Please sign in first.", 'aria');
-  };
-  }
+    // Attach upload buttons
     const uploadBtn = document.getElementById('uploadBtn');
     const chatUploadBtn = document.getElementById('chatUploadBtn');
-    if (uploadBtn) uploadBtn.onclick = () => { if (currentUser) triggerUpload(currentUser.uid); };
-    if (chatUploadBtn) chatUploadBtn.onclick = () => { if (currentUser) triggerUpload(currentUser.uid); };
+    if (uploadBtn) {
+      uploadBtn.onclick = () => {
+        if (currentUser && currentUser.uid) triggerUpload(currentUser.uid);
+        else addMessage("Please sign in first.", 'aria');
+      };
+    }
+    if (chatUploadBtn) {
+      chatUploadBtn.onclick = () => {
+        if (currentUser && currentUser.uid) triggerUpload(currentUser.uid);
+        else addMessage("Please sign in first.", 'aria');
+      };
+    }
     // ===============================================================
 
     auth.onAuthStateChanged(async (user) => {
       if (user) {
         currentUser = user;
+        // Keep service warm (reduce cold starts)
+        setInterval(() => {
+          fetch('/health').catch(() => {});
+        }, 4 * 60 * 1000);
         const displayName = user.displayName || user.email.split('@')[0];
         userNameSpan.textContent = displayName;
         const initials = getUserInitials(user.displayName, user.email);
@@ -1013,4 +1013,5 @@ if (chatUploadBtn) {
     });
   </script>
 </body>
-  </html>
+</html>
+                                                                                                                                 </html>
