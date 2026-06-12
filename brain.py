@@ -1977,6 +1977,7 @@ class Handler(BaseHTTPRequestHandler):
 
         # ── /chat ──────────────────────────────────
         if self.path == "/chat":
+            data = self._body()
             m = data.get("message", "").strip()
             email = data.get("email", "").strip().lower()
             
