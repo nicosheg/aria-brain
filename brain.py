@@ -2058,49 +2058,13 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._json({"error": "Upload past questions first (PDF or image) to enable predictions."}, 400)
 
-        # ── /upload-file (debug version) ──
+        # ── /upload-file (minimal working version) ──
         elif self.path == "/upload-file":
-            try:
-                data = self._body()
-                user_id = data.get("user_id", "")
-                file_name = data.get("file_name", "file")
-                file_type = data.get("file_type", "image")
-                
-                print(f"[UPLOAD] user={user_id}, file={file_name}, type={file_type}")
-                
-                if not user_id or not file_name:
-                    self._json({"error": "Missing user_id or file_name"}, 400)
-                    return
-                
-                # Check Firebase connection
-                if not db:
-                    self._json({"error": "Firebase not connected"}, 500)
-                    return
-                
-                # Attempt to save to Firestore
-                try:
-                    doc_ref = db.collection("users").document(user_id).collection("uploads").add({
-                        "name": file_name,
-                        "type": file_type,
-                        "timestamp": datetime.now().isoformat(),
-                        "debug": "upload_received"
-                    })
-                    print(f"[UPLOAD] SUCCESS: saved to Firebase, doc ID: {doc_ref.id if doc_ref else 'unknown'}")
-                    self._json({
-                        "status": "✅ Upload received",
-                        "type": file_type,
-                        "file_name": file_name
-                    })
-                except Exception as fb_error:
-                    print(f"[UPLOAD] Firebase error: {str(fb_error)}")
-                    self._json({"error": f"Firebase write failed: {str(fb_error)}"}, 500)
-                    
-            except Exception as e:
-                print(f"[UPLOAD] Endpoint error: {str(e)}")
-                self._json({"error": f"Upload failed: {str(e)}"}, 500)
-                data = self._body()
-                print(f"[UPLOAD] Received data: {data}")  # DEBUG
-                user_id = data.get("user_id", "")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "Upload received (debug)", "type": "test"}).encode())
+            return
         
         else:
             self.send_response(404)
