@@ -1552,6 +1552,16 @@ def ask(m, u, api):
         cx = get_full_history(u)
     else:
         cx = get_context(u)
+
+    # ──4.5. Search user's uploaded images (screenshots) ──
+    image_context = search_image_text(u, m)
+    
+    # ── 4.6. Start building memory section ──
+    memory_section = ""
+    if image_context:
+        memory_section += image_context + "\n\n"
+    if cx:
+        memory_section += f"## RECENT CONVERSATION\n{cx}\n\n"
     
     # ── 5. Load persistent facts from PostgreSQL ──
     try:
