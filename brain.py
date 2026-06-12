@@ -2098,6 +2098,9 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 print(f"[UPLOAD] Endpoint error: {str(e)}")
                 self._json({"error": f"Upload failed: {str(e)}"}, 500)
+                data = self._body()
+                print(f"[UPLOAD] Received data: {data}")  # DEBUG
+                user_id = data.get("user_id", "")
         
         else:
             self.send_response(404)
