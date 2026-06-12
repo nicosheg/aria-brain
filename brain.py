@@ -2072,6 +2072,8 @@ class Handler(BaseHTTPRequestHandler):
     def _body(self):
         try:
             length = int(self.headers.get("Content-Length", 0))
+            if length == 0:
+                return {}
             return json.loads(self.rfile.read(length))
         except:
             return {}
