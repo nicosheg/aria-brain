@@ -2058,12 +2058,34 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._json({"error": "Upload past questions first (PDF or image) to enable predictions."}, 400)
 
-        # ── /upload-file (minimal safe version) ──
+        # ── /upload-file (store metadata, no OCR) ──
         elif self.path == "/upload-file":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "Upload endpoint alive"}).encode())
+            data = self._body()
+            user_id = data.get("user_id", "")
+            file_name = data.get("file_name", "file")
+            file_type = data.get("file_type", "image")
+            
+            if not user_id:
+                self._json({"error": "Missing user_id"}, 400)
+                return
+            
+            # Store in Firestore (uploads subcollection)
+            if db:
+                try:
+                    db.collection("users").document(user_id).collection("uploads").add({
+                        "name": file_name,
+                        "type": file_type,
+                        "timestamp": datetime.now().isoformat(),
+                        "note": "OCR will be added later"
+                    })
+                except Exception as e:
+                    print(f"Firestore save error: {e}")
+            
+            self._json({
+                "status": "Upload received",
+                "type": file_type,
+                "saved": bool(db)
+            })
             return
         
         else:
