@@ -787,7 +787,10 @@
     }
 
     async function sendToAria(message, inputElement) {
-      if (!currentUser) return;
+      if (!currentUser) {
+        addMessage("Please sign in first.", 'aria');
+        return;
+      }
       addMessage(message, 'user');
       inputElement.value = '';
       showTyping();
@@ -797,13 +800,15 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message, user_id: currentUser.uid, email: currentUser.email.toLowerCase() })
         });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         hideTyping();
         if (data.error) addMessage(`Error: ${data.error}`, 'aria');
         else addMessage(data.reply || '...', 'aria');
       } catch(e) {
         hideTyping();
-        addMessage('Connection uncertain. Please try again.', 'aria');
+        console.error("Chat error:", e);
+        addMessage("Connection uncertain. Please try again.", 'aria');
       }
     }
 
@@ -913,7 +918,7 @@
       } catch(e) { console.error(e); }
     });
 
-    // ==================== UPLOAD FUNCTIONS (2 spaces indent) ====================
+    // ==================== UPLOAD FUNCTIONS ====================
     async function uploadFile(file, uid) {
       if (file.size > 25 * 1024 * 1024) {
         addMessage("❌ File too large. Max 25MB.", 'aria');
@@ -923,8 +928,6 @@
       reader.onload = async (e) => {
         const base64 = e.target.result.split(',')[1];
         const fileType = file.type.includes('pdf') ? 'pdf' : 'image';
-
-        console.log("[UPLOAD] Sending...");
         try {
           const res = await fetch('/upload-file', {
             method: 'POST',
@@ -938,7 +941,6 @@
             })
           });
           const text = await res.text();
-          console.log("[UPLOAD] Response:", text);
           let data;
           try {
             data = JSON.parse(text);
@@ -968,27 +970,16 @@
       input.click();
     }
 
-    // Attach upload buttons
     const uploadBtn = document.getElementById('uploadBtn');
     const chatUploadBtn = document.getElementById('chatUploadBtn');
-    if (uploadBtn) {
-      uploadBtn.onclick = () => {
-        if (currentUser && currentUser.uid) triggerUpload(currentUser.uid);
-        else addMessage("Please sign in first.", 'aria');
-      };
-    }
-    if (chatUploadBtn) {
-      chatUploadBtn.onclick = () => {
-        if (currentUser && currentUser.uid) triggerUpload(currentUser.uid);
-        else addMessage("Please sign in first.", 'aria');
-      };
-    }
-    // ===============================================================
+    if (uploadBtn) uploadBtn.onclick = () => { if (currentUser) triggerUpload(currentUser.uid); };
+    if (chatUploadBtn) chatUploadBtn.onclick = () => { if (currentUser) triggerUpload(currentUser.uid); };
+    // ===========================================================
 
     auth.onAuthStateChanged(async (user) => {
       if (user) {
         currentUser = user;
-        // Keep service warm (reduce cold starts)
+        // Keep service warm (every 4 minutes)
         setInterval(() => {
           fetch('/health').catch(() => {});
         }, 4 * 60 * 1000);
@@ -1014,4 +1005,3 @@
   </script>
 </body>
 </html>
-                                                                                                                                 </html>
