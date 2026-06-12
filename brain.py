@@ -1288,52 +1288,6 @@ def clear_pending_goal(user_id):
     pending_goals.pop(user_id, None)
 
 # ════════════════════════════════════════════════════════════════════
-# OCR Functions (for image uploads)
-# ════════════════════════════════════════════════════════════════════
-_ocr_reader = None
-
-def get_ocr_reader():
-    global _ocr_reader
-    if _ocr_reader is None:
-        try:
-            import easyocr
-            _ocr_reader = easyocr.Reader(['en'], gpu=False, verbose=False)
-        except ImportError:
-            _ocr_reader = False
-    return _ocr_reader
-
-def extract_pdf_text(pdf_bytes):
-    """Extract text from PDF bytes using PyMuPDF (fitz)."""
-    try:
-        import fitz  # PyMuPDF
-        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-        full_text = ""
-        for page in doc:
-            full_text += page.get_text()
-        doc.close()
-        return full_text.strip() if full_text else None
-    except Exception as e:
-        print(f"PDF extraction error: {e}")
-        return None
-
-def save_pdf_chunks(user_id, file_name, text, topic="uploaded"):
-    """Store PDF text in Firestore (per‑user)."""
-    if not db or not text:
-        return False
-    try:
-        db.collection("users").document(user_id).collection("pdfs").add({
-            "name": file_name,
-            "topic": topic,
-            "text": text[:10000],
-            "full_length": len(text),
-            "timestamp": datetime.now().isoformat()
-        })
-        return True
-    except Exception as e:
-        print(f"save_pdf_chunks error: {e}")
-        return False
-
-# ════════════════════════════════════════════════════════════════════
 # Predictive Exam Question Generation (uses global_documents)
 # ════════════════════════════════════════════════════════════════════
 def analyze_past_questions(user_id=None):
@@ -1384,78 +1338,6 @@ Do not add any extra text."""
     system = "You are an expert Nigerian exam predictor. Use past patterns to predict future questions."
     response = try_all_apis_parallel(prompt, system)
     return response if response else "Failed to generate predictions."
-
-# ════════════════════════════════════════════════════════════════════
-# Tesseract OCR (free, system binary)
-# ════════════════════════════════════════════════════════════════════
-def extract_image_text(image_bytes):
-    try:
-        import pytesseract
-        from PIL import Image
-        import io
-        image = Image.open(io.BytesIO(image_bytes))
-        text = pytesseract.image_to_string(image)
-        confidence = min(100, len(text) * 2)
-        return text, confidence
-    except Exception as e:
-        print(f"OCR error: {e}")
-        return None, 0
-
-def save_image_text(user_id, image_name, image_text, confidence):
-    if not db:
-        return False
-    try:
-        db.collection("users").document(user_id).collection("images").add({
-            "name": image_name,
-            "extracted_text": image_text[:1000],
-            "confidence": confidence,
-            "timestamp": datetime.now().isoformat(),
-            "source": "screenshot_ocr"
-        })
-        return True
-    except Exception as e:
-        print(f"save_image_text error: {e}")
-        return False
-
-def search_image_text(user_id, question, limit=3):
-    if not db:
-        return ""
-    try:
-        docs = list(db.collection("users").document(user_id).collection("images").stream())
-        relevant = []
-        for doc in docs:
-            data = doc.to_dict()
-            text = data.get("extracted_text", "")
-            score = msg_similarity(question, text[:200])
-            if score > 0.3:
-                relevant.append((score, text[:300]))
-        if not relevant:
-            return ""
-        relevant.sort(reverse=True)
-        combined = "\n---\n".join([t for _, t in relevant[:limit]])
-        return f"📸 From your screenshots:\n{combined}"
-    except Exception as e:
-        print(f"search_image_text error: {e}")
-        return ""
-
-def get_memory_breakdown():
-    """Full memory usage report for /memory-debug endpoint"""
-    import sys
-    breakdown = {
-        "cache_items":   len(response_cache),
-        "cache_size_kb": round(sys.getsizeof(response_cache)/1024, 2),
-        "cache_stats":   cache_stats,
-        "rate_tracked":  len(user_requests)
-    }
-    if db:
-        try:
-            kb    = list(db.collection("aria_knowledge").stream())
-            learn = list(db.collection("aria_learning").stream())
-            breakdown["knowledge_base_size"]  = len(kb)
-            breakdown["learning_interactions"]= len(learn)
-            breakdown["aria_stage"], breakdown["aria_confidence"] = get_aria_stage()
-        except: pass
-    return breakdown
 
 # ════════════════════════════════════════════════════════════════════
 # [S9] MAIN ask() FUNCTION (OPTIMIZED + MEMORY)
@@ -1553,13 +1435,8 @@ def ask(m, u, api):
     else:
         cx = get_context(u)
 
-    # ──4.5. Search user's uploaded images (screenshots) ──
-    image_context = search_image_text(u, m)
-    
-    # ── 4.6. Start building memory section ──
+    # ── 4.5. Start building memory section ──
     memory_section = ""
-    if image_context:
-        memory_section += image_context + "\n\n"
     if cx:
         memory_section += f"## RECENT CONVERSATION\n{cx}\n\n"
     
