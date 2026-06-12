@@ -1853,36 +1853,12 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/chat-test":
             self._json({"reply": "Chat test works!"})
             return
-        # ── /chat ──────────────────────────────────
-        if self.path == "/chat":
-            data = self._body()
-            m = data.get("message", "").strip()
-            email = data.get("email", "").strip().lower()
-            
-            if not m:
-                self._json({"reply": "Say something!"})
-                return
-            
-            if not email:
-                self._json({"error": "Missing email. Please sign out and back in."}, 400)
-                return
-            
-            try:
-                uid_result = generate_aria_uid(email)
-                if "error" in uid_result:
-                    self._json({"error": uid_result["error"]}, 500)
-                    return
-                
-                u = uid_result["aria_uid"]
-                
-                reply = ask(m, u, 'groq') or ask(m, u, 'deepseek') or ask(m, u, 'gemini')
-                if not reply:
-                    reply = "I'm thinking slower than usual. Give me a moment? 🤔"
-                self._json({"reply": reply})
-                
-            except Exception as e:
-                print(f"Error in /chat: {e}")
-                self._json({"error": str(e)}, 500)
+        # ── /chat-simple (bypass everything) ──
+        if self.path == "/chat-simple":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"reply": "Simple chat works"}).encode())
             return
 
         # ── /feedback ─────────────────────────────
