@@ -2116,11 +2116,17 @@ class Handler(BaseHTTPRequestHandler):
             return {}
 
     def _json(self, data, status=200):
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.end_headers()
-        self.wfile.write(json.dumps(data).encode())
+        try:
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps(data).encode())
+        except BrokenPipeError:
+            # Client disconnected – ignore
+            pass
+        except Exception as e:
+            print(f"Error sending JSON: {e}")
 
 
 # ════════════════════════════════════════════════════════════════════
