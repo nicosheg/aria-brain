@@ -2082,7 +2082,7 @@ class Handler(BaseHTTPRequestHandler):
                     print(f"Firestore save error: {e}")
             
             self._json({
-                "status": "Upload received",
+                "status": "Image uploaded",
                 "type": file_type,
                 "saved": bool(db)
             })
