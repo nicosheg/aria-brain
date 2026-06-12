@@ -2180,65 +2180,31 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._json({"error": "Upload past questions first (PDF or image) to enable predictions."}, 400)
 
-        # ── /upload-file (unified for images and PDFs) ──
+        # ── /upload-file (simplified, no OCR – just acknowledge) ──
         elif self.path == "/upload-file":
             data = self._body()
             user_id = data.get("user_id", "")
-            file_b64 = data.get("file_base64", "")
             file_name = data.get("file_name", "file")
             file_type = data.get("file_type", "image")
-            mime_type = data.get("mime_type", "")
-
-            if not user_id or not file_b64:
-                self._json({"error": "Missing user_id or file_base64"}, 400)
+            
+            if not user_id:
+                self._json({"error": "Missing user_id"}, 400)
                 return
-
-            import base64
-            try:
-                file_bytes = base64.b64decode(file_b64)
-
-                if file_type == "pdf":
-                    extracted_text = extract_pdf_text(file_bytes)
-                    if not extracted_text:
-                        self._json({"error": "PDF text extraction failed. Ensure PyMuPDF installed."}, 500)
-                        return
-                    # Store globally (optional)
-                    status, doc_id = store_global_document(extracted_text, "pdf", file_name, "general")
-                    if db:
-                        db.collection("users").document(user_id).collection("uploads").add({
-                            "global_doc_id": doc_id,
-                            "type": "pdf",
-                            "name": file_name,
-                            "uploaded_at": datetime.now().isoformat()
-                        })
-                    self._json({
-                        "status": "✅ PDF processed",
-                        "type": "pdf",
-                        "characters": len(extracted_text),
-                        "storage": status
-                    })
-
-                elif file_type == "image":
-                    extracted_text, confidence = extract_image_text(file_bytes)
-                    if not extracted_text:
-                        self._json({"error": "OCR failed. Tesseract not installed or image unreadable."}, 500)
-                        return
-                    saved = save_image_text(user_id, file_name, extracted_text, confidence)
-                    self._json({
-                        "status": "✅ Screenshot processed",
-                        "type": "image",
-                        "text_extracted": len(extracted_text),
-                        "confidence": confidence,
-                        "saved": saved
-                    })
-
-                else:
-                    self._json({"error": "Invalid file_type. Use 'image' or 'pdf'."}, 400)
-
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
-                self._json({"error": f"Upload failed: {str(e)}"}, 500)
+            
+            # Store upload metadata in Firestore (no text extraction)
+            if db:
+                db.collection("users").document(user_id).collection("uploads").add({
+                    "name": file_name,
+                    "type": file_type,
+                    "timestamp": datetime.now().isoformat(),
+                    "note": "OCR will be added later"
+                })
+            
+            self._json({
+                "status": "Upload received (text extraction coming soon)",
+                "type": file_type,
+                "saved": True
+            })
         
         else:
             self.send_response(404)
