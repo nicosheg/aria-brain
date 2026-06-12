@@ -913,7 +913,7 @@
       } catch(e) { console.error(e); }
     });
 
-    // ==================== UPDATED UPLOAD FUNCTION ====================
+    // ==================== UPLOAD FUNCTION (complete) ====================
     async function uploadFile(file, uid) {
       if (file.size > 25 * 1024 * 1024) {
         addMessage("❌ File too large. Max 25MB.", 'aria');
@@ -923,6 +923,12 @@
       reader.onload = async (e) => {
         const base64 = e.target.result.split(',')[1];
         const fileType = file.type.includes('pdf') ? 'pdf' : 'image';
+        
+        console.log("[UPLOAD] Sending to backend...");
+        console.log("[UPLOAD] File name:", file.name);
+        console.log("[UPLOAD] File size:", file.size);
+        console.log("[UPLOAD] Base64 length:", base64.length);
+        
         try {
           const res = await fetch('/upload-file', {
             method: 'POST',
@@ -935,13 +941,24 @@
               mime_type: file.type
             })
           });
-          const data = await res.json();
-          if (data.status === 'PDF processed' || data.status === 'Image uploaded') {
-            addMessage(`📄 Uploaded "${file.name}" – ${data.type} processed.`, 'aria');
+          console.log("[UPLOAD] Response status:", res.status);
+          const responseText = await res.text();
+          console.log("[UPLOAD] Raw response:", responseText);
+          let data;
+          try {
+            data = JSON.parse(responseText);
+          } catch (parseErr) {
+            console.error("[UPLOAD] JSON parse error:", parseErr);
+            addMessage(`Server returned invalid response. Check console.`, 'aria');
+            return;
+          }
+          if (data.status && data.status.includes('Upload received')) {
+            addMessage(`📄 Uploaded "${file.name}" – ${data.type || fileType} received.`, 'aria');
           } else {
             addMessage(`Upload failed: ${data.error || 'Unknown error'}`, 'aria');
           }
         } catch (err) {
+          console.error("[UPLOAD] Fetch error:", err);
           addMessage(`Upload error: ${err.message}`, 'aria');
         }
       };
