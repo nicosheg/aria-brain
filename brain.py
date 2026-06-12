@@ -1302,23 +1302,6 @@ def get_ocr_reader():
             _ocr_reader = False
     return _ocr_reader
 
-def extract_text_from_image(image_bytes):
-    """Extract text from image bytes using EasyOCR. Returns string or None."""
-    reader = get_ocr_reader()
-    if not reader:
-        return None
-    try:
-        from PIL import Image
-        import io
-        import numpy as np
-        img = Image.open(io.BytesIO(image_bytes))
-        img_np = np.array(img)
-        result = reader.readtext(img_np, detail=0, paragraph=True)
-        return " ".join(result) if result else None
-    except Exception as e:
-        print(f"OCR error: {e}")
-        return None
-
 def extract_pdf_text(pdf_bytes):
     """Extract text from PDF bytes using PyMuPDF (fitz)."""
     try:
@@ -1332,23 +1315,6 @@ def extract_pdf_text(pdf_bytes):
     except Exception as e:
         print(f"PDF extraction error: {e}")
         return None
-
-def save_image_file(user_id, file_name, file_bytes, mime_type):
-    """Store image metadata + hex data in Firestore (per‑user)."""
-    if not db:
-        return False
-    try:
-        db.collection("users").document(user_id).collection("images").add({
-            "name": file_name,
-            "mime_type": mime_type,
-            "size_bytes": len(file_bytes),
-            "timestamp": datetime.now().isoformat(),
-            "data_hex": file_bytes.hex()
-        })
-        return True
-    except Exception as e:
-        print(f"save_image_file error: {e}")
-        return False
 
 def save_pdf_chunks(user_id, file_name, text, topic="uploaded"):
     """Store PDF text in Firestore (per‑user)."""
@@ -1418,6 +1384,59 @@ Do not add any extra text."""
     system = "You are an expert Nigerian exam predictor. Use past patterns to predict future questions."
     response = try_all_apis_parallel(prompt, system)
     return response if response else "Failed to generate predictions."
+
+# ════════════════════════════════════════════════════════════════════
+# Tesseract OCR (free, system binary)
+# ════════════════════════════════════════════════════════════════════
+def extract_image_text(image_bytes):
+    try:
+        import pytesseract
+        from PIL import Image
+        import io
+        image = Image.open(io.BytesIO(image_bytes))
+        text = pytesseract.image_to_string(image)
+        confidence = min(100, len(text) * 2)
+        return text, confidence
+    except Exception as e:
+        print(f"OCR error: {e}")
+        return None, 0
+
+def save_image_text(user_id, image_name, image_text, confidence):
+    if not db:
+        return False
+    try:
+        db.collection("users").document(user_id).collection("images").add({
+            "name": image_name,
+            "extracted_text": image_text[:1000],
+            "confidence": confidence,
+            "timestamp": datetime.now().isoformat(),
+            "source": "screenshot_ocr"
+        })
+        return True
+    except Exception as e:
+        print(f"save_image_text error: {e}")
+        return False
+
+def search_image_text(user_id, question, limit=3):
+    if not db:
+        return ""
+    try:
+        docs = list(db.collection("users").document(user_id).collection("images").stream())
+        relevant = []
+        for doc in docs:
+            data = doc.to_dict()
+            text = data.get("extracted_text", "")
+            score = msg_similarity(question, text[:200])
+            if score > 0.3:
+                relevant.append((score, text[:300]))
+        if not relevant:
+            return ""
+        relevant.sort(reverse=True)
+        combined = "\n---\n".join([t for _, t in relevant[:limit]])
+        return f"📸 From your screenshots:\n{combined}"
+    except Exception as e:
+        print(f"search_image_text error: {e}")
+        return ""
 
 def get_memory_breakdown():
     """Full memory usage report for /memory-debug endpoint"""
