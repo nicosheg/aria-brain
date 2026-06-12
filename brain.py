@@ -2184,7 +2184,6 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             import base64
-            import traceback
             try:
                 file_bytes = base64.b64decode(file_b64)
 
@@ -2193,6 +2192,7 @@ class Handler(BaseHTTPRequestHandler):
                     if not extracted_text:
                         self._json({"error": "PDF text extraction failed. Ensure PyMuPDF installed."}, 500)
                         return
+                    # Store globally (optional)
                     status, doc_id = store_global_document(extracted_text, "pdf", file_name, "general")
                     if db:
                         db.collection("users").document(user_id).collection("uploads").add({
@@ -2202,37 +2202,32 @@ class Handler(BaseHTTPRequestHandler):
                             "uploaded_at": datetime.now().isoformat()
                         })
                     self._json({
-                        "status": "PDF processed",
+                        "status": "✅ PDF processed",
                         "type": "pdf",
                         "characters": len(extracted_text),
                         "storage": status
                     })
+
                 elif file_type == "image":
-                    extracted_text = extract_text_from_image(file_bytes)
+                    extracted_text, confidence = extract_image_text(file_bytes)
                     if not extracted_text:
-                        self._json({"error": "OCR failed. Could not extract text from image."}, 400)
+                        self._json({"error": "OCR failed. Tesseract not installed or image unreadable."}, 500)
                         return
-                    status, doc_id = store_global_document(extracted_text, "image", file_name, "general")
-                    if db:
-                        db.collection("users").document(user_id).collection("uploads").add({
-                            "global_doc_id": doc_id,
-                            "type": "image",
-                            "name": file_name,
-                            "uploaded_at": datetime.now().isoformat()
-                        })
+                    saved = save_image_text(user_id, file_name, extracted_text, confidence)
                     self._json({
-                        "status": "Image uploaded",
+                        "status": "✅ Screenshot processed",
                         "type": "image",
-                        "extracted_text": extracted_text[:200],
-                        "storage": status
+                        "text_extracted": len(extracted_text),
+                        "confidence": confidence,
+                        "saved": saved
                     })
+
                 else:
                     self._json({"error": "Invalid file_type. Use 'image' or 'pdf'."}, 400)
 
             except Exception as e:
-                # Print full traceback to Render logs
+                import traceback
                 traceback.print_exc()
-                print(f"Upload error: {e}")
                 self._json({"error": f"Upload failed: {str(e)}"}, 500)
         
         else:
