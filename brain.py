@@ -2058,35 +2058,46 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._json({"error": "Upload past questions first (PDF or image) to enable predictions."}, 400)
 
-        # ── /upload-file (store metadata, no OCR) ──
+        # ── /upload-file (debug version) ──
         elif self.path == "/upload-file":
-            data = self._body()
-            user_id = data.get("user_id", "")
-            file_name = data.get("file_name", "file")
-            file_type = data.get("file_type", "image")
-            
-            if not user_id:
-                self._json({"error": "Missing user_id"}, 400)
-                return
-            
-            # Store in Firestore (uploads subcollection)
-            if db:
+            try:
+                data = self._body()
+                user_id = data.get("user_id", "")
+                file_name = data.get("file_name", "file")
+                file_type = data.get("file_type", "image")
+                
+                print(f"[UPLOAD] user={user_id}, file={file_name}, type={file_type}")
+                
+                if not user_id or not file_name:
+                    self._json({"error": "Missing user_id or file_name"}, 400)
+                    return
+                
+                # Check Firebase connection
+                if not db:
+                    self._json({"error": "Firebase not connected"}, 500)
+                    return
+                
+                # Attempt to save to Firestore
                 try:
-                    db.collection("users").document(user_id).collection("uploads").add({
+                    doc_ref = db.collection("users").document(user_id).collection("uploads").add({
                         "name": file_name,
                         "type": file_type,
                         "timestamp": datetime.now().isoformat(),
-                        "note": "OCR will be added later"
+                        "debug": "upload_received"
                     })
-                except Exception as e:
-                    print(f"Firestore save error: {e}")
-            
-            self._json({
-                "status": "Image uploaded",
-                "type": file_type,
-                "saved": bool(db)
-            })
-            return
+                    print(f"[UPLOAD] SUCCESS: saved to Firebase, doc ID: {doc_ref.id if doc_ref else 'unknown'}")
+                    self._json({
+                        "status": "✅ Upload received",
+                        "type": file_type,
+                        "file_name": file_name
+                    })
+                except Exception as fb_error:
+                    print(f"[UPLOAD] Firebase error: {str(fb_error)}")
+                    self._json({"error": f"Firebase write failed: {str(fb_error)}"}, 500)
+                    
+            except Exception as e:
+                print(f"[UPLOAD] Endpoint error: {str(e)}")
+                self._json({"error": f"Upload failed: {str(e)}"}, 500)
         
         else:
             self.send_response(404)
