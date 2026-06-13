@@ -2146,10 +2146,6 @@ class Handler(BaseHTTPRequestHandler):
             
             u = uid_result["aria_uid"]
             
-            # DEBUG: search OCR documents
-            ocr_result = search_ocr_documents(u, message)
-            debug_msg = f"\n\n[DEBUG OCR: {ocr_result[:200] if ocr_result else 'None'}]"
-            
             reply = ask(message, u, 'groq')
             if not reply:
                 reply = "I'm having trouble responding right now. Please try again."
