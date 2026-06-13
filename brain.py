@@ -2185,34 +2185,42 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"status": "Feedback recorded", "score": score})
             return
 
-        # ── /upload-ocr (extract text and save to conversation memory) ──
+        # ── /upload-ocr (debug version – returns detailed errors) ──
         if self.path == "/upload-ocr":
             data = self._body()
+            print(f"[UPLOAD-OCR] Received data keys: {data.keys()}")
             email = data.get("email", "").strip().lower()
             file_b64 = data.get("file_base64", "")
             file_name = data.get("file_name", "image.jpg")
             
-            if not email or not file_b64:
-                self._json({"error": "Missing email or file_base64"}, 400)
+            # Return a clear error if email missing
+            if not email:
+                self._json({"error": "Missing email", "received_keys": list(data.keys())}, 400)
                 return
             
+            # Return a clear error if image data missing
+            if not file_b64:
+                self._json({"error": "Missing file_base64", "received_keys": list(data.keys())}, 400)
+                return
+            
+            # Convert email to aria_uid
             uid_result = generate_aria_uid(email)
             if "error" in uid_result:
-                self._json({"error": uid_result["error"]}, 500)
+                self._json({"error": f"generate_aria_uid failed: {uid_result['error']}"}, 500)
                 return
             
             u = uid_result["aria_uid"]
             
+            # Perform OCR
             extracted_text = extract_text_with_ocr_space(file_b64)
             if not extracted_text:
-                self._json({"error": "OCR failed. No text extracted."}, 400)
+                self._json({"error": "OCR failed – no text extracted"}, 400)
                 return
             
-            # Store in Firestore for future reference (optional)
+            # Store optional
             store_ocr_text(u, file_name, extracted_text)
             
-            # CRITICAL: Save the extracted text to the conversation memory
-            # Format it as a user message so ARIA sees it in context
+            # Save to conversation memory
             ocr_message = f"[Text from uploaded image '{file_name}']\n{extracted_text}"
             save_memory(u, ocr_message, "[Image text received]")
             
