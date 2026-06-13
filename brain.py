@@ -2185,9 +2185,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"status": "Feedback recorded", "score": score})
             return
 
-        # ── /upload-ocr (minimal working version – no OCR) ──
+         # ── /upload-ocr (real OCR + global memory + chat memory) ──
         if self.path == "/upload-ocr":
-            # Read request body
+            # Read body
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length)
             try:
@@ -2195,30 +2195,40 @@ class Handler(BaseHTTPRequestHandler):
             except:
                 self._json({"error": "Invalid JSON"}, 400)
                 return
-            
+
             email = data.get("email", "").strip().lower()
+            file_b64 = data.get("file_base64", "")
             file_name = data.get("file_name", "image.jpg")
-            
-            if not email:
-                self._json({"error": "Missing email"}, 400)
+
+            if not email or not file_b64:
+                self._json({"error": "Missing email or file_base64"}, 400)
                 return
-            
-            # Convert email to aria_uid
+
+            # Convert email to ARIA's internal user ID
             uid_result = generate_aria_uid(email)
             if "error" in uid_result:
                 self._json({"error": uid_result["error"]}, 500)
                 return
-            
             u = uid_result["aria_uid"]
-            
-            # Save a placeholder message to conversation memory (no OCR)
-            placeholder_text = f"[User uploaded an image: {file_name}]"
-            save_memory(u, placeholder_text, "[Image upload received]")
-            
+
+            # 1. Extract text via OCR.space
+            extracted_text = extract_text_with_ocr_space(file_b64)
+            if not extracted_text:
+                self._json({"error": "OCR failed – no text detected"}, 400)
+                return
+
+            # 2. Store in global knowledge base (deduplicated)
+            status, doc_id = store_global_document(extracted_text, "image", file_name, "academic")
+
+            # 3. Also save to this user's conversation memory
+            ocr_message = f"[Image: {file_name}]\n{extracted_text}"
+            save_memory(u, ocr_message, "[OCR text saved]")
+
             self._json({
                 "status": "OCR completed",
-                "text_preview": "Image upload recorded (OCR temporarily disabled)",
-                "full_length": 0
+                "text": extracted_text[:500],    # preview
+                "full_length": len(extracted_text),
+                "global_status": status
             })
             return
         # If no endpoint matched, return 404
