@@ -257,6 +257,7 @@
       padding: 8px 0;
     }
     .input-field::placeholder { color: #334155; }
+    /* Send button – first */
     .send-circle {
       width: 34px;
       height: 34px;
@@ -274,6 +275,7 @@
       stroke: #3B82F6;
       stroke-width: 2;
     }
+    /* Upload button – second */
     .upload-btn {
       background: rgba(96,165,250,0.15);
       border-radius: 30px;
@@ -595,6 +597,8 @@
       <div class="input-capsule">
         <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
         <input type="text" class="input-field" id="mainInput" placeholder="Message ARIA...">
+        <!-- Send button first, then upload button -->
+        <div class="send-circle" id="sendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
         <div class="upload-btn" id="uploadBtn">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
@@ -603,7 +607,6 @@
             <path d="M12 2v5m-2-2 2-2 2 2"/>
           </svg>
         </div>
-        <div class="send-circle" id="sendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
       </div>
       <div class="footer">By MrNicosh Eg</div>
     </div>
@@ -620,6 +623,8 @@
     <div class="input-capsule" style="margin-bottom: 0;">
       <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
       <input type="text" class="input-field" id="chatInput" placeholder="Message ARIA...">
+      <!-- Send button first, then upload button -->
+      <div class="send-circle" id="chatSendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
       <div class="upload-btn" id="chatUploadBtn">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
@@ -628,7 +633,6 @@
           <path d="M12 2v5m-2-2 2-2 2 2"/>
         </svg>
       </div>
-      <div class="send-circle" id="chatSendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
     </div>
   </div>
   <div id="historyModal" class="history-modal">
@@ -892,21 +896,19 @@
 
     mainInput.addEventListener('focus', openChat);
     document.getElementById('closeChatBtn').addEventListener('click', closeChat);
-    document.getElementById('chatSendBtn').addEventListener('click', () => {
-      const msg = chatInput.value.trim();
-      if (msg) sendToAria(msg, chatInput);
-    });
-    chatInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); const msg = chatInput.value.trim(); if (msg) sendToAria(msg, chatInput); }
-    });
-    document.getElementById('sendBtn').addEventListener('click', () => {
-      const msg = mainInput.value.trim();
-      if (msg) sendToAria(msg, mainInput);
-    });
-    mainInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); const msg = mainInput.value.trim(); if (msg) sendToAria(msg, mainInput); }
-    });
-
+    
+    // Send via send buttons only (Enter key does not send)
+    function sendFromInput(inputEl) {
+      const msg = inputEl.value.trim();
+      if (msg) sendToAria(msg, inputEl);
+    }
+    document.getElementById('chatSendBtn').addEventListener('click', () => sendFromInput(chatInput));
+    document.getElementById('sendBtn').addEventListener('click', () => sendFromInput(mainInput));
+    
+    // Enter key: only add newline (do nothing else) – we rely on default behavior.
+    // No extra event listeners needed – the default textarea/input behavior already inserts newline on Enter.
+    // For safety, ensure we don't prevent default.
+    
     document.getElementById('historyBtn').addEventListener('click', showHistory);
     document.getElementById('closeHistoryBtn').addEventListener('click', closeHistory);
     historyModal.addEventListener('click', (e) => { if (e.target === historyModal) closeHistory(); });
@@ -918,7 +920,7 @@
       } catch(e) { console.error(e); }
     });
 
-    // ==================== UPLOAD FUNCTIONS ====================
+    // ==================== UPLOAD FUNCTION (calls OCR endpoint) ====================
     async function uploadFile(file, uid) {
       if (file.size > 25 * 1024 * 1024) {
         addMessage("❌ File too large. Max 25MB.", 'aria');
@@ -928,8 +930,9 @@
       reader.onload = async (e) => {
         const base64 = e.target.result.split(',')[1];
         const fileType = file.type.includes('pdf') ? 'pdf' : 'image';
+        const endpoint = fileType === 'image' ? '/upload-ocr' : '/upload-file';
         try {
-          const res = await fetch('/upload-file', {
+          const res = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -948,8 +951,10 @@
             addMessage("Server error: invalid response", 'aria');
             return;
           }
-          if (data.status && data.status.includes('Upload received')) {
-            addMessage(`📄 Uploaded "${file.name}" – received.`, 'aria');
+          if (data.status === 'OCR completed') {
+            addMessage(`📄 OCR completed for "${file.name}". Extracted ${data.full_length} characters. Preview: ${data.text.substring(0, 100)}...`, 'aria');
+          } else if (data.status === 'Upload received (debug)') {
+            addMessage(`📄 Uploaded "${file.name}" (metadata only). OCR not applied.`, 'aria');
           } else {
             addMessage(`Upload failed: ${data.error || 'Unknown'}`, 'aria');
           }
@@ -972,9 +977,18 @@
 
     const uploadBtn = document.getElementById('uploadBtn');
     const chatUploadBtn = document.getElementById('chatUploadBtn');
-    if (uploadBtn) uploadBtn.onclick = () => { if (currentUser) triggerUpload(currentUser.uid); };
-    if (chatUploadBtn) chatUploadBtn.onclick = () => { if (currentUser) triggerUpload(currentUser.uid); };
-    // ===========================================================
+    if (uploadBtn) {
+      uploadBtn.onclick = () => {
+        if (currentUser && currentUser.uid) triggerUpload(currentUser.uid);
+        else addMessage("Please sign in first.", 'aria');
+      };
+    }
+    if (chatUploadBtn) {
+      chatUploadBtn.onclick = () => {
+        if (currentUser && currentUser.uid) triggerUpload(currentUser.uid);
+        else addMessage("Please sign in first.", 'aria');
+      };
+    }
 
     auth.onAuthStateChanged(async (user) => {
       if (user) {
