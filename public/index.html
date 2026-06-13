@@ -255,6 +255,9 @@
       font-size: 14px;
       outline: none;
       padding: 8px 0;
+      font-family: 'Inter', sans-serif;
+      resize: none;
+      overflow-y: hidden;
     }
     .input-field::placeholder { color: #334155; }
     /* Send button – first */
@@ -596,7 +599,7 @@
       <div class="divider"><div class="divider-text">💫 ONE AI. EVERY PART OF YOUR LIFE. 💫</div></div>
       <div class="input-capsule">
         <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
-        <input type="text" class="input-field" id="mainInput" placeholder="Message ARIA...">
+        <textarea class="input-field" id="mainInput" rows="1" placeholder="Message ARIA..."></textarea>
         <!-- Send button first, then upload button -->
         <div class="send-circle" id="sendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
         <div class="upload-btn" id="uploadBtn">
@@ -622,7 +625,7 @@
     <div class="messages-area" id="messagesArea"></div>
     <div class="input-capsule" style="margin-bottom: 0;">
       <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
-      <input type="text" class="input-field" id="chatInput" placeholder="Message ARIA...">
+      <textarea class="input-field" id="chatInput" rows="1" placeholder="Message ARIA..."></textarea>
       <!-- Send button first, then upload button -->
       <div class="send-circle" id="chatSendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
       <div class="upload-btn" id="chatUploadBtn">
@@ -797,6 +800,8 @@
       }
       addMessage(message, 'user');
       inputElement.value = '';
+      // Reset textarea height
+      if (inputElement.style) inputElement.style.height = 'auto';
       showTyping();
       try {
         const res = await fetch('/chat', {
@@ -897,7 +902,7 @@
     mainInput.addEventListener('focus', openChat);
     document.getElementById('closeChatBtn').addEventListener('click', closeChat);
     
-    // Send via send buttons only (Enter key does not send)
+    // Send only via send buttons (Enter key does NOT send)
     function sendFromInput(inputEl) {
       const msg = inputEl.value.trim();
       if (msg) sendToAria(msg, inputEl);
@@ -905,9 +910,19 @@
     document.getElementById('chatSendBtn').addEventListener('click', () => sendFromInput(chatInput));
     document.getElementById('sendBtn').addEventListener('click', () => sendFromInput(mainInput));
     
-    // Enter key: only add newline (do nothing else) – we rely on default behavior.
-    // No extra event listeners needed – the default textarea/input behavior already inserts newline on Enter.
-    // For safety, ensure we don't prevent default.
+    // Auto-resize textareas
+    function autoResize(textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+    }
+    if (mainInput) {
+      mainInput.addEventListener('input', () => autoResize(mainInput));
+      autoResize(mainInput);
+    }
+    if (chatInput) {
+      chatInput.addEventListener('input', () => autoResize(chatInput));
+      autoResize(chatInput);
+    }
     
     document.getElementById('historyBtn').addEventListener('click', showHistory);
     document.getElementById('closeHistoryBtn').addEventListener('click', closeHistory);
@@ -1010,7 +1025,7 @@
           const nameData = await nameRes.json();
           if (nameData.aria_uid) {
             localStorage.setItem('aria_uid', nameData.aria_uid);
-          }
+            }
         } catch(e) { console.warn(e); }
       } else {
         window.location.href = '/login.html';
