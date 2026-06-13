@@ -1413,6 +1413,25 @@ def search_ocr_documents(user_id, query, limit=3):
         print(f"search_ocr_documents error: {e}")
         return ""
 
+def get_memory_breakdown():
+    """Full memory usage report for /memory-debug endpoint"""
+    import sys
+    breakdown = {
+        "cache_items":   len(response_cache),
+        "cache_size_kb": round(sys.getsizeof(response_cache)/1024, 2),
+        "cache_stats":   cache_stats,
+        "rate_tracked":  len(user_requests)
+    }
+    if db:
+        try:
+            kb    = list(db.collection("aria_knowledge").stream())
+            learn = list(db.collection("aria_learning").stream())
+            breakdown["knowledge_base_size"]  = len(kb)
+            breakdown["learning_interactions"]= len(learn)
+            breakdown["aria_stage"], breakdown["aria_confidence"] = get_aria_stage()
+        except: pass
+    return breakdown
+
 # ════════════════════════════════════════════════════════════════════
 # [S9] MAIN ask() FUNCTION (OPTIMIZED + MEMORY)
 #  Parallel API calls + Async memory loading = <3sec responses
