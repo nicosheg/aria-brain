@@ -951,7 +951,7 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              user_id: uid,
+              email: currentUser.email,
               file_base64: base64,
               file_name: file.name,
               file_type: fileType,
