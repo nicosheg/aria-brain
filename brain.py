@@ -1387,38 +1387,56 @@ def store_ocr_text(user_id, file_name, extracted_text):
         return False
 
 def search_ocr_documents(user_id, query, limit=3):
-    """Search OCR-extracted text for relevant content, plus most recent image for vague references."""
+    """Search OCR-extracted text for relevant content."""
+    print(f"[DEBUG OCR] user={user_id}, query='{query}'")
     if not db:
+        print("[DEBUG OCR] db is None")
         return ""
     try:
         docs = list(db.collection("users").document(user_id)
                      .collection("ocr_docs")
                      .order_by("timestamp", direction=firestore.Query.DESCENDING)
                      .limit(20).stream())
+        print(f"[DEBUG OCR] Found {len(docs)} OCR documents")
         results = []
         query_words = set(query.lower().split())
+        print(f"[DEBUG OCR] Query words: {query_words}")
+        
         for doc in docs:
             data = doc.to_dict()
             text = data.get("text", "")
+            print(f"[DEBUG OCR] Text preview: {text[:50]}...")
             text_words = set(text.lower().split())
             overlap = len(query_words & text_words)
             if overlap > 0:
                 results.append((overlap, text[:500]))
+                print(f"[DEBUG OCR] Keyword match! overlap={overlap}")
         
-        # Fallback: if query references "this image" or similar, include the most recent OCR text
-        vague_words = ["image", "picture", "screenshot", "this", "that", "see", "look", "photo", "upload"]
+        # Vague words detection
+        vague_words = ["image", "picture", "screenshot", "this", "that", "see", "look", "upload", "pic", "photo"]
         if docs and any(word in query.lower() for word in vague_words):
             most_recent = docs[0].to_dict().get("text", "")
+            print(f"[DEBUG OCR] Vague words triggered. Most recent text: {most_recent[:100]}")
             if most_recent:
-                results.append((999, most_recent[:500]))  # high priority
+                results.append((999, most_recent[:500]))
         
-        results.sort(reverse=True)
         if not results:
+            print("[DEBUG OCR] No results found")
             return ""
-        combined = "\n---\n".join([t for _, t in results[:limit]])
+        
+        unique_results = []
+        seen_texts = set()
+        for score, text in results:
+            if text not in seen_texts:
+                seen_texts.add(text)
+                unique_results.append((score, text))
+        unique_results.sort(reverse=True)
+        print(f"[DEBUG OCR] Returning {len(unique_results)} unique results")
+        
+        combined = "\n---\n".join([t for _, t in unique_results[:limit]])
         return f"📖 From your uploaded past questions:\n{combined}"
     except Exception as e:
-        print(f"search_ocr_documents error: {e}")
+        print(f"[DEBUG OCR] Exception: {e}")
         return ""
 
 def get_memory_breakdown():
