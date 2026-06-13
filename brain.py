@@ -2227,6 +2227,55 @@ class Handler(BaseHTTPRequestHandler):
                 "global_status": status
             })
             return
+
+        # ── /upload-pdf (extract text and save to conversation memory) ──
+        if self.path == "/upload-pdf":
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length)
+            try:
+                data = json.loads(body)
+            except:
+                self._json({"error": "Invalid JSON"}, 400)
+                return
+
+            email = data.get("email", "").strip().lower()
+            file_b64 = data.get("file_base64", "")
+            file_name = data.get("file_name", "document.pdf")
+
+            if not email or not file_b64:
+                self._json({"error": "Missing email or file_base64"}, 400)
+                return
+
+            uid_result = generate_aria_uid(email)
+            if "error" in uid_result:
+                self._json({"error": uid_result["error"]}, 500)
+                return
+            u = uid_result["aria_uid"]
+
+            # Decode base64
+            import base64
+            file_bytes = base64.b64decode(file_b64)
+
+            # Extract text from PDF
+            extracted_text = extract_pdf_text(file_bytes)
+            if not extracted_text:
+                self._json({"error": "PDF text extraction failed – no text found"}, 400)
+                return
+
+            # Store in global knowledge base (deduplicated)
+            status, doc_id = store_global_document(extracted_text, "pdf", file_name, "academic")
+
+            # Save to user's conversation memory
+            pdf_message = f"[PDF: {file_name}]\n{extracted_text}"
+            save_memory(u, pdf_message, "[PDF text saved]")
+
+            self._json({
+                "status": "PDF processed",
+                "text": extracted_text[:500],
+                "full_length": len(extracted_text),
+                "global_status": status
+            })
+            return
         # If no endpoint matched, return 404
         else:
             self.send_response(404)
