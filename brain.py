@@ -2216,12 +2216,11 @@ class Handler(BaseHTTPRequestHandler):
             save_memory(u, placeholder_text, "[Image upload received]")
             
             self._json({
-                "status": "OCR completed and saved to chat memory",
+                "status": "OCR completed",
                 "text_preview": "Image upload recorded (OCR temporarily disabled)",
                 "full_length": 0
             })
             return
-
         # If no endpoint matched, return 404
         else:
             self.send_response(404)
