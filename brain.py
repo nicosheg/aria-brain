@@ -1527,6 +1527,9 @@ def ask(m, u, api):
         cx = get_full_history(u)
     else:
         cx = get_context(u)
+
+    # ── 4.5. Search OCR text from uploaded images ──
+    ocr_context = search_ocr_documents(u, m)
     
     # ── 5. Load persistent facts from PostgreSQL ──
     try:
@@ -1551,6 +1554,8 @@ def ask(m, u, api):
     
     # ── 7. Build memory section ──
     memory_section = ""
+    if ocr_context:
+        memory_section += ocr_context + "\n\n"
     if cx:
         memory_section += f"## RECENT CONVERSATION\n{cx}\n\n"
     if user_facts:
