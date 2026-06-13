@@ -1919,6 +1919,37 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({"status": "Upload received (debug)", "type": "test"}).encode())
             return
+
+        # ── /chat (main chat endpoint) ──
+        if self.path == "/chat":
+            try:
+                data = self._body()
+                message = data.get("message", "").strip()
+                email = data.get("email", "").strip().lower()
+                
+                if not message:
+                    self._json({"reply": "Say something!"})
+                    return
+                if not email:
+                    self._json({"error": "Missing email"}, 400)
+                    return
+                
+                uid_result = generate_aria_uid(email)
+                if "error" in uid_result:
+                    self._json({"error": uid_result["error"]}, 500)
+                    return
+                
+                u = uid_result["aria_uid"]
+                
+                # For now, use a simple test reply to verify connection
+                # Later replace with: reply = ask(message, u, 'groq')
+                reply = f"Hello! You said: {message}"
+                self._json({"reply": reply})
+                
+            except Exception as e:
+                print(f"Chat error: {e}")
+                self._json({"error": str(e)}, 500)
+            return
         # ── /ping (basic connectivity test) ──
         if self.path == "/ping":
             self.send_response(200)
