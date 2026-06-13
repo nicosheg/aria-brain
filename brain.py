@@ -1439,6 +1439,20 @@ def search_ocr_documents(user_id, query, limit=3):
         print(f"[DEBUG OCR] Exception: {e}")
         return ""
 
+def extract_pdf_text(pdf_bytes):
+    """Extract text from PDF bytes using PyMuPDF (fitz)."""
+    try:
+        import fitz  # PyMuPDF
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        full_text = ""
+        for page in doc:
+            full_text += page.get_text()
+        doc.close()
+        return full_text.strip() if full_text else None
+    except Exception as e:
+        print(f"PDF extraction error: {e}")
+        return None
+
 def get_memory_breakdown():
     """Full memory usage report for /memory-debug endpoint"""
     import sys
