@@ -2185,49 +2185,40 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"status": "Feedback recorded", "score": score})
             return
 
-        # ── /upload-ocr (debug version – returns detailed errors) ──
+        # ── /upload-ocr (minimal working version – no OCR) ──
         if self.path == "/upload-ocr":
-            data = self._body()
-            print(f"[UPLOAD-OCR] Received data keys: {data.keys()}")
-            email = data.get("email", "").strip().lower()
-            file_b64 = data.get("file_base64", "")
-            file_name = data.get("file_name", "image.jpg")
-            
-            # Return a clear error if email missing
-            if not email:
-                self._json({"error": "Missing email", "received_keys": list(data.keys())}, 400)
+            # Read request body
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length)
+            try:
+                data = json.loads(body)
+            except:
+                self._json({"error": "Invalid JSON"}, 400)
                 return
             
-            # Return a clear error if image data missing
-            if not file_b64:
-                self._json({"error": "Missing file_base64", "received_keys": list(data.keys())}, 400)
+            email = data.get("email", "").strip().lower()
+            file_name = data.get("file_name", "image.jpg")
+            
+            if not email:
+                self._json({"error": "Missing email"}, 400)
                 return
             
             # Convert email to aria_uid
             uid_result = generate_aria_uid(email)
             if "error" in uid_result:
-                self._json({"error": f"generate_aria_uid failed: {uid_result['error']}"}, 500)
+                self._json({"error": uid_result["error"]}, 500)
                 return
             
             u = uid_result["aria_uid"]
             
-            # Perform OCR
-            extracted_text = extract_text_with_ocr_space(file_b64)
-            if not extracted_text:
-                self._json({"error": "OCR failed – no text extracted"}, 400)
-                return
-            
-            # Store optional
-            store_ocr_text(u, file_name, extracted_text)
-            
-            # Save to conversation memory
-            ocr_message = f"[Text from uploaded image '{file_name}']\n{extracted_text}"
-            save_memory(u, ocr_message, "[Image text received]")
+            # Save a placeholder message to conversation memory (no OCR)
+            placeholder_text = f"[User uploaded an image: {file_name}]"
+            save_memory(u, placeholder_text, "[Image upload received]")
             
             self._json({
                 "status": "OCR completed and saved to chat memory",
-                "text_preview": extracted_text[:200],
-                "full_length": len(extracted_text)
+                "text_preview": "Image upload recorded (OCR temporarily disabled)",
+                "full_length": 0
             })
             return
 
