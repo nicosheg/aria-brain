@@ -1340,6 +1340,80 @@ Do not add any extra text."""
     return response if response else "Failed to generate predictions."
 
 # ════════════════════════════════════════════════════════════════════
+# OCR using OCR.space (free API, no Tesseract install)
+# ════════════════════════════════════════════════════════════════════
+def extract_text_with_ocr_space(image_base64, api_key="helloworld"):
+    """
+    Send image base64 to OCR.space API and return extracted text.
+    Free tier: 500 requests/month, no API key required (use 'helloworld').
+    """
+    try:
+        payload = {
+            'base64Image': f'data:image/jpeg;base64,{image_base64}',
+            'apikey': api_key,
+            'language': 'eng',
+            'isOverlayRequired': False,
+            'detectOrientation': True,
+            'scale': True,
+            'OCREngine': 2
+        }
+        response = requests.post('https://api.ocr.space/parse/image', data=payload, timeout=30)
+        result = response.json()
+        if result.get('IsErroredOnProcessing'):
+            print(f"OCR error: {result.get('ErrorMessage', 'Unknown')}")
+            return None
+        texts = []
+        for item in result.get('ParsedResults', []):
+            texts.append(item.get('ParsedText', ''))
+        return "\n".join(texts).strip() if texts else None
+    except Exception as e:
+        print(f"OCR.space error: {e}")
+        return None
+
+def store_ocr_text(user_id, file_name, extracted_text):
+    """Store extracted OCR text in Firestore for later search."""
+    if not db or not extracted_text:
+        return False
+    try:
+        db.collection("users").document(user_id).collection("ocr_docs").add({
+            "name": file_name,
+            "text": extracted_text[:5000],
+            "full_length": len(extracted_text),
+            "timestamp": datetime.now().isoformat()
+        })
+        return True
+    except Exception as e:
+        print(f"store_ocr_text error: {e}")
+        return False
+
+def search_ocr_documents(user_id, query, limit=3):
+    """Search OCR-extracted text for relevant content."""
+    if not db:
+        return ""
+    try:
+        docs = list(db.collection("users").document(user_id)
+                     .collection("ocr_docs")
+                     .order_by("timestamp", direction=firestore.Query.DESCENDING)
+                     .limit(20).stream())
+        results = []
+        query_words = set(query.lower().split())
+        for doc in docs:
+            data = doc.to_dict()
+            text = data.get("text", "")
+            text_words = set(text.lower().split())
+            overlap = len(query_words & text_words)
+            if overlap > 0:
+                results.append((overlap, text[:500]))
+        results.sort(reverse=True)
+        if not results:
+            return ""
+        combined = "\n---\n".join([t for _, t in results[:limit]])
+        return f"📖 From your uploaded past questions:\n{combined}"
+    except Exception as e:
+        print(f"search_ocr_documents error: {e}")
+        return ""
+
+# ════════════════════════════════════════════════════════════════════
 # [S9] MAIN ask() FUNCTION (OPTIMIZED + MEMORY)
 #  Parallel API calls + Async memory loading = <3sec responses
 # ════════════════════════════════════════════════════════════════════
