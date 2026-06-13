@@ -2142,30 +2142,32 @@ class Handler(BaseHTTPRequestHandler):
 
         # ========== ENDPOINTS THAT NEED REQUEST BODY ==========
         if self.path == "/chat":
-            data = self._body()
-            message = data.get("message", "").strip()
-            email = data.get("email", "").strip().lower()
-            
-            if not message:
-                self._json({"reply": "Say something!"})
-                return
-            if not email:
-                self._json({"error": "Missing email"}, 400)
-                return
-            
-            uid_result = generate_aria_uid(email)
-            if "error" in uid_result:
-                self._json({"error": uid_result["error"]}, 500)
-                return
-            
-            u = uid_result["aria_uid"]
-            
-            reply = ask(message, u, 'groq')
-            if not reply:
-                reply = "I'm having trouble responding right now. Please try again."
-            
-            # Append debug message to the reply
-            self._json({"reply": reply + debug_msg})
+            try:
+                data = self._body()
+                message = data.get("message", "").strip()
+                email = data.get("email", "").strip().lower()
+                
+                if not message:
+                    self._json({"reply": "Say something!"})
+                    return
+                if not email:
+                    self._json({"error": "Missing email"}, 400)
+                    return
+                
+                uid_result = generate_aria_uid(email)
+                if "error" in uid_result:
+                    self._json({"error": uid_result["error"]}, 500)
+                    return
+                
+                u = uid_result["aria_uid"]
+                reply = ask(message, u, 'groq')
+                if not reply:
+                    reply = "I'm having trouble responding right now. Please try again."
+                self._json({"reply": reply})
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                self._json({"error": f"Server error: {str(e)}"}, 500)
             return
 
         if self.path == "/feedback":
