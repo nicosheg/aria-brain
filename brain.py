@@ -2145,20 +2145,17 @@ class Handler(BaseHTTPRequestHandler):
                 return
             
             u = uid_result["aria_uid"]
-            # ========== DEBUG: ADD THESE TWO LINES ==========
+            
+            # DEBUG: search OCR documents
             ocr_result = search_ocr_documents(u, message)
             debug_msg = f"\n\n[DEBUG OCR: {ocr_result[:200] if ocr_result else 'None'}]"
-            # ================================================
             
             reply = ask(message, u, 'groq')
             if not reply:
                 reply = "I'm having trouble responding right now. Please try again."
-            reply = ask(message, u, 'groq')
-            if not reply:
-                reply = "I'm having trouble responding right now. Please try again."
-            # Debug: print to Render logs
-            print(f"DEBUG: reply preview: {reply[:100] if reply else 'None'}")
-            self._json({"reply": reply})
+            
+            # Append debug message to the reply
+            self._json({"reply": reply + debug_msg})
             return
 
         if self.path == "/feedback":
