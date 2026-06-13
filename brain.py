@@ -2242,7 +2242,7 @@ class Handler(BaseHTTPRequestHandler):
             })
             return
 
-        # ── /upload-pdf (extract text, fallback to OCR if needed) ──
+        # ── /upload-pdf (detailed debug) ──
         if self.path == "/upload-pdf":
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length)
@@ -2269,41 +2269,48 @@ class Handler(BaseHTTPRequestHandler):
             import base64
             file_bytes = base64.b64decode(file_b64)
 
-            # First try direct text extraction (for text-based PDFs)
+            # First try direct text extraction
             extracted_text = extract_pdf_text(file_bytes)
-            
-            # If no text, fallback to OCR on the first page
-            if not extracted_text:
-                try:
-                    import fitz
-                    doc = fitz.open(stream=file_bytes, filetype="pdf")
-                    if len(doc) > 0:
-                        page = doc[0]
-                        pix = page.get_pixmap(dpi=150)
-                        img_data = pix.tobytes("png")
-                        img_base64 = base64.b64encode(img_data).decode('utf-8')
-                        extracted_text = extract_text_with_ocr_space(img_base64)
-                    doc.close()
-                except Exception as ocr_e:
-                    print(f"PDF OCR fallback error: {ocr_e}")
-                    extracted_text = None
-
-            if not extracted_text:
-                self._json({"error": "PDF text extraction failed – even OCR could not extract text"}, 400)
+            if extracted_text:
+                self._json({
+                    "status": "PDF processed",
+                    "text": extracted_text[:500],
+                    "full_length": len(extracted_text),
+                    "method": "direct"
+                })
                 return
 
-            # Store in global knowledge base and conversation memory
-            status, doc_id = store_global_document(extracted_text, "pdf", file_name, "academic")
-            pdf_message = f"[PDF: {file_name}]\n{extracted_text}"
-            save_memory(u, pdf_message, "[PDF text saved]")
+            # If that fails, try OCR on first page
+            try:
+                import fitz
+                doc = fitz.open(stream=file_bytes, filetype="pdf")
+                if len(doc) == 0:
+                    self._json({"error": "PDF has no pages"}, 400)
+                    return
+                page = doc[0]
+                pix = page.get_pixmap(dpi=150)
+                img_data = pix.tobytes("png")
+                img_base64 = base64.b64encode(img_data).decode('utf-8')
+                extracted_text = extract_text_with_ocr_space(img_base64)
+                doc.close()
+                if extracted_text:
+                    # Store in global and memory
+                    status, doc_id = store_global_document(extracted_text, "pdf", file_name, "academic")
+                    pdf_message = f"[PDF: {file_name}]\n{extracted_text}"
+                    save_memory(u, pdf_message, "[PDF text saved]")
+                    self._json({
+                        "status": "PDF processed",
+                        "text": extracted_text[:500],
+                        "full_length": len(extracted_text),
+                        "method": "ocr"
+                    })
+                    return
+                else:
+                    self._json({"error": "OCR.space returned no text. The PDF page may be blank or the API limit reached."}, 400)
+            except Exception as e:
+                self._json({"error": f"OCR fallback failed: {str(e)}"}, 500)
 
-            self._json({
-                "status": "PDF processed",
-                "text": extracted_text[:500],
-                "full_length": len(extracted_text),
-                "global_status": status
-            })
-            return
+            self._json({"error": "No text could be extracted from the PDF"}, 400)
         # If no endpoint matched, return 404
         else:
             self.send_response(404)
