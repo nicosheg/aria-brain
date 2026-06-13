@@ -1751,6 +1751,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(msg.encode())
 
     def do_POST(self):
+        # ========== ENDPOINTS THAT DON'T NEED REQUEST BODY ==========
         if self.path == "/db_test":
             import os, psycopg2
             db_url = os.environ.get("SUPABASE_DB_URL", "")
@@ -1771,7 +1772,6 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"error": str(e)})
             return
 
-        # ── Save name from Google login ──
         if self.path == "/set_user_name":
             content_length = int(self.headers.get('Content-Length', 0))
             body = json.loads(self.rfile.read(content_length))
@@ -1790,7 +1790,6 @@ class Handler(BaseHTTPRequestHandler):
                 
                 aria_uid = uid_result["aria_uid"]
                 
-                # Delete old name facts for this user (prevent duplicates)
                 try:
                     conn = _postgres_pool.getconn()
                     cur = conn.cursor()
@@ -1804,7 +1803,6 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as del_err:
                     print(f"Warning: could not delete old name: {del_err}")
                 
-                # Save new name
                 result = save_memory_node(aria_uid, "fact", f"Name: {name}", importance=100)
                 if "error" in result:
                     self._json({"status": "error", "message": "Failed to save name"}, 500)
@@ -1817,7 +1815,6 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"status": "error", "message": str(e)}, 500)
                 return
 
-        # ── /my_profile (show user's stored facts and adaptive scores) ──
         if self.path == "/my_profile":
             data = self._body()
             email = data.get("email", "").strip().lower()
@@ -1838,7 +1835,6 @@ class Handler(BaseHTTPRequestHandler):
             self._json(profile)
             return
 
-        # ── Check pattern_miner status (temporary) ──
         if self.path == "/check_pattern_miner":
             self._json({
                 "HAS_PATTERN_MINER": HAS_PATTERN_MINER,
@@ -1846,14 +1842,10 @@ class Handler(BaseHTTPRequestHandler):
             })
             return
 
-        # ── Get body for other endpoints ──
-        data = self._body()
-
-        # ── /chat-test (bypass ask) ──
         if self.path == "/chat-test":
             self._json({"reply": "Chat test works!"})
             return
-        # ── /chat-simple (bypass everything) ──
+
         if self.path == "/chat-simple":
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -1861,8 +1853,59 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"reply": "Simple chat works"}).encode())
             return
 
-        # ── /feedback ─────────────────────────────
+        if self.path == "/ping":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"pong")
+            return
+
+        if self.path == "/upload-file":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "Upload received (debug)", "type": "test"}).encode())
+            return
+
+        if self.path == "/predict":
+            data = self._body()
+            email = data.get("email", "").strip().lower()
+            subject = data.get("subject", "")
+            if not email or not subject:
+                self._json({"error": "Missing email or subject"}, 400)
+                return
+            uid_result = generate_aria_uid(email)
+            if "error" in uid_result:
+                self._json({"error": uid_result["error"]}, 500)
+                return
+            u = uid_result["aria_uid"]
+            predictions = generate_predicted_questions(u, subject, num_questions=5)
+            if predictions:
+                self._json({"predictions": predictions})
+            else:
+                self._json({"error": "Upload past questions first (PDF or image) to enable predictions."}, 400)
+            return
+
+        # ========== ENDPOINTS THAT NEED REQUEST BODY ==========
+        if self.path == "/chat":
+            data = self._body()
+            message = data.get("message", "").strip()
+            email = data.get("email", "").strip().lower()
+            
+            if not message:
+                self._json({"reply": "Say something!"})
+                return
+            if not email:
+                self._json({"error": "Missing email"}, 400)
+                return
+            
+            # For now, simple test reply (replace with ask() later)
+            reply = f"Hello! You said: {message}"
+            self._json({"reply": reply})
+            return
+
         if self.path == "/feedback":
+            data = self._body()
             u = data.get("user_id", "default_user")
             score = data.get("score", 0)
             if db:
@@ -1887,81 +1930,12 @@ class Handler(BaseHTTPRequestHandler):
                     pass
             self._json({"status": "Feedback recorded", "score": score})
             return
-        # ── /predict (exam prediction) ───────────────
-        elif self.path == "/predict":
-            content_length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(content_length)
-            try:
-                data = json.loads(body)
-            except:
-                self._json({"error": "Invalid JSON"}, 400)
-                return
-            email = data.get("email", "").strip().lower()
-            subject = data.get("subject", "")
-            if not email or not subject:
-                self._json({"error": "Missing email or subject"}, 400)
-                return
-            uid_result = generate_aria_uid(email)
-            if "error" in uid_result:
-                self._json({"error": uid_result["error"]}, 500)
-                return
-            u = uid_result["aria_uid"]
-            predictions = generate_predicted_questions(u, subject, num_questions=5)
-            if predictions:
-                self._json({"predictions": predictions})
-            else:
-                self._json({"error": "Upload past questions first (PDF or image) to enable predictions."}, 400)
 
-        # ── /upload-file (minimal working version) ──
-        elif self.path == "/upload-file":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "Upload received (debug)", "type": "test"}).encode())
-            return
-
-        # ── /chat (main chat endpoint) ──
-        if self.path == "/chat":
-            try:
-                data = self._body()
-                message = data.get("message", "").strip()
-                email = data.get("email", "").strip().lower()
-                
-                if not message:
-                    self._json({"reply": "Say something!"})
-                    return
-                if not email:
-                    self._json({"error": "Missing email"}, 400)
-                    return
-                
-                uid_result = generate_aria_uid(email)
-                if "error" in uid_result:
-                    self._json({"error": uid_result["error"]}, 500)
-                    return
-                
-                u = uid_result["aria_uid"]
-                
-                # For now, use a simple test reply to verify connection
-                # Later replace with: reply = ask(message, u, 'groq')
-                reply = f"Hello! You said: {message}"
-                self._json({"reply": reply})
-                
-            except Exception as e:
-                print(f"Chat error: {e}")
-                self._json({"error": str(e)}, 500)
-            return
-        # ── /ping (basic connectivity test) ──
-        if self.path == "/ping":
-            self.send_response(200)
-            self.send_header("Content-Type", "text/plain")
-            self.end_headers()
-            self.wfile.write(b"pong")
-            return
-        
+        # If no endpoint matched, return 404
         else:
             self.send_response(404)
             self.end_headers()
-
+        
     def _body(self):
         try:
             length = int(self.headers.get("Content-Length", 0))
@@ -1993,5 +1967,3 @@ if __name__ == "__main__":
     server = HTTPServer(("0.0.0.0", port), Handler)
     print(f"ARIA 3.5 running on port {port}")
     server.serve_forever()
-
-# force deploy
