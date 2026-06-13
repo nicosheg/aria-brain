@@ -2015,9 +2015,17 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"error": "Missing email"}, 400)
                 return
             
-            # For now, simple test reply (replace with ask() later)
+            uid_result = generate_aria_uid(email)
+            if "error" in uid_result:
+                self._json({"error": uid_result["error"]}, 500)
+                return
+            
             u = uid_result["aria_uid"]
             reply = ask(message, u, 'groq')
+            if not reply:
+                reply = "I'm having trouble responding right now. Please try again."
+            # Debug: print to Render logs
+            print(f"DEBUG: reply preview: {reply[:100] if reply else 'None'}")
             self._json({"reply": reply})
             return
 
