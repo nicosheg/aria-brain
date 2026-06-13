@@ -2242,8 +2242,8 @@ class Handler(BaseHTTPRequestHandler):
             })
             return
 
-        # ── /upload-pdf (detailed debug) ──
-        if self.path == "/upload-pdf":
+        # ── /upload-ocr (save real OCR text to conversation memory) ──
+        if self.path == "/upload-ocr":
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length)
             try:
@@ -2254,7 +2254,7 @@ class Handler(BaseHTTPRequestHandler):
 
             email = data.get("email", "").strip().lower()
             file_b64 = data.get("file_base64", "")
-            file_name = data.get("file_name", "document.pdf")
+            file_name = data.get("file_name", "image.jpg")
 
             if not email or not file_b64:
                 self._json({"error": "Missing email or file_base64"}, 400)
@@ -2266,51 +2266,25 @@ class Handler(BaseHTTPRequestHandler):
                 return
             u = uid_result["aria_uid"]
 
-            import base64
-            file_bytes = base64.b64decode(file_b64)
-
-            # First try direct text extraction
-            extracted_text = extract_pdf_text(file_bytes)
-            if extracted_text:
-                self._json({
-                    "status": "PDF processed",
-                    "text": extracted_text[:500],
-                    "full_length": len(extracted_text),
-                    "method": "direct"
-                })
+            extracted_text = extract_text_with_ocr_space(file_b64)
+            if not extracted_text:
+                self._json({"error": "OCR failed – no text extracted"}, 400)
                 return
 
-            # If that fails, try OCR on first page
-            try:
-                import fitz
-                doc = fitz.open(stream=file_bytes, filetype="pdf")
-                if len(doc) == 0:
-                    self._json({"error": "PDF has no pages"}, 400)
-                    return
-                page = doc[0]
-                pix = page.get_pixmap(dpi=150)
-                img_data = pix.tobytes("png")
-                img_base64 = base64.b64encode(img_data).decode('utf-8')
-                extracted_text = extract_text_with_ocr_space(img_base64)
-                doc.close()
-                if extracted_text:
-                    # Store in global and memory
-                    status, doc_id = store_global_document(extracted_text, "pdf", file_name, "academic")
-                    pdf_message = f"[PDF: {file_name}]\n{extracted_text}"
-                    save_memory(u, pdf_message, "[PDF text saved]")
-                    self._json({
-                        "status": "PDF processed",
-                        "text": extracted_text[:500],
-                        "full_length": len(extracted_text),
-                        "method": "ocr"
-                    })
-                    return
-                else:
-                    self._json({"error": "OCR.space returned no text. The PDF page may be blank or the API limit reached."}, 400)
-            except Exception as e:
-                self._json({"error": f"OCR fallback failed: {str(e)}"}, 500)
+            # Store in global knowledge base
+            status, doc_id = store_global_document(extracted_text, "image", file_name, "academic")
 
-            self._json({"error": "No text could be extracted from the PDF"}, 400)
+            # Save the ACTUAL extracted text to conversation memory
+            ocr_message = f"[Image: {file_name}]\n{extracted_text}"
+            save_memory(u, ocr_message, "[OCR text saved]")
+
+            self._json({
+                "status": "OCR completed",
+                "text": extracted_text[:500],
+                "full_length": len(extracted_text),
+                "global_status": status
+            })
+            return
         # If no endpoint matched, return 404
         else:
             self.send_response(404)
