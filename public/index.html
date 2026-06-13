@@ -945,7 +945,7 @@
       reader.onload = async (e) => {
         const base64 = e.target.result.split(',')[1];
         const fileType = file.type.includes('pdf') ? 'pdf' : 'image';
-        const endpoint = fileType === 'image' ? '/upload-ocr' : '/upload-file';
+        const endpoint = fileType === 'image' ? '/upload-ocr' : '/upload-pdf';
         try {
           const res = await fetch(endpoint, {
             method: 'POST',
