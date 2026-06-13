@@ -968,14 +968,13 @@
           }
           if (data.status === 'OCR completed') {
             addMessage(`📄 OCR completed for "${file.name}". Extracted ${data.full_length} characters. Preview: ${data.text.substring(0, 100)}...`, 'aria');
+          } else if (data.status === 'PDF processed') {
+            addMessage(`📄 PDF processed for "${file.name}". Extracted ${data.full_length} characters. Preview: ${data.text.substring(0, 100)}...`, 'aria');
           } else if (data.status === 'Upload received (debug)') {
             addMessage(`📄 Uploaded "${file.name}" (metadata only). OCR not applied.`, 'aria');
           } else {
             addMessage(`Upload failed: ${data.error || 'Unknown'}`, 'aria');
-          }
-        } catch (err) {
-          addMessage(`Upload error: ${err.message}`, 'aria');
-        }
+       }
       };
       reader.readAsDataURL(file);
     }
