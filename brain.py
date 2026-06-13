@@ -2016,7 +2016,8 @@ class Handler(BaseHTTPRequestHandler):
                 return
             
             # For now, simple test reply (replace with ask() later)
-            reply = f"Hello! You said: {message}"
+            u = uid_result["aria_uid"]
+            reply = ask(message, u, 'groq')
             self._json({"reply": reply})
             return
 
