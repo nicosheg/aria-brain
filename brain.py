@@ -1919,6 +1919,13 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({"status": "Upload received (debug)", "type": "test"}).encode())
             return
+        # ── /ping (basic connectivity test) ──
+        if self.path == "/ping":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"pong")
+            return
         
         else:
             self.send_response(404)
