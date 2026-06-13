@@ -247,6 +247,7 @@
       height: 16px;
       stroke: #60A5FA;
     }
+    /* Auto-expanding textarea */
     .input-field {
       flex: 1;
       background: transparent;
@@ -259,6 +260,7 @@
       min-height: 42px;
       max-height: 120px;
       font-family: inherit;
+      line-height: 1.4;
     }
     .input-field::placeholder { color: #334155; }
     /* Round buttons */
@@ -272,6 +274,7 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
+      flex-shrink: 0;
     }
     .send-circle svg {
       width: 14px;
@@ -292,6 +295,7 @@
       transition: all 0.25s ease;
       border: 0.5px solid rgba(96,165,250,0.3);
       position: relative;
+      flex-shrink: 0;
     }
     .upload-btn:hover {
       background: rgba(96,165,250,0.3);
@@ -722,6 +726,20 @@
     const historyModal = document.getElementById('historyModal');
     const historyContent = document.getElementById('historyContent');
 
+    function autoResize(textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+    }
+
+    function setupTextarea(inputEl) {
+      if (!inputEl) return;
+      inputEl.addEventListener('input', () => autoResize(inputEl));
+      autoResize(inputEl);
+    }
+
+    setupTextarea(mainInput);
+    setupTextarea(chatInput);
+
     function addMessage(text, sender, showRating = false, msgId = null) {
       const div = document.createElement('div');
       div.className = `message ${sender}`;
@@ -798,6 +816,7 @@
       }
       addMessage(message, 'user');
       inputElement.value = '';
+      autoResize(inputElement);
       showTyping();
       try {
         const res = await fetch('/chat', {
