@@ -2185,29 +2185,41 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"status": "Feedback recorded", "score": score})
             return
 
-         # ── /upload-ocr (extract text from image using OCR.space) ──
+        # ── /upload-ocr (extract text and save to conversation memory) ──
         if self.path == "/upload-ocr":
             data = self._body()
-            user_id = data.get("user_id", "")
+            email = data.get("email", "").strip().lower()
             file_b64 = data.get("file_base64", "")
             file_name = data.get("file_name", "image.jpg")
             
-            if not user_id or not file_b64:
-                self._json({"error": "Missing user_id or file_base64"}, 400)
+            if not email or not file_b64:
+                self._json({"error": "Missing email or file_base64"}, 400)
                 return
+            
+            uid_result = generate_aria_uid(email)
+            if "error" in uid_result:
+                self._json({"error": uid_result["error"]}, 500)
+                return
+            
+            u = uid_result["aria_uid"]
             
             extracted_text = extract_text_with_ocr_space(file_b64)
             if not extracted_text:
                 self._json({"error": "OCR failed. No text extracted."}, 400)
                 return
             
-            saved = store_ocr_text(user_id, file_name, extracted_text)
+            # Store in Firestore for future reference (optional)
+            store_ocr_text(u, file_name, extracted_text)
+            
+            # CRITICAL: Save the extracted text to the conversation memory
+            # Format it as a user message so ARIA sees it in context
+            ocr_message = f"[Text from uploaded image '{file_name}']\n{extracted_text}"
+            save_memory(u, ocr_message, "[Image text received]")
             
             self._json({
-                "status": "OCR completed",
-                "text": extracted_text[:500],
-                "full_length": len(extracted_text),
-                "saved": saved
+                "status": "OCR completed and saved to chat memory",
+                "text_preview": extracted_text[:200],
+                "full_length": len(extracted_text)
             })
             return
 
