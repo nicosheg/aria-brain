@@ -2130,6 +2130,32 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"status": "Feedback recorded", "score": score})
             return
 
+         # ── /upload-ocr (extract text from image using OCR.space) ──
+        if self.path == "/upload-ocr":
+            data = self._body()
+            user_id = data.get("user_id", "")
+            file_b64 = data.get("file_base64", "")
+            file_name = data.get("file_name", "image.jpg")
+            
+            if not user_id or not file_b64:
+                self._json({"error": "Missing user_id or file_base64"}, 400)
+                return
+            
+            extracted_text = extract_text_with_ocr_space(file_b64)
+            if not extracted_text:
+                self._json({"error": "OCR failed. No text extracted."}, 400)
+                return
+            
+            saved = store_ocr_text(user_id, file_name, extracted_text)
+            
+            self._json({
+                "status": "OCR completed",
+                "text": extracted_text[:500],
+                "full_length": len(extracted_text),
+                "saved": saved
+            })
+            return
+
         # If no endpoint matched, return 404
         else:
             self.send_response(404)
