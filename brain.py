@@ -2242,7 +2242,7 @@ class Handler(BaseHTTPRequestHandler):
             })
             return
 
-        # ── /upload-pdf (extract text and save to conversation memory) ──
+        # ── /upload-pdf (extract text, fallback to OCR if needed) ──
         if self.path == "/upload-pdf":
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length)
@@ -2266,20 +2266,34 @@ class Handler(BaseHTTPRequestHandler):
                 return
             u = uid_result["aria_uid"]
 
-            # Decode base64
             import base64
             file_bytes = base64.b64decode(file_b64)
 
-            # Extract text from PDF
+            # First try direct text extraction (for text-based PDFs)
             extracted_text = extract_pdf_text(file_bytes)
+            
+            # If no text, fallback to OCR on the first page
             if not extracted_text:
-                self._json({"error": "PDF text extraction failed – no text found"}, 400)
+                try:
+                    import fitz
+                    doc = fitz.open(stream=file_bytes, filetype="pdf")
+                    if len(doc) > 0:
+                        page = doc[0]
+                        pix = page.get_pixmap(dpi=150)
+                        img_data = pix.tobytes("png")
+                        img_base64 = base64.b64encode(img_data).decode('utf-8')
+                        extracted_text = extract_text_with_ocr_space(img_base64)
+                    doc.close()
+                except Exception as ocr_e:
+                    print(f"PDF OCR fallback error: {ocr_e}")
+                    extracted_text = None
+
+            if not extracted_text:
+                self._json({"error": "PDF text extraction failed – even OCR could not extract text"}, 400)
                 return
 
-            # Store in global knowledge base (deduplicated)
+            # Store in global knowledge base and conversation memory
             status, doc_id = store_global_document(extracted_text, "pdf", file_name, "academic")
-
-            # Save to user's conversation memory
             pdf_message = f"[PDF: {file_name}]\n{extracted_text}"
             save_memory(u, pdf_message, "[PDF text saved]")
 
