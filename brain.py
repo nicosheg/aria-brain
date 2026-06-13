@@ -1387,7 +1387,7 @@ def store_ocr_text(user_id, file_name, extracted_text):
         return False
 
 def search_ocr_documents(user_id, query, limit=3):
-    """Search OCR-extracted text for relevant content."""
+    """Search OCR-extracted text for relevant content, plus most recent image for vague references."""
     if not db:
         return ""
     try:
@@ -1404,6 +1404,14 @@ def search_ocr_documents(user_id, query, limit=3):
             overlap = len(query_words & text_words)
             if overlap > 0:
                 results.append((overlap, text[:500]))
+        
+        # Fallback: if query references "this image" or similar, include the most recent OCR text
+        vague_words = ["image", "picture", "screenshot", "this", "that", "see", "look", "photo", "upload"]
+        if docs and any(word in query.lower() for word in vague_words):
+            most_recent = docs[0].to_dict().get("text", "")
+            if most_recent:
+                results.append((999, most_recent[:500]))  # high priority
+        
         results.sort(reverse=True)
         if not results:
             return ""
