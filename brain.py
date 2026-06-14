@@ -2166,8 +2166,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"reply": reply})
             except Exception as e:
                 import traceback
-                traceback.print_exc()
-                self._json({"error": f"Server error: {str(e)}"}, 500)
+                error_msg = str(e)
+                print(traceback.format_exc())
+                self._json({"error": f"Server error: {error_msg}"}, 500)
             return
 
         if self.path == "/feedback":
