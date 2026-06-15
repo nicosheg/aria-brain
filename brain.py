@@ -1621,6 +1621,9 @@ def ask(m, u, api, system_prompt_override=None):
     final_sp = SP
     if lesson_injection or behavior_guidance:
         final_sp = final_sp + "\n\n## LEARNED PATTERNS FROM THIS COMMUNITY\n" + lesson_injection + behavior_guidance
+            # Use override if provided (for income module)
+    if system_prompt_override:
+        final_sp = system_prompt_override
     
     if adaptive_summary:
         final_sp += f"\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nUSER ADAPTIVE PROFILE (probabilities)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n{adaptive_summary}\n\n"
