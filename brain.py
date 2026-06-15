@@ -2163,16 +2163,6 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 
                 u = uid_result["aria_uid"]
-                reply = ask(message, u, 'groq')
-                if not reply:
-                    reply = "I'm having trouble responding right now. Please try again."
-                self._json({"reply": reply})
-            except Exception as e:
-                import traceback
-                error_msg = str(e)
-                print(traceback.format_exc())
-                self._json({"error": f"Server error: {error_msg}"}, 500)
-            return
             # ───────────────────────────────────────────────────────────
             # [S13/S14/S15] INCOME MODULE ROUTING
             # ───────────────────────────────────────────────────────────
@@ -2221,6 +2211,16 @@ class Handler(BaseHTTPRequestHandler):
             # ───────────────────────────────────────────────────────────
             # FALLBACK: Normal ask()
             # ───────────────────────────────────────────────────────────
+                reply = ask(message, u, 'groq')
+                if not reply:
+                    reply = "I'm having trouble responding right now. Please try again."
+                self._json({"reply": reply})
+            except Exception as e:
+                import traceback
+                error_msg = str(e)
+                print(traceback.format_exc())
+                self._json({"error": f"Server error: {error_msg}"}, 500)
+            return
 
         if self.path == "/feedback":
             data = self._body()
