@@ -2324,3 +2324,560 @@ if __name__ == "__main__":
     server = HTTPServer(("0.0.0.0", port), Handler)
     print(f"ARIA 3.5 running on port {port}")
     server.serve_forever()
+
+# =====================================================================
+# [S13] INCOME MODULE – Income generation guidance & tracking
+# =====================================================================
+import re
+from datetime import datetime, timezone, timedelta
+from typing import Optional, Dict, Any, List, Tuple
+from firebase_admin import firestore
+
+try:
+    db = firestore.client()
+except Exception as e:
+    print(f"[S13] FATAL: Firestore client not available: {e}")
+    db = None
+
+INCOME_KEYWORDS = [
+    r'\b(income|earn|money|salary|wages|revenue|profit|cash)\b',
+    r'\b(hustle|side hustle|business|startup|capital|investment|skill|job)\b',
+    r'\b(naira|₦|ngn|kobo)\b',
+    r'\b(make money|chop money|bag|stack|kala|freelance|gig)\b',
+    r'₦\s*\d+', r'\d+\s*k\b', r'\d+\s*naira\b', r'\d+\s*ngn\b'
+]
+_INCOME_PATTERN = re.compile('|'.join(INCOME_KEYWORDS), re.IGNORECASE)
+
+def is_income_query(message: str) -> bool:
+    if not message or not isinstance(message, str):
+        return False
+    try:
+        return bool(_INCOME_PATTERN.search(message))
+    except Exception as e:
+        print(f"[S13] is_income_query error: {e}")
+        return False
+
+def get_or_create_income_profile(user_id: str) -> Optional[Dict[str, Any]]:
+    if db is None:
+        return None
+    try:
+        doc_ref = db.collection('user_income_profiles').document(user_id)
+        doc = doc_ref.get()
+        return doc.to_dict() if doc.exists else None
+    except Exception as e:
+        print(f"[S13] get_or_create_income_profile error: {e}")
+        return None
+
+def save_income_profile(user_id: str, profile: dict) -> bool:
+    if db is None:
+        return False
+    try:
+        profile['updated_at'] = firestore.SERVER_TIMESTAMP
+        doc_ref = db.collection('user_income_profiles').document(user_id)
+        doc_ref.set(profile, merge=True)
+        return True
+    except Exception as e:
+        print(f"[S13] save_income_profile error: {e}")
+        return False
+
+_MONEY_PATTERN = re.compile(
+    r'(₦\s*|\bnaira\s*|\bngn\s*)?'
+    r'(\d{1,3}(?:,\d{3})*(?:\.\d+)?)'
+    r'\s*'
+    r'(k|naira|₦|ngn)?',
+    re.IGNORECASE
+)
+_EARNING_VERBS = re.compile(
+    r'\b(made|earned|got|received|gained|won|collected|bagged|chop|'
+    r'make|earn|get|receive|gain|win|collect|bag)\b',
+    re.IGNORECASE
+)
+
+def detect_and_record_outcome(user_id: str, message: str) -> Dict[str, Any]:
+    if db is None:
+        return {"recorded": False, "error": "Firestore unavailable"}
+    result = {"recorded": False}
+    try:
+        if not _EARNING_VERBS.search(message):
+            return result
+        match = _MONEY_PATTERN.search(message)
+        if not match:
+            return result
+        amount_str = match.group(2).replace(',', '')
+        amount = float(amount_str)
+        multiplier = (match.group(1) or match.group(3) or '').strip().lower()
+        if 'k' in multiplier:
+            amount *= 1000
+        final_amount = int(amount)
+        if final_amount <= 0:
+            return result
+        profile = get_or_create_income_profile(user_id)
+        path_name = ""
+        if profile:
+            active_paths = profile.get('active_paths', [])
+            if active_paths:
+                path_name = active_paths[0]
+            else:
+                path_name = profile.get('assigned_income_path', '')
+        doc_data = {
+            "user_id": user_id,
+            "amount_naira": final_amount,
+            "path_name": path_name,
+            "raw_message": message,
+            "created_at": firestore.SERVER_TIMESTAMP
+        }
+        doc_ref = db.collection("income_outcomes").document()
+        doc_ref.set(doc_data)
+        result = {
+            "recorded": True,
+            "amount": final_amount,
+            "doc_id": doc_ref.id,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        return result
+    except Exception as e:
+        print(f"[S13] detect_and_record_outcome error: {e}")
+        return {"recorded": False, "error": str(e)}
+
+def classify_user_type(message: str) -> Tuple[str, Optional[str]]:
+    business_triggers = re.compile(
+        r'\b(business|shop|store|sell|selling|customers|market|trade|enterprise)\b',
+        re.IGNORECASE
+    )
+    if business_triggers.search(message):
+        return ("business_owner", "What type of business do you run?")
+    return ("individual", None)
+
+def _parse_timestamp(ts):
+    if ts is None:
+        return None
+    if isinstance(ts, datetime):
+        return ts.replace(tzinfo=timezone.utc) if ts.tzinfo is None else ts
+    if hasattr(ts, 'seconds'):
+        try:
+            return datetime.fromtimestamp(ts.seconds, tz=timezone.utc)
+        except:
+            return None
+    return None
+
+def check_diversification_guard(user_id: str) -> Optional[str]:
+    if db is None:
+        return None
+    try:
+        profile = get_or_create_income_profile(user_id)
+        if not profile:
+            return None
+        active_paths = profile.get('active_paths', [])
+        if not active_paths:
+            single = profile.get('assigned_income_path')
+            if single:
+                active_paths = [single]
+            else:
+                return None
+        if len(active_paths) >= 2:
+            primary = active_paths[0]
+            return (
+                f"You already have {len(active_paths)} active income paths. "
+                f"Adding more before these generate results is how people earn "
+                f"nothing from everything. Focus on {primary} first."
+            )
+        current_path = active_paths[0]
+        start_date_raw = profile.get('path_start_date') or profile.get('created_at')
+        start_date = _parse_timestamp(start_date_raw)
+        if not start_date:
+            return None
+        now = datetime.now(timezone.utc)
+        days_on_path = (now - start_date).days
+        earnings = 0
+        if db:
+            try:
+                outcomes = db.collection('income_outcomes') \
+                            .where('user_id', '==', user_id) \
+                            .where('path_name', '==', current_path) \
+                            .stream()
+                for doc in outcomes:
+                    earnings += doc.to_dict().get('amount_naira', 0)
+            except:
+                pass
+        if days_on_path < 21 and earnings == 0:
+            return (
+                f"You've been on {current_path} for {days_on_path} days "
+                f"with no income yet. Most people see results between day 14–28. "
+                f"Do you want to continue or explore another path?"
+            )
+        if days_on_path >= 42 and earnings == 0:
+            return (
+                f"6 weeks on {current_path} with ₦0 earned. "
+                f"Something isn't working. Let's diagnose before you start "
+                f"something new. What have you actually tried so far?"
+            )
+        return None
+    except Exception as e:
+        print(f"[S13] check_diversification_guard error: {e}")
+        return None
+
+def build_income_system_prompt(profile: dict, knowledge: dict) -> str:
+    try:
+        user_type = profile.get('user_type', 'individual')
+        business_type = profile.get('business_type', None)
+        profile_lines = ["USER INCOME PROFILE:"]
+        skills = profile.get('skills', [])
+        if skills:
+            profile_lines.append(f"- Skills: {', '.join(skills)}")
+        profile_lines.append(f"- User type: {user_type}")
+        if user_type == 'business_owner' and business_type:
+            profile_lines.append(f"- Business type: {business_type}")
+        profile_lines.append(f"- Available hours/week: {profile.get('available_hours_per_week', 'N/A')}")
+        profile_lines.append(f"- Startup capital (₦): {profile.get('startup_capital_naira', 'N/A')}")
+        profile_lines.append(f"- Current monthly income (₦): {profile.get('current_monthly_income', 'N/A')}")
+        profile_lines.append(f"- Target monthly income (₦): {profile.get('target_monthly_income', 'N/A')}")
+        profile_lines.append("")
+        knowledge_lines = []
+        if isinstance(knowledge, dict) and knowledge.get('items'):
+            knowledge_lines.append("NIGERIAN INCOME PATHS AVAILABLE:")
+            for item in knowledge['items'][:3]:
+                knowledge_lines.append(f"• {item.get('name', 'Unknown')}")
+                knowledge_lines.append(f"  Earnings: {item.get('realistic_monthly_naira', {}).get('min', 'N/A')}–{item.get('realistic_monthly_naira', {}).get('max', 'N/A')} naira/month")
+        parts = [
+            "You are ARIA's income advisor for Nigerians.",
+            "Your role: Help this user identify and execute realistic income generation.",
+            "",
+            "\n".join(profile_lines),
+            "\n".join(knowledge_lines) if knowledge_lines else "",
+            "",
+            "Be direct. No motivational fluff. Always give the next concrete action in Naira terms.",
+            "Speak like a Nigerian income strategist, not a coach."
+        ]
+        return "\n".join([p for p in parts if p])
+    except Exception as e:
+        print(f"[S13] build_income_system_prompt error: {e}")
+        return "You are ARIA's income advisor. Help with realistic Nigerian income strategies."
+
+def get_relevant_income_knowledge(message: str) -> dict:
+    if db is None:
+        return {}
+    try:
+        doc = db.collection("aria_knowledge").document("income_ng").get()
+        if doc.exists:
+            return doc.to_dict()
+        return {}
+    except Exception as e:
+        print(f"[S13] get_relevant_income_knowledge error: {e}")
+        return {}
+
+def start_income_onboarding(user_id: str, message: str,
+                            user_type: str = "individual",
+                            business_question: Optional[str] = None) -> Dict[str, Any]:
+    try:
+        profile = {
+            "user_id": user_id,
+            "user_type": user_type,
+            "created_at": firestore.SERVER_TIMESTAMP,
+            "onboarding_step": 1
+        }
+        if user_type == "business_owner" and business_question:
+            profile["business_type"] = business_question
+            reply = f"To help your business grow — {business_question}"
+        else:
+            reply = (
+                "To help you earn income, I need to understand you better. "
+                "What are your main skills? (e.g., writing, design, teaching, "
+                "social media, coding, video editing, etc.)"
+            )
+        save_income_profile(user_id, profile)
+        return {"reply": reply}
+    except Exception as e:
+        print(f"[S13] start_income_onboarding error: {e}")
+        return {"reply": "Let's start fresh. Tell me your skills."}
+
+def calculate_confidence(path_data: dict, base_score: int,
+                         user_profile: Optional[dict] = None) -> Tuple[int, List[str]]:
+    confidence = base_score
+    reasons = []
+    try:
+        estimated_count = 0
+        for key, value in path_data.items():
+            if isinstance(value, dict) and 'ESTIMATED' in str(value.get('source', '')):
+                estimated_count += 1
+            elif isinstance(value, str) and 'ESTIMATED' in value:
+                estimated_count += 1
+        confidence -= estimated_count * 5
+        confidence = max(0, min(100, confidence))
+        if not reasons:
+            reasons.append("Matches your profile")
+        if estimated_count > 0:
+            reasons.append(f"{estimated_count} data points are estimated")
+        return confidence, reasons
+    except Exception as e:
+        print(f"[S13] calculate_confidence error: {e}")
+        return base_score, ["Calculation incomplete"]
+
+
+# =====================================================================
+# [S14] ACTION TRACKER – Task assignment & outcome recording
+# =====================================================================
+from datetime import datetime, timedelta
+from typing import Optional, Dict, Any
+
+def assign_first_action(user_id: str, recommended_path: str,
+                        action_text: str) -> Dict[str, Any]:
+    if db is None:
+        return {"success": False, "error": "Firestore unavailable"}
+    try:
+        now = datetime.utcnow()
+        due_by = now + timedelta(hours=24)
+        task_data = {
+            "user_id": user_id,
+            "path_name": recommended_path,
+            "action": action_text,
+            "assigned_at": now,
+            "due_by": due_by,
+            "status": "active",
+            "follow_up_count": 0,
+            "created_at": firestore.SERVER_TIMESTAMP,
+        }
+        doc_ref = db.collection("user_action_queue").document(user_id)
+        doc_ref.set(task_data)
+        return {
+            "success": True,
+            "task_id": doc_ref.id,
+            "due_by": due_by.isoformat(),
+        }
+    except Exception as e:
+        print(f"[S14] assign_first_action error: {e}")
+        return {"success": False, "error": str(e)}
+
+def update_path_success_pattern(path_name: str, amount_naira: int,
+                                days_taken: int) -> None:
+    if db is None:
+        return
+    try:
+        doc_ref = db.collection("path_success_patterns").document(path_name)
+        @firestore.transactional
+        def update_in_transaction(transaction, ref):
+            snapshot = ref.get(transaction=transaction)
+            if snapshot.exists:
+                data = snapshot.to_dict()
+                total_outcomes = data.get("total_outcomes", 0) + 1
+                total_amount = data.get("total_amount_naira", 0) + amount_naira
+                total_days = data.get("total_days_taken", 0) + days_taken
+                avg_amount = total_amount / total_outcomes
+                avg_days = total_days / total_outcomes
+            else:
+                total_outcomes = 1
+                total_amount = amount_naira
+                total_days = days_taken
+                avg_amount = amount_naira
+                avg_days = days_taken
+            transaction.set(
+                ref,
+                {
+                    "path_name": path_name,
+                    "total_outcomes": total_outcomes,
+                    "total_amount_naira": total_amount,
+                    "total_days_taken": total_days,
+                    "avg_amount_naira": avg_amount,
+                    "avg_days_taken": avg_days,
+                    "last_updated": firestore.SERVER_TIMESTAMP,
+                },
+                merge=True,
+            )
+        transaction = db.transaction()
+        update_in_transaction(transaction, doc_ref)
+    except Exception as e:
+        print(f"[S14] update_path_success_pattern error: {e}")
+
+def record_outcome(user_id: str, amount_naira: int, days_taken: int,
+                   path_name: Optional[str] = None) -> Dict[str, Any]:
+    if db is None:
+        return {"recorded": False, "error": "Firestore unavailable"}
+    try:
+        outcome_data = {
+            "user_id": user_id,
+            "amount_naira": amount_naira,
+            "days_taken": days_taken,
+            "path_name": path_name or "",
+            "recorded_at": firestore.SERVER_TIMESTAMP,
+            "source": "manual_outcome_report",
+        }
+        doc_ref = db.collection("income_outcomes").document()
+        doc_ref.set(outcome_data)
+        if path_name:
+            update_path_success_pattern(path_name, amount_naira, days_taken)
+        return {"recorded": True, "doc_id": doc_ref.id}
+    except Exception as e:
+        print(f"[S14] record_outcome error: {e}")
+        return {"recorded": False, "error": str(e)}
+
+def get_user_active_path(user_id: str) -> str:
+    try:
+        profile = get_or_create_income_profile(user_id)
+        if not profile:
+            return ""
+        paths = profile.get('active_paths', [])
+        if paths:
+            return paths[0]
+        return profile.get('assigned_income_path', "")
+    except:
+        return ""
+
+
+# =====================================================================
+# [S15] CHECK-IN ENGINE – Proactive follow-up & blocker detection
+# =====================================================================
+import re
+from firebase_admin import messaging
+
+def _to_datetime(ts):
+    if ts is None:
+        return None
+    if isinstance(ts, datetime):
+        return ts.replace(tzinfo=timezone.utc) if ts.tzinfo is None else ts
+    if hasattr(ts, 'seconds'):
+        try:
+            return datetime.fromtimestamp(ts.seconds, tz=timezone.utc)
+        except:
+            return None
+    return None
+
+def check_in_on_open(user_id: str) -> Optional[str]:
+    if db is None:
+        return None
+    try:
+        task_ref = db.collection("user_action_queue").document(user_id)
+        task_doc = task_ref.get()
+        if not task_doc.exists:
+            return None
+        task = task_doc.to_dict()
+        if task.get("status") != "active":
+            return None
+        assigned_at = _to_datetime(task.get("assigned_at"))
+        if assigned_at is None:
+            return None
+        now = datetime.now(timezone.utc)
+        last_message_at_raw = task.get("last_message_at")
+        last_message_at = _to_datetime(last_message_at_raw)
+        if last_message_at is not None and (now - last_message_at).total_seconds() < 7200:
+            task_ref.update({"last_message_at": firestore.SERVER_TIMESTAMP})
+            return None
+        follow_up_count = task.get("follow_up_count", 0)
+        hours_elapsed = (now - assigned_at).total_seconds() / 3600
+        message = None
+        if hours_elapsed >= 20 and follow_up_count == 0:
+            message = (
+                "👋 It's been about a day since your first action step. "
+                "How's it going? Did you take that first small step? "
+                "Reply with what you did, or let me know what's blocking you."
+            )
+            if last_message_at is None or (now - last_message_at).total_seconds() > 72000:
+                send_fcm_notification(user_id, "ARIA Check-in", "It's been a day. Tap to update me!")
+        elif hours_elapsed >= 72 and follow_up_count == 1:
+            message = (
+                "⏰ Three days passed. I know life gets busy, but even 10 minutes "
+                "today can move you forward. What's the biggest thing holding you back?"
+            )
+        elif hours_elapsed >= 168 and follow_up_count == 2:
+            message = (
+                "💰 It's been a week. Have you made any money yet from this path? "
+                "Even ₦1,000 counts. Tell me the amount and I'll record it."
+            )
+        updates = {"last_message_at": firestore.SERVER_TIMESTAMP}
+        if message:
+            updates["follow_up_count"] = follow_up_count + 1
+        task_ref.update(updates)
+        return message
+    except Exception as e:
+        print(f"[S15] check_in_on_open error: {e}")
+        return None
+
+def send_fcm_notification(user_id: str, title: str, body: str) -> bool:
+    if db is None:
+        return False
+    try:
+        user_doc = db.collection("users").document(user_id).get()
+        if not user_doc.exists:
+            return False
+        fcm_token = user_doc.get("fcm_token")
+        if not fcm_token:
+            return False
+        message = messaging.Message(
+            notification=messaging.Notification(title=title, body=body),
+            token=fcm_token,
+        )
+        messaging.send(message)
+        return True
+    except Exception as e:
+        print(f"[S15] send_fcm_notification error: {e}")
+        return False
+
+BLOCKER_RESPONSES = {
+    "no_data": (
+        "📶 No data is a real blocker. Try: Opera Mini extreme mode, "
+        "library WiFi, or check if your network offers free data. "
+        "What's available to you right now?"
+    ),
+    "no_money": (
+        "💸 Many income paths need ₦0 to start — just skills and a phone. "
+        "Want me to suggest zero-capital paths?"
+    ),
+    "scared": (
+        "😟 Fear is normal. Every successful person started scared. "
+        "What specifically worries you about trying this?"
+    ),
+    "no_client": (
+        "🔍 Post on WhatsApp status + Facebook groups. Offer a free sample "
+        "for testimonials. Join community groups. Which feels doable?"
+    ),
+    "NEPA": (
+        "⚡ NEPA is tough. Do offline tasks: write drafts, plan content, "
+        "design mockups. Batch online work when light comes. Power bank helps."
+    ),
+    "no_time": (
+        "⏳ Even 15 minutes daily builds momentum. What part of your day "
+        "has a small gap — morning, lunch, evening?"
+    ),
+}
+
+BLOCKER_KEYWORDS = re.compile(
+    r'\b('
+    r'no data|no internet|data finished|data don finish|'
+    r'no money|broke|no capital|i no get money|'
+    r'scared|fear|afraid|i dey fear|'
+    r'no client|i no get client|nobody to work for|'
+    r'nepa|no phcn|light don go|power don finish|no light|'
+    r'no time|i no get time|busy|time no dey'
+    r')\b',
+    re.IGNORECASE
+)
+
+BLOCKER_MAP = {
+    "no data": "no_data", "no internet": "no_data", "data finished": "no_data",
+    "no money": "no_money", "broke": "no_money", "no capital": "no_money",
+    "scared": "scared", "fear": "scared", "afraid": "scared",
+    "no client": "no_client", "i no get client": "no_client",
+    "nepa": "NEPA", "no phcn": "NEPA", "light don go": "NEPA", "power don finish": "NEPA",
+    "no time": "no_time", "i no get time": "no_time", "busy": "no_time",
+}
+
+def detect_blocker(user_id: str, message: str) -> Optional[str]:
+    if not message or db is None:
+        return None
+    try:
+        match = BLOCKER_KEYWORDS.search(message)
+        if not match:
+            return None
+        matched_phrase = match.group(1).lower()
+        blocker_type = BLOCKER_MAP.get(matched_phrase)
+        if not blocker_type:
+            return None
+        log_data = {
+            "user_id": user_id,
+            "blocker_type": blocker_type,
+            "message_snippet": message[:200],
+            "detected_at": firestore.SERVER_TIMESTAMP,
+        }
+        db.collection("user_blockers").add(log_data)
+        return BLOCKER_RESPONSES.get(blocker_type, "I see you're facing a challenge. Tell me more.")
+    except Exception as e:
+        print(f"[S15] detect_blocker error: {e}")
+        return None
