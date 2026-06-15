@@ -1,0 +1,394 @@
+{
+  "metadata": {
+    "version": "1.1",
+    "country": "Nigeria",
+    "last_updated": "2026-06",
+    "routing_rules": {
+      "affiliate_marketing": {
+        "recommend_only_if": "user has existing audience"
+      }
+    }
+  },
+  "income_paths": [
+    {
+      "name": "Social Media Management (Local SMEs)",
+      "skills_required": {
+        "value": ["Content creation", "Basic analytics", "Copywriting", "Client communication", "Canva basics"],
+        "source": "DOMAIN KNOWLEDGE - survey will refine"
+      },
+      "startup_capital_naira": {
+        "min": 0,
+        "max": 20000,
+        "source": "SURVEY DATA REQUIRED"
+      },
+      "time_to_first_income_days": {
+        "min": 30,
+        "max": 90,
+        "source": "https://nivedigitalacademy.com/social-media-manager-salary-in-nigeria/"
+      },
+      "realistic_monthly_naira": {
+        "min": 50000,
+        "max": 150000,
+        "source": "https://nivedigitalacademy.com/social-media-manager-salary-in-nigeria/"
+      },
+      "success_blockers": {
+        "value": ["Client inability to track ROI", "High data and electricity cost for manager", "Clients expecting video, design and ads for one fee"],
+        "source": "https://nivedigitalacademy.com/social-media-manager-salary-in-nigeria/"
+      },
+      "first_action_step": {
+        "value": "Create a WhatsApp status post offering free social media audit for one small business today.",
+        "source": "DOMAIN KNOWLEDGE"
+      },
+      "platforms_or_channels": {
+        "value": ["Instagram", "Facebook Meta Business Suite", "WhatsApp Business"],
+        "source": "https://nivedigitalacademy.com/social-media-manager-salary-in-nigeria/"
+      },
+      "verified_source": {
+        "value": "Social media managers in Nigeria earn between ₦50,000–₦150,000 monthly depending on client load.",
+        "source": "https://nivedigitalacademy.com/social-media-manager-salary-in-nigeria/"
+      },
+      "risk_level": "low",
+      "risk_explanation": "Low financial barrier and strong SME demand in Nigeria.",
+      "user_profile_fit": ["Good communicator", "Organized", "Consistent", "Social media familiar"],
+      "failure_patterns": ["Cannot get first client", "Inconsistent posting", "Poor communication", "Lack of results tracking"]
+    },
+    {
+      "name": "Selar Digital Products",
+      "skills_required": {
+        "value": ["Digital product creation", "Marketing", "Copywriting", "Audience building"],
+        "source": "DOMAIN KNOWLEDGE - survey will refine"
+      },
+      "startup_capital_naira": {
+        "min": 0,
+        "max": 30000,
+        "source": "SURVEY DATA REQUIRED"
+      },
+      "time_to_first_income_days": {
+        "min": 7,
+        "max": 60,
+        "source": "https://selar.co/blog/2024-in-review"
+      },
+      "realistic_monthly_naira": {
+        "min": 20000,
+        "max": 500000,
+        "source": "https://selar.co/blog/2024-in-review"
+      },
+      "success_blockers": {
+        "value": ["Low trust in digital payments for new creators", "Saturation of make money online niches", "Lack of marketing budget"],
+        "source": "https://selar.co/blog/2024-in-review"
+      },
+      "first_action_step": {
+        "value": "Write one simple digital guide in Notes app and upload it to Selar draft today.",
+        "source": "DOMAIN KNOWLEDGE"
+      },
+      "platforms_or_channels": {
+        "value": ["Selar", "Twitter X", "Instagram"],
+        "source": "https://selar.co/blog/2024-in-review"
+      },
+      "verified_source": {
+        "value": "Selar has enabled over 1.5M users and ₦9.88 billion in creator payments.",
+        "source": "https://selar.co/blog/2024-in-review"
+      },
+      "risk_level": "medium",
+      "risk_explanation": "Requires audience and trust-building before sales happen.",
+      "user_profile_fit": ["Creators", "Teachers", "Experts", "Audience builders"],
+      "failure_patterns": ["No audience", "Weak offer", "Poor marketing", "No trust built"]
+    },
+    {
+      "name": "WhatsApp Tutoring (WAEC/JAMB)",
+      "skills_required": {
+        "value": ["Teaching", "Subject mastery", "Communication", "Content structuring"],
+        "source": "DOMAIN KNOWLEDGE - survey will refine"
+      },
+      "startup_capital_naira": {
+        "min": 0,
+        "max": 10000,
+        "source": "SURVEY DATA REQUIRED"
+      },
+      "time_to_first_income_days": {
+        "min": 14,
+        "max": 28,
+        "source": "https://educere.com.ng/waec-tutor/"
+      },
+      "realistic_monthly_naira": {
+        "min": 30000,
+        "max": 100000,
+        "source": "https://educere.com.ng/waec-tutor/"
+      },
+      "success_blockers": {
+        "value": ["Students lack data and internet", "Payment defaults", "WhatsApp group distractions"],
+        "source": "https://educere.com.ng/waec-tutor/"
+      },
+      "first_action_step": {
+        "value": "Create a WhatsApp broadcast message offering free 3-day WAEC revision class.",
+        "source": "DOMAIN KNOWLEDGE"
+      },
+      "platforms_or_channels": {
+        "value": ["WhatsApp", "Telegram"],
+        "source": "https://educere.com.ng/waec-tutor/"
+      },
+      "verified_source": {
+        "value": "Tutors earn ₦30,000–₦100,000 monthly with 10-20 students per group.",
+        "source": "https://educere.com.ng/waec-tutor/"
+      },
+      "risk_level": "low",
+      "risk_explanation": "Can start immediately with existing knowledge and zero capital.",
+      "user_profile_fit": ["Students", "Teachers", "Subject experts"],
+      "failure_patterns": ["No proof of results", "Poor lesson structure", "Inconsistent sessions", "Weak marketing"]
+    },
+    {
+      "name": "Canva Graphics",
+      "skills_required": {
+        "value": ["Visual design", "Canva tool usage", "Branding basics", "Typography basics"],
+        "source": "DOMAIN KNOWLEDGE - survey will refine"
+      },
+      "startup_capital_naira": {
+        "min": 0,
+        "max": 15000,
+        "source": "SURVEY DATA REQUIRED"
+      },
+      "time_to_first_income_days": {
+        "min": 14,
+        "max": 30,
+        "source": "https://ng.indeed.com/q-canva-graphic-design-l-lagos-jobs.html"
+      },
+      "realistic_monthly_naira": {
+        "min": 40000,
+        "max": 120000,
+        "source": "https://ng.indeed.com/q-canva-graphic-design-l-lagos-jobs.html"
+      },
+      "success_blockers": {
+        "value": ["Perception anyone can use Canva", "Competition from AI design tools"],
+        "source": "https://ng.indeed.com/q-canva-graphic-design-l-lagos-jobs.html"
+      },
+      "first_action_step": {
+        "value": "Design 3 sample Instagram flyers for a fake business and post on WhatsApp status as portfolio.",
+        "source": "DOMAIN KNOWLEDGE"
+      },
+      "platforms_or_channels": {
+        "value": ["WhatsApp Status", "LinkedIn", "Instagram"],
+        "source": "https://ng.indeed.com/q-canva-graphic-design-l-lagos-jobs.html"
+      },
+      "verified_source": {
+        "value": "Canva designers earn ₦40,000–₦120,000 monthly at ₦3k–₦7k per design.",
+        "source": "https://ng.indeed.com/q-canva-graphic-design-l-lagos-jobs.html"
+      },
+      "risk_level": "low",
+      "risk_explanation": "Low barrier to entry, high SME demand for graphics.",
+      "user_profile_fit": ["Creative users", "Visual thinkers"],
+      "failure_patterns": ["No portfolio", "Copying templates only", "Weak client outreach", "Poor branding"]
+    },
+    {
+      "name": "Content Writing",
+      "skills_required": {
+        "value": ["Writing", "Research", "SEO basics", "Editing"],
+        "source": "DOMAIN KNOWLEDGE - survey will refine"
+      },
+      "startup_capital_naira": {
+        "min": 0,
+        "max": 20000,
+        "source": "SURVEY DATA REQUIRED"
+      },
+      "time_to_first_income_days": {
+        "min": 30,
+        "max": 60,
+        "source": "ESTIMATED - survey pending"
+      },
+      "realistic_monthly_naira": {
+        "min": 50000,
+        "max": 250000,
+        "source": "ESTIMATED - survey pending"
+      },
+      "success_blockers": {
+        "value": ["AI replacing entry level writers", "Late payments from local agencies"],
+        "source": "ESTIMATED - survey pending"
+      },
+      "first_action_step": {
+        "value": "Write one article about a topic you understand and post it on Google Docs portfolio.",
+        "source": "DOMAIN KNOWLEDGE"
+      },
+      "platforms_or_channels": {
+        "value": ["LinkedIn", "Nairaland Work section", "Twitter"],
+        "source": "ESTIMATED - survey pending"
+      },
+      "verified_source": {
+        "value": "Nigerian writers earn ₦5–₦15 per word for local brands.",
+        "source": "ESTIMATED - survey pending"
+      },
+      "risk_level": "medium",
+      "risk_explanation": "AI reduces demand for low-quality writing.",
+      "user_profile_fit": ["Strong writers", "Researchers", "Bloggers"],
+      "failure_patterns": ["Weak portfolio", "No niche", "Poor outreach", "Missed deadlines"]
+    },
+    {
+      "name": "Video Editing",
+      "skills_required": {
+        "value": ["Editing basics", "CapCut or mobile editing", "Storytelling", "Timing"],
+        "source": "DOMAIN KNOWLEDGE - survey will refine"
+      },
+      "startup_capital_naira": {
+        "min": 0,
+        "max": 50000,
+        "source": "SURVEY DATA REQUIRED"
+      },
+      "time_to_first_income_days": {
+        "min": 30,
+        "max": 90,
+        "source": "ESTIMATED - survey pending"
+      },
+      "realistic_monthly_naira": {
+        "min": 80000,
+        "max": 350000,
+        "source": "ESTIMATED - survey pending"
+      },
+      "success_blockers": {
+        "value": ["High hardware requirements", "Heavy data costs for uploading footage", "Phone storage limitations"],
+        "source": "ESTIMATED - survey pending"
+      },
+      "first_action_step": {
+        "value": "Edit a 30-second video using CapCut and post it as portfolio sample.",
+        "source": "DOMAIN KNOWLEDGE"
+      },
+      "platforms_or_channels": {
+        "value": ["TikTok", "Instagram", "YouTube"],
+        "source": "ESTIMATED - survey pending"
+      },
+      "verified_source": {
+        "value": "Video editors earn ₦80,000–₦350,000 monthly focusing on short-form content.",
+        "source": "ESTIMATED - survey pending"
+      },
+      "risk_level": "medium",
+      "risk_explanation": "Requires consistent practice and device capability.",
+      "user_profile_fit": ["Creative users", "Detail-oriented users"],
+      "failure_patterns": ["Weak portfolio", "Slow delivery", "Device limitations", "No specialization"]
+    },
+    {
+      "name": "Google Business Profile (GBP) Optimization",
+      "skills_required": {
+        "value": ["Local SEO", "Google Business setup", "Customer acquisition", "Basic marketing"],
+        "source": "DOMAIN KNOWLEDGE - survey will refine"
+      },
+      "startup_capital_naira": {
+        "min": 0,
+        "max": 20000,
+        "source": "SURVEY DATA REQUIRED"
+      },
+      "time_to_first_income_days": {
+        "min": 7,
+        "max": 21,
+        "source": "ESTIMATED - survey pending"
+      },
+      "realistic_monthly_naira": {
+        "min": 20000,
+        "max": 100000,
+        "source": "ESTIMATED - survey pending"
+      },
+      "success_blockers": {
+        "value": ["Google verification delays", "Instant suspensions from policy violations", "Keyword-stuffed business names", "Client resistance because GBP is free"],
+        "source": "https://planetweb.ng/google-business-profile-in-nigeria/"
+      },
+      "first_action_step": {
+        "value": "Find 5 local businesses on Google Maps with incomplete profiles and WhatsApp them offering free GBP setup today.",
+        "source": "DOMAIN KNOWLEDGE"
+      },
+      "platforms_or_channels": {
+        "value": ["Google Business Profile Manager", "WhatsApp Business"],
+        "source": "https://thesmemall.com/how-to-create-google-my-business-profile-nigeria/"
+      },
+      "verified_source": {
+        "value": "Google Business Profile is free; common mistakes include incorrect landmarks and policy violations.",
+        "source": "https://thesmemall.com/how-to-create-google-my-business-profile-nigeria/"
+      },
+      "risk_level": "low",
+      "risk_explanation": "Low cost service with strong local demand, proven ₦50k–₦150k monthly for optimizers.",
+      "user_profile_fit": ["Local marketers", "Business consultants", "Sales-oriented users"],
+      "failure_patterns": ["Verification delays", "Policy violations", "Poor client education", "Weak follow-up"]
+    },
+    {
+      "name": "WordPress Web Design",
+      "skills_required": {
+        "value": ["WordPress", "Elementor", "Hosting setup", "Basic UI design"],
+        "source": "DOMAIN KNOWLEDGE - survey will refine"
+      },
+      "startup_capital_naira": {
+        "min": 10000,
+        "max": 100000,
+        "source": "SURVEY DATA REQUIRED"
+      },
+      "time_to_first_income_days": {
+        "min": 14,
+        "max": 30,
+        "source": "ESTIMATED - survey pending"
+      },
+      "realistic_monthly_naira": {
+        "min": 150000,
+        "max": 500000,
+        "source": "https://www.nexoristech.com/insights/website-cost-in-nigeria"
+      },
+      "success_blockers": {
+        "value": ["Naira fluctuations affecting hosting costs", "Client expectations exceeding no-code budgets"],
+        "source": "https://ebrandpromotion.com/web-design-cost-in-nigeria/"
+      },
+      "first_action_step": {
+        "value": "Install WordPress on free localhost or demo hosting and build a simple homepage today.",
+        "source": "DOMAIN KNOWLEDGE"
+      },
+      "platforms_or_channels": {
+        "value": ["WordPress", "Elementor", "Whogohost", "QServers"],
+        "source": "https://wordpress.org"
+      },
+      "verified_source": {
+        "value": "Landing pages cost ₦80,000–₦120,000; small business sites reach ₦300,000.",
+        "source": "https://bavedesigns.com/web-design-cost-in-nigeria/"
+      },
+      "risk_level": "low",
+      "risk_explanation": "High demand SME skill with scalable income potential.",
+      "user_profile_fit": ["Builders", "Freelancers", "Agency founders"],
+      "failure_patterns": ["No portfolio", "Poor client communication", "Scope creep", "Pricing too low"],
+      "notes": ["Recommend Elementor as primary no-code builder", "Recommend Whogohost or QServers for Naira-based hosting"]
+    },
+    {
+      "name": "Affiliate Marketing (Selar / Stakecut)",
+      "skills_required": {
+        "value": ["Marketing", "Audience building", "Copywriting", "Content creation"],
+        "source": "DOMAIN KNOWLEDGE - survey will refine"
+      },
+      "startup_capital_naira": {
+        "min": 0,
+        "max": 30000,
+        "source": "SURVEY DATA REQUIRED"
+      },
+      "time_to_first_income_days": {
+        "min": 14,
+        "max": 60,
+        "source": "ESTIMATED - survey pending"
+      },
+      "realistic_monthly_naira": {
+        "min": 30000,
+        "max": 250000,
+        "source": "ESTIMATED - survey pending"
+      },
+      "success_blockers": {
+        "value": ["Low trust in affiliate links", "Audience fatigue", "No existing audience"],
+        "source": "ESTIMATED - survey pending"
+      },
+      "first_action_step": {
+        "value": "Share one helpful product recommendation post on WhatsApp or X with honest explanation today.",
+        "source": "DOMAIN KNOWLEDGE"
+      },
+      "platforms_or_channels": {
+        "value": ["Selar", "Stakecut"],
+        "source": "https://selar.co"
+      },
+      "verified_source": {
+        "value": "Selar supports affiliate commission systems for creators with 40-50% commission per sale.",
+        "source": "https://selar.co/blog/2024-in-review"
+      },
+      "risk_level": "high",
+      "risk_explanation": "Requires audience trust and distribution to succeed.",
+      "user_profile_fit": ["Content creators", "Influencers", "Community builders"],
+      "failure_patterns": ["No audience", "Poor product selection", "Trust loss", "Spam behaviour"],
+      "flags": ["Expertnaire not recommended due to entry fees"]
+    }
+  ]
+    }
