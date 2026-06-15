@@ -1543,7 +1543,7 @@ def try_all_apis_parallel(prompt, system_prompt):
         time.sleep(1.5)
     return None
 
-def ask(m, u, api):
+def ask(m, u, api, system_prompt_override=None):
     # ── 1. Rate limit ──────────────────────────────
     if not check_rate_limit(u):
         return "You're moving fast! Take a breath, try again in a moment 🧘"
