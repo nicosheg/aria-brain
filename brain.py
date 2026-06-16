@@ -1926,6 +1926,73 @@ class Handler(BaseHTTPRequestHandler):
             result = generate_aria_uid(email.lower())
             self._json(result)
             return
+
+        if self.path == "/review":
+            import inspect, sys, traceback
+            errors = []
+            warnings = []
+            
+            # 1. Check imports
+            required_modules = ['json', 'os', 're', 'time', 'requests', 'firebase_admin', 'psycopg2']
+            for mod in required_modules:
+                try:
+                    __import__(mod)
+                except ImportError as e:
+                    errors.append(f"❌ Missing import: {mod} - {str(e)}")
+            
+            # 2. Check Firestore
+            if db is None:
+                errors.append("❌ Firestore (db) is None - Firebase not initialized")
+            
+            # 3. Check income module functions
+            income_funcs = [
+                'check_in_on_open', 'detect_blocker', 'is_income_query',
+                'get_or_create_income_profile', 'classify_user_type',
+                'start_income_onboarding', 'check_diversification_guard',
+                'detect_and_record_outcome', 'get_relevant_income_knowledge',
+                'build_income_system_prompt', 'save_income_profile',
+                'assign_first_action', 'record_outcome'
+            ]
+            for func in income_funcs:
+                if func not in globals():
+                    errors.append(f"❌ Missing income function: {func}")
+                elif not callable(globals()[func]):
+                    errors.append(f"❌ {func} exists but is not callable")
+            
+            # 4. Check ask() signature
+            try:
+                sig = inspect.signature(ask)
+                if 'system_prompt_override' not in sig.parameters:
+                    errors.append(f"❌ ask() missing 'system_prompt_override' param - current: {list(sig.parameters.keys())}")
+                else:
+                    source = inspect.getsource(ask)
+                    if 'if system_prompt_override' not in source:
+                        warnings.append("⚠️ ask() has param but may not use it")
+            except Exception as e:
+                errors.append(f"❌ Could not inspect ask(): {e}")
+            
+            # 5. Check file order (S13 after Handler?)
+            try:
+                with open(__file__, 'r') as f:
+                    lines = f.readlines()
+                handler_idx = next((i for i, l in enumerate(lines) if 'class Handler(BaseHTTPRequestHandler):' in l), None)
+                s13_idx = next((i for i, l in enumerate(lines) if '# [S13] INCOME MODULE' in l), None)
+                if handler_idx is not None and s13_idx is not None and s13_idx > handler_idx:
+                    errors.append(f"❌ Income module (S13) starts after Handler class (line {s13_idx}) – move it above")
+            except Exception as e:
+                warnings.append(f"⚠️ Could not check file order: {e}")
+            
+            # 6. Check Firestore collections
+            if db:
+                collections = ['user_income_profiles', 'user_action_queue', 'income_outcomes', 'user_blockers', 'path_success_patterns']
+                for col in collections:
+                    try:
+                        list(db.collection(col).limit(1).stream())
+                    except Exception as e:
+                        errors.append(f"❌ Cannot access Firestore collection '{col}': {str(e)}")
+            
+            self._json({"status": "OK" if not errors else "FAILED", "errors": errors, "warnings": warnings, "summary": {"total_errors": len(errors), "total_warnings": len(warnings)}})
+            return
         # ── 404 for everything else ─────────────────
         else:
             self.send_response(404)
