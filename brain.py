@@ -286,13 +286,103 @@ KEYS = {
 }
 
 OWNER_UID        = None          # Set automatically on first verified login
-OWNER_PASSPHRASE = os.environ.get("OWNER_PASSPHRASE", "default")
+OWNER_PASSPHRASE = os.environ.get("OWNER_PASSPHRASE", "debug_aria_2026")  # ← SET IN RENDER ENV
 
 def verify_owner(message):
     """Returns True if message contains the owner passphrase"""
     return OWNER_PASSPHRASE.lower() in message.lower()
 
+# ════════════════════════════════════════════════════════════════════
+# [S3.5] ERROR LOGGING & DEBUGGING SYSTEM
+# ════════════════════════════════════════════════════════════════════
+import logging
+from collections import deque
 
+# Create logs directory
+if not os.path.exists("logs"):
+    os.makedirs("logs")
+
+# Configure file logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s | %(levelname)s | %(message)s',
+    handlers=[
+        logging.FileHandler("logs/aria.log"),
+        logging.StreamHandler()
+    ]
+)
+
+logger = logging.getLogger("aria")
+
+# Track last 20 errors in memory
+error_history = deque(maxlen=20)
+
+# ── Error Logging ──
+def log_error(error_type, user_id, api_used, error_message, stack_trace=None):
+    error_entry = {
+        "timestamp": datetime.now().isoformat(),
+        "type": error_type,
+        "user": user_id,
+        "api": api_used,
+        "message": error_message,
+        "stack_trace": str(stack_trace) if stack_trace else None
+    }
+    error_history.append(error_entry)
+    logger.error(f"ERROR | type:{error_type} | user:{user_id} | api:{api_used} | msg:{error_message}")
+    if stack_trace:
+        logger.error(f"STACK_TRACE: {stack_trace}")
+
+# ── Request Logging ──
+def log_request(user_id, message_preview, api_used, response_time_ms, success=True, response_tokens=0):
+    status = "✓ SUCCESS" if success else "✗ FAILED"
+    tokens_str = f" | tokens:{response_tokens}" if response_tokens > 0 else ""
+    logger.info(f"REQUEST | user:{user_id} | api:{api_used} | time:{response_time_ms}ms{tokens_str} | {status}")
+
+# ── API Call Logging ──
+def log_api_call(api_name, model_used, tokens_used, cost_naira=None):
+    cost_str = f" | cost:₦{cost_naira}" if cost_naira else ""
+    logger.info(f"API_CALL | service:{api_name} | model:{model_used} | tokens:{tokens_used}{cost_str}")
+
+# ── System Health ──
+def get_system_health():
+    try:
+        cpu = psutil.cpu_percent(interval=0.1)
+        memory = psutil.virtual_memory().percent
+    except:
+        cpu = 0
+        memory = 0
+    
+    health = {
+        "timestamp": datetime.now().isoformat(),
+        "status": "operational",
+        "system": {
+            "cpu_percent": cpu,
+            "memory_percent": memory
+        },
+        "connections": {
+            "postgres": "✓ connected" if _postgres_pool else "✗ disconnected",
+            "firebase": "✓ connected" if db else "✗ disconnected"
+        },
+        "cache": {
+            "items": len(response_cache) if 'response_cache' in dir() else 0,
+            "hits": cache_stats["hits"] if 'cache_stats' in dir() else 0,
+            "misses": cache_stats["misses"] if 'cache_stats' in dir() else 0,
+            "hit_rate": round(cache_stats["hits"] / max(cache_stats["hits"] + cache_stats["misses"], 1) * 100, 1) if 'cache_stats' in dir() else 0
+        },
+        "users": {
+            "active_today": len(user_requests) if 'user_requests' in dir() else 0
+        },
+        "errors": {
+            "recent_count": len(error_history),
+            "last_errors": list(error_history)[-5:]
+        },
+        "api_keys": {
+            "groq_loaded": len([k for k in KEYS['groq'] if k]) > 0,
+            "gemini_loaded": len([k for k in KEYS['gemini'] if k]) > 0,
+            "deepseek_loaded": len([k for k in KEYS['deepseek'] if k]) > 0
+        }
+    }
+    return health
 # ════════════════════════════════════════════════════════════════════
 # [S4] SYSTEM PROMPT
 #  Edit ARIA's personality, rules, and knowledge here.
