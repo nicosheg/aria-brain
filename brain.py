@@ -2221,6 +2221,13 @@ class Handler(BaseHTTPRequestHandler):
                 error_msg = str(e)
                 print(traceback.format_exc())
                 self._json({"error": f"Server error: {error_msg}"}, 500)
+
+        if self.path == "/test":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"Server is alive")
+            return
     
         if self.path == "/feedback":
             data = self._body()
