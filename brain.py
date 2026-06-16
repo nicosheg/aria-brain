@@ -2443,7 +2443,7 @@ class Handler(BaseHTTPRequestHandler):
 # =====================================================================
 # [S12] INCOME MODULE – Income guidance & tracking
 # =====================================================================
-# No imports – all in S1. Uses global `db`.
+from typing import Optional, List, Tuple
 
 INCOME_KEYWORDS = [
     r'\b(income|earn|money|salary|wages|revenue|profit|cash)\b',
