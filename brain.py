@@ -2377,8 +2377,10 @@ def test_postgres_connection():
             return
 
         # ========== ENDPOINTS THAT NEED REQUEST BODY =========
+        # ── /chat ──────────────────────────────────
         if self.path == "/chat":
             try:
+                start_time = time.time()
                 data = self._body()
                 message = data.get("message", "").strip()
                 email = data.get("email", "").strip().lower()
@@ -2401,11 +2403,15 @@ def test_postgres_connection():
                 try:
                     checkin_msg = check_in_on_open(u)
                     if checkin_msg:
+                        elapsed_ms = (time.time() - start_time) * 1000
+                        log_request(u, message, "checkin", elapsed_ms, success=True)
                         self._json({"reply": checkin_msg})
                         return
 
                     blocker_msg = detect_blocker(u, message)
                     if blocker_msg:
+                        elapsed_ms = (time.time() - start_time) * 1000
+                        log_request(u, message, "blocker", elapsed_ms, success=True)
                         self._json({"reply": blocker_msg})
                         return
 
@@ -2416,11 +2422,15 @@ def test_postgres_connection():
                             user_type, business_question = classify_user_type(message)
                             result = start_income_onboarding(u, message, user_type=user_type,
                                                             business_question=business_question)
+                            elapsed_ms = (time.time() - start_time) * 1000
+                            log_request(u, message, "income_onboarding", elapsed_ms, success=True)
                             self._json(result)
                             return
 
                         guard_msg = check_diversification_guard(u)
                         if guard_msg:
+                            elapsed_ms = (time.time() - start_time) * 1000
+                            log_request(u, message, "income_guard", elapsed_ms, success=True)
                             self._json({"reply": guard_msg})
                             return
 
@@ -2429,24 +2439,30 @@ def test_postgres_connection():
                         system_prompt = build_income_system_prompt(income_profile, knowledge)
 
                         response = ask(message, u, 'groq', system_prompt_override=system_prompt)
+                        elapsed_ms = (time.time() - start_time) * 1000
+                        log_request(u, message, "groq", elapsed_ms, success=True)
                         self._json({"reply": response})
                         return
 
                 except Exception as income_err:
-                    self._json({"reply": f"[Income Module Error] {str(income_err)}"})
-                    return
+                    log_error("income_module", u, "groq", str(income_err), stack_trace=income_err)
+                    print(f"[Income Module] Error, falling back: {income_err}")
 
                 # ── Fallback ──
                 reply = ask(message, u, 'groq')
-                if not reply:
+                elapsed_ms = (time.time() - start_time) * 1000
+                if reply:
+                    log_request(u, message, "groq_fallback", elapsed_ms, success=True)
+                else:
+                    log_request(u, message, "groq_fallback", elapsed_ms, success=False)
                     reply = "I'm having trouble responding right now. Please try again."
                 self._json({"reply": reply})
 
             except Exception as e:
                 import traceback
-                error_msg = str(e) + "\n" + traceback.format_exc()
-                self._json({"reply": f"[Server Error] {error_msg}"})
-
+                log_error("chat_endpoint", "unknown", "none", str(e), stack_trace=traceback.format_exc())
+                self._json({"error": f"Server error: {str(e)}"}, 500)
+            return
             
         if self.path == "/test":
             self.send_response(200)
