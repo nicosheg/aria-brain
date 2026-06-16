@@ -2164,8 +2164,12 @@ class Handler(BaseHTTPRequestHandler):
                 
                 u = uid_result["aria_uid"]
                 
-                # ── Income module routing ──
+                # ── Income module routing (wrapped in try/except) ──
                 try:
+                    # Check if income module functions exist
+                    if 'check_in_on_open' not in globals():
+                        raise NameError("check_in_on_open is not defined – S15 missing or placed after Handler class")
+                    
                     checkin_msg = check_in_on_open(u)
                     if checkin_msg:
                         self._json({"reply": checkin_msg})
@@ -2192,7 +2196,6 @@ class Handler(BaseHTTPRequestHandler):
                             return
 
                         detect_and_record_outcome(u, message)
-
                         knowledge = get_relevant_income_knowledge(message)
                         system_prompt = build_income_system_prompt(income_profile, knowledge)
 
@@ -2200,10 +2203,12 @@ class Handler(BaseHTTPRequestHandler):
                         self._json({"reply": response})
                         return
 
-                except Exception as e:
-                    print(f"[Income Module] Error, falling back: {e}")
+                except Exception as income_err:
+                    # Return the income module error directly in the chat
+                    self._json({"reply": f"[Income Module Error] {str(income_err)}"})
+                    return
 
-                # Fallback
+                # ── Fallback ──
                 reply = ask(message, u, 'groq')
                 if not reply:
                     reply = "I'm having trouble responding right now. Please try again."
@@ -2211,9 +2216,8 @@ class Handler(BaseHTTPRequestHandler):
 
             except Exception as e:
                 import traceback
-                error_msg = str(e)
-                print(traceback.format_exc())
-                self._json({"error": f"Server error: {error_msg}"}, 500)
+                error_msg = str(e) + "\n" + traceback.format_exc()
+                self._json({"reply": f"[Server Error] {error_msg}"})
 
         if self.path == "/test":
             self.send_response(200)
