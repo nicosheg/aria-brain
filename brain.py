@@ -1735,7 +1735,6 @@ def test_postgres_connection():
         print("="*50 + "\n")
         return False
 
-class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
         pass  # Suppress default server logs
@@ -2927,6 +2926,9 @@ def detect_blocker(user_id: str, message: str):
     except Exception as e:
         print(f"[S14] detect_blocker error: {e}")
         return None
+
+
+class Handler(BaseHTTPRequestHandler):
 
 # ════════════════════════════════════════════════════════════════════
 # [S15] SERVER START
