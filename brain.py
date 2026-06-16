@@ -15,7 +15,7 @@
 #  [S9]  MAIN ask() FUNCTION  ← Core response engine
 #  [S10] HTML UI  ← Edit interface here
 #  [S11] HTTP ENDPOINTS  ← Routes: /chat /feedback /analytics etc
-#  [S12] SERVER START
+#  [S15] SERVER START
 # ════════════════════════════════════════════════════════════════════
 
 
@@ -2441,18 +2441,9 @@ class Handler(BaseHTTPRequestHandler):
 
 
 # =====================================================================
-# [S12] INCOME MODULE – Income generation guidance & tracking
+# [S12] INCOME MODULE – Income guidance & tracking
 # =====================================================================
-import re
-from datetime import datetime, timezone, timedelta
-from typing import Optional, Dict, Any, List, Tuple
-from firebase_admin import firestore
-
-try:
-    db = firestore.client()
-except Exception as e:
-    print(f"[S13] FATAL: Firestore client not available: {e}")
-    db = None
+# No imports – all are in S1. Uses global `db` from S2.
 
 INCOME_KEYWORDS = [
     r'\b(income|earn|money|salary|wages|revenue|profit|cash)\b',
@@ -2469,10 +2460,10 @@ def is_income_query(message: str) -> bool:
     try:
         return bool(_INCOME_PATTERN.search(message))
     except Exception as e:
-        print(f"[S13] is_income_query error: {e}")
+        print(f"[S12] is_income_query error: {e}")
         return False
 
-def get_or_create_income_profile(user_id: str) -> Optional[Dict[str, Any]]:
+def get_or_create_income_profile(user_id: str):
     if db is None:
         return None
     try:
@@ -2480,7 +2471,7 @@ def get_or_create_income_profile(user_id: str) -> Optional[Dict[str, Any]]:
         doc = doc_ref.get()
         return doc.to_dict() if doc.exists else None
     except Exception as e:
-        print(f"[S13] get_or_create_income_profile error: {e}")
+        print(f"[S12] get_or_create_income_profile error: {e}")
         return None
 
 def save_income_profile(user_id: str, profile: dict) -> bool:
@@ -2492,7 +2483,7 @@ def save_income_profile(user_id: str, profile: dict) -> bool:
         doc_ref.set(profile, merge=True)
         return True
     except Exception as e:
-        print(f"[S13] save_income_profile error: {e}")
+        print(f"[S12] save_income_profile error: {e}")
         return False
 
 _MONEY_PATTERN = re.compile(
@@ -2508,7 +2499,7 @@ _EARNING_VERBS = re.compile(
     re.IGNORECASE
 )
 
-def detect_and_record_outcome(user_id: str, message: str) -> Dict[str, Any]:
+def detect_and_record_outcome(user_id: str, message: str) -> dict:
     if db is None:
         return {"recorded": False, "error": "Firestore unavailable"}
     result = {"recorded": False}
@@ -2543,18 +2534,13 @@ def detect_and_record_outcome(user_id: str, message: str) -> Dict[str, Any]:
         }
         doc_ref = db.collection("income_outcomes").document()
         doc_ref.set(doc_data)
-        result = {
-            "recorded": True,
-            "amount": final_amount,
-            "doc_id": doc_ref.id,
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        result = {"recorded": True, "amount": final_amount, "doc_id": doc_ref.id}
         return result
     except Exception as e:
-        print(f"[S13] detect_and_record_outcome error: {e}")
+        print(f"[S12] detect_and_record_outcome error: {e}")
         return {"recorded": False, "error": str(e)}
 
-def classify_user_type(message: str) -> Tuple[str, Optional[str]]:
+def classify_user_type(message: str):
     business_triggers = re.compile(
         r'\b(business|shop|store|sell|selling|customers|market|trade|enterprise)\b',
         re.IGNORECASE
@@ -2575,7 +2561,7 @@ def _parse_timestamp(ts):
             return None
     return None
 
-def check_diversification_guard(user_id: str) -> Optional[str]:
+def check_diversification_guard(user_id: str):
     if db is None:
         return None
     try:
@@ -2591,11 +2577,7 @@ def check_diversification_guard(user_id: str) -> Optional[str]:
                 return None
         if len(active_paths) >= 2:
             primary = active_paths[0]
-            return (
-                f"You already have {len(active_paths)} active income paths. "
-                f"Adding more before these generate results is how people earn "
-                f"nothing from everything. Focus on {primary} first."
-            )
+            return f"You already have {len(active_paths)} active income paths. Focus on {primary} first."
         current_path = active_paths[0]
         start_date_raw = profile.get('path_start_date') or profile.get('created_at')
         start_date = _parse_timestamp(start_date_raw)
@@ -2615,38 +2597,30 @@ def check_diversification_guard(user_id: str) -> Optional[str]:
             except:
                 pass
         if days_on_path < 21 and earnings == 0:
-            return (
-                f"You've been on {current_path} for {days_on_path} days "
-                f"with no income yet. Most people see results between day 14–28. "
-                f"Do you want to continue or explore another path?"
-            )
+            return f"You've been on {current_path} for {days_on_path} days with no income yet. Most people see results between day 14–28. Do you want to continue or explore another path?"
         if days_on_path >= 42 and earnings == 0:
-            return (
-                f"6 weeks on {current_path} with ₦0 earned. "
-                f"Something isn't working. Let's diagnose before you start "
-                f"something new. What have you actually tried so far?"
-            )
+            return f"6 weeks on {current_path} with ₦0 earned. Something isn't working. Let's diagnose."
         return None
     except Exception as e:
-        print(f"[S13] check_diversification_guard error: {e}")
+        print(f"[S12] check_diversification_guard error: {e}")
         return None
 
 def build_income_system_prompt(profile: dict, knowledge: dict) -> str:
     try:
         user_type = profile.get('user_type', 'individual')
         business_type = profile.get('business_type', None)
-        profile_lines = ["USER INCOME PROFILE:"]
+        lines = ["USER INCOME PROFILE:"]
         skills = profile.get('skills', [])
         if skills:
-            profile_lines.append(f"- Skills: {', '.join(skills)}")
-        profile_lines.append(f"- User type: {user_type}")
+            lines.append(f"- Skills: {', '.join(skills)}")
+        lines.append(f"- User type: {user_type}")
         if user_type == 'business_owner' and business_type:
-            profile_lines.append(f"- Business type: {business_type}")
-        profile_lines.append(f"- Available hours/week: {profile.get('available_hours_per_week', 'N/A')}")
-        profile_lines.append(f"- Startup capital (₦): {profile.get('startup_capital_naira', 'N/A')}")
-        profile_lines.append(f"- Current monthly income (₦): {profile.get('current_monthly_income', 'N/A')}")
-        profile_lines.append(f"- Target monthly income (₦): {profile.get('target_monthly_income', 'N/A')}")
-        profile_lines.append("")
+            lines.append(f"- Business type: {business_type}")
+        lines.append(f"- Available hours/week: {profile.get('available_hours_per_week', 'N/A')}")
+        lines.append(f"- Startup capital (₦): {profile.get('startup_capital_naira', 'N/A')}")
+        lines.append(f"- Current monthly income (₦): {profile.get('current_monthly_income', 'N/A')}")
+        lines.append(f"- Target monthly income (₦): {profile.get('target_monthly_income', 'N/A')}")
+        lines.append("")
         knowledge_lines = []
         if isinstance(knowledge, dict) and knowledge.get('items'):
             knowledge_lines.append("NIGERIAN INCOME PATHS AVAILABLE:")
@@ -2657,7 +2631,7 @@ def build_income_system_prompt(profile: dict, knowledge: dict) -> str:
             "You are ARIA's income advisor for Nigerians.",
             "Your role: Help this user identify and execute realistic income generation.",
             "",
-            "\n".join(profile_lines),
+            "\n".join(lines),
             "\n".join(knowledge_lines) if knowledge_lines else "",
             "",
             "Be direct. No motivational fluff. Always give the next concrete action in Naira terms.",
@@ -2665,8 +2639,8 @@ def build_income_system_prompt(profile: dict, knowledge: dict) -> str:
         ]
         return "\n".join([p for p in parts if p])
     except Exception as e:
-        print(f"[S13] build_income_system_prompt error: {e}")
-        return "You are ARIA's income advisor. Help with realistic Nigerian income strategies."
+        print(f"[S12] build_income_system_prompt error: {e}")
+        return "You are ARIA's income advisor."
 
 def get_relevant_income_knowledge(message: str) -> dict:
     if db is None:
@@ -2677,12 +2651,12 @@ def get_relevant_income_knowledge(message: str) -> dict:
             return doc.to_dict()
         return {}
     except Exception as e:
-        print(f"[S13] get_relevant_income_knowledge error: {e}")
+        print(f"[S12] get_relevant_income_knowledge error: {e}")
         return {}
 
 def start_income_onboarding(user_id: str, message: str,
                             user_type: str = "individual",
-                            business_question: Optional[str] = None) -> Dict[str, Any]:
+                            business_question=None) -> dict:
     try:
         profile = {
             "user_id": user_id,
@@ -2694,38 +2668,12 @@ def start_income_onboarding(user_id: str, message: str,
             profile["business_type"] = business_question
             reply = f"To help your business grow — {business_question}"
         else:
-            reply = (
-                "To help you earn income, I need to understand you better. "
-                "What are your main skills? (e.g., writing, design, teaching, "
-                "social media, coding, video editing, etc.)"
-            )
+            reply = "To help you earn income, tell me your main skills (e.g., writing, design, teaching, coding, etc.)"
         save_income_profile(user_id, profile)
         return {"reply": reply}
     except Exception as e:
-        print(f"[S13] start_income_onboarding error: {e}")
+        print(f"[S12] start_income_onboarding error: {e}")
         return {"reply": "Let's start fresh. Tell me your skills."}
-
-def calculate_confidence(path_data: dict, base_score: int,
-                         user_profile: Optional[dict] = None) -> Tuple[int, List[str]]:
-    confidence = base_score
-    reasons = []
-    try:
-        estimated_count = 0
-        for key, value in path_data.items():
-            if isinstance(value, dict) and 'ESTIMATED' in str(value.get('source', '')):
-                estimated_count += 1
-            elif isinstance(value, str) and 'ESTIMATED' in value:
-                estimated_count += 1
-        confidence -= estimated_count * 5
-        confidence = max(0, min(100, confidence))
-        if not reasons:
-            reasons.append("Matches your profile")
-        if estimated_count > 0:
-            reasons.append(f"{estimated_count} data points are estimated")
-        return confidence, reasons
-    except Exception as e:
-        print(f"[S13] calculate_confidence error: {e}")
-        return base_score, ["Calculation incomplete"]
 
 
 # =====================================================================
