@@ -2163,64 +2163,69 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 
                 u = uid_result["aria_uid"]
-            # ───────────────────────────────────────────────────────────
-            # [S13/S14/S15] INCOME MODULE ROUTING
-            # ───────────────────────────────────────────────────────────
-            try:
-                # 1. Proactive Check-in (S15)
-                checkin_msg = check_in_on_open(u)
-                if checkin_msg:
-                    return self._json({"reply": checkin_msg})
+                
+                # ───────────────────────────────────────────────────────────
+                # [S13/S14/S15] INCOME MODULE ROUTING
+                # ───────────────────────────────────────────────────────────
+                try:
+                    # 1. Proactive Check-in (S15)
+                    checkin_msg = check_in_on_open(u)
+                    if checkin_msg:
+                        self._json({"reply": checkin_msg})
+                        return
 
-                # 2. Blocker Detection (S15)
-                blocker_msg = detect_blocker(u, m)
-                if blocker_msg:
-                    return self._json({"reply": blocker_msg})
+                    # 2. Blocker Detection (S15)
+                    blocker_msg = detect_blocker(u, message)
+                    if blocker_msg:
+                        self._json({"reply": blocker_msg})
+                        return
 
-                # 3. Income Module (S13)
-                if is_income_query(m):
-                    income_profile = get_or_create_income_profile(u)
+                    # 3. Income Module (S13)
+                    if is_income_query(message):
+                        income_profile = get_or_create_income_profile(u)
 
-                    if income_profile is None:
-                        # Onboarding
-                        user_type, business_question = classify_user_type(m)
-                        result = start_income_onboarding(u, m, user_type=user_type,
-                                                        business_question=business_question)
-                        return self._json(result)
+                        if income_profile is None:
+                            # Onboarding
+                            user_type, business_question = classify_user_type(message)
+                            result = start_income_onboarding(u, message, user_type=user_type,
+                                                            business_question=business_question)
+                            self._json(result)
+                            return
 
-                    # Anti-diversification guard
-                    guard_msg = check_diversification_guard(u)
-                    if guard_msg:
-                        return self._json({"reply": guard_msg})
+                        # Anti-diversification guard
+                        guard_msg = check_diversification_guard(u)
+                        if guard_msg:
+                            self._json({"reply": guard_msg})
+                            return
 
-                    # Record earnings
-                    detect_and_record_outcome(u, m)
+                        # Record earnings
+                        detect_and_record_outcome(u, message)
 
-                    # Income-specific system prompt
-                    knowledge = get_relevant_income_knowledge(m)
-                    system_prompt = build_income_system_prompt(income_profile, knowledge)
+                        # Income-specific system prompt
+                        knowledge = get_relevant_income_knowledge(message)
+                        system_prompt = build_income_system_prompt(income_profile, knowledge)
 
-                    # Call LLM with override
-                    response = ask(m, u, 'groq', system_prompt_override=system_prompt)
-                    return self._json({"reply": response})
+                        # Call LLM with override
+                        response = ask(message, u, 'groq', system_prompt_override=system_prompt)
+                        self._json({"reply": response})
+                        return
 
-            except Exception as e:
-                # Silent fallback on any error
-                print(f"[Income Module] Error, falling back: {e}")
+                except Exception as e:
+                    print(f"[Income Module] Error, falling back: {e}")
 
-            # ───────────────────────────────────────────────────────────
-            # FALLBACK: Normal ask()
-            # ───────────────────────────────────────────────────────────
+                # ───────────────────────────────────────────────────────────
+                # FALLBACK: Normal ask()
+                # ───────────────────────────────────────────────────────────
                 reply = ask(message, u, 'groq')
                 if not reply:
                     reply = "I'm having trouble responding right now. Please try again."
                 self._json({"reply": reply})
+
             except Exception as e:
                 import traceback
                 error_msg = str(e)
                 print(traceback.format_exc())
                 self._json({"error": f"Server error: {error_msg}"}, 500)
-            return
 
         if self.path == "/feedback":
             data = self._body()
