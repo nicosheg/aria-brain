@@ -2145,6 +2145,7 @@ class Handler(BaseHTTPRequestHandler):
 
         # ========== ENDPOINTS THAT NEED REQUEST BODY ==========
         if self.path == "/chat":
+        if self.path == "/chat":
             try:
                 data = self._body()
                 message = data.get("message", "").strip()
@@ -2164,12 +2165,8 @@ class Handler(BaseHTTPRequestHandler):
                 
                 u = uid_result["aria_uid"]
                 
-                # ── Income module routing (wrapped in try/except) ──
+                # ── Income module routing ──
                 try:
-                    # Check if income module functions exist
-                    if 'check_in_on_open' not in globals():
-                        raise NameError("check_in_on_open is not defined – S15 missing or placed after Handler class")
-                    
                     checkin_msg = check_in_on_open(u)
                     if checkin_msg:
                         self._json({"reply": checkin_msg})
@@ -2204,7 +2201,7 @@ class Handler(BaseHTTPRequestHandler):
                         return
 
                 except Exception as income_err:
-                    # Return the income module error directly in the chat
+                    # Return the income module error in the chat
                     self._json({"reply": f"[Income Module Error] {str(income_err)}"})
                     return
 
