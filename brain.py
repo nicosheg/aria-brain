@@ -1829,6 +1829,261 @@ def test_postgres_connection():
         print(f"❌ CONNECTION FAILED: {e}")
         print("="*50 + "\n")
         return False
+# =====================================================================
+# [S12] INCOME MODULE – Income guidance & tracking
+# =====================================================================
+from typing import Optional, List, Tuple
+
+INCOME_KEYWORDS = [
+    r'\b(income|earn|money|salary|wages|revenue|profit|cash)\b',
+    r'\b(hustle|side hustle|business|startup|capital|investment|skill|job)\b',
+    r'\b(naira|₦|ngn|kobo)\b',
+    r'\b(make money|chop money|bag|stack|kala|freelance|gig)\b',
+    r'₦\s*\d+', r'\d+\s*k\b', r'\d+\s*naira\b', r'\d+\s*ngn\b'
+]
+_INCOME_PATTERN = re.compile('|'.join(INCOME_KEYWORDS), re.IGNORECASE)
+
+def is_income_query(message: str) -> bool:
+    if not message or not isinstance(message, str):
+        return False
+    try:
+        return bool(_INCOME_PATTERN.search(message))
+    except Exception as e:
+        print(f"[S12] is_income_query error: {e}")
+        return False
+
+def get_or_create_income_profile(user_id: str):
+    if db is None:
+        return None
+    try:
+        doc_ref = db.collection('user_income_profiles').document(user_id)
+        doc = doc_ref.get()
+        return doc.to_dict() if doc.exists else None
+    except Exception as e:
+        print(f"[S12] get_or_create_income_profile error: {e}")
+        return None
+
+def save_income_profile(user_id: str, profile: dict) -> bool:
+    if db is None:
+        return False
+    try:
+        profile['updated_at'] = firestore.SERVER_TIMESTAMP
+        doc_ref = db.collection('user_income_profiles').document(user_id)
+        doc_ref.set(profile, merge=True)
+        return True
+    except Exception as e:
+        print(f"[S12] save_income_profile error: {e}")
+        return False
+
+_MONEY_PATTERN = re.compile(
+    r'(₦\s*|\bnaira\s*|\bngn\s*)?'
+    r'(\d{1,3}(?:,\d{3})*(?:\.\d+)?)'
+    r'\s*'
+    r'(k|naira|₦|ngn)?',
+    re.IGNORECASE
+)
+_EARNING_VERBS = re.compile(
+    r'\b(made|earned|got|received|gained|won|collected|bagged|chop|'
+    r'make|earn|get|receive|gain|win|collect|bag)\b',
+    re.IGNORECASE
+)
+
+def detect_and_record_outcome(user_id: str, message: str) -> dict:
+    if db is None:
+        return {"recorded": False, "error": "Firestore unavailable"}
+    result = {"recorded": False}
+    try:
+        if not _EARNING_VERBS.search(message):
+            return result
+        match = _MONEY_PATTERN.search(message)
+        if not match:
+            return result
+        amount_str = match.group(2).replace(',', '')
+        amount = float(amount_str)
+        multiplier = (match.group(1) or match.group(3) or '').strip().lower()
+        if 'k' in multiplier:
+            amount *= 1000
+        final_amount = int(amount)
+        if final_amount <= 0:
+            return result
+        profile = get_or_create_income_profile(user_id)
+        path_name = ""
+        if profile:
+            active_paths = profile.get('active_paths', [])
+            if active_paths:
+                path_name = active_paths[0]
+            else:
+                path_name = profile.get('assigned_income_path', '')
+        doc_data = {
+            "user_id": user_id,
+            "amount_naira": final_amount,
+            "path_name": path_name,
+            "raw_message": message,
+            "created_at": firestore.SERVER_TIMESTAMP
+        }
+        doc_ref = db.collection("income_outcomes").document()
+        doc_ref.set(doc_data)
+        result = {"recorded": True, "amount": final_amount, "doc_id": doc_ref.id}
+        return result
+    except Exception as e:
+        print(f"[S12] detect_and_record_outcome error: {e}")
+        return {"recorded": False, "error": str(e)}
+
+def classify_user_type(message: str):
+    business_triggers = re.compile(
+        r'\b(business|shop|store|sell|selling|customers|market|trade|enterprise)\b',
+        re.IGNORECASE
+    )
+    if business_triggers.search(message):
+        return ("business_owner", "What type of business do you run?")
+    return ("individual", None)
+
+def _parse_timestamp(ts):
+    if ts is None:
+        return None
+    if isinstance(ts, datetime):
+        return ts.replace(tzinfo=timezone.utc) if ts.tzinfo is None else ts
+    if hasattr(ts, 'seconds'):
+        try:
+            return datetime.fromtimestamp(ts.seconds, tz=timezone.utc)
+        except:
+            return None
+    return None
+
+def check_diversification_guard(user_id: str):
+    if db is None:
+        return None
+    try:
+        profile = get_or_create_income_profile(user_id)
+        if not profile:
+            return None
+        active_paths = profile.get('active_paths', [])
+        if not active_paths:
+            single = profile.get('assigned_income_path')
+            if single:
+                active_paths = [single]
+            else:
+                return None
+        if len(active_paths) >= 2:
+            primary = active_paths[0]
+            return f"You already have {len(active_paths)} active income paths. Focus on {primary} first."
+        current_path = active_paths[0]
+        start_date_raw = profile.get('path_start_date') or profile.get('created_at')
+        start_date = _parse_timestamp(start_date_raw)
+        if not start_date:
+            return None
+        now = datetime.now(timezone.utc)
+        days_on_path = (now - start_date).days
+        earnings = 0
+        if db:
+            try:
+                outcomes = db.collection('income_outcomes') \
+                            .where('user_id', '==', user_id) \
+                            .where('path_name', '==', current_path) \
+                            .stream()
+                for doc in outcomes:
+                    earnings += doc.to_dict().get('amount_naira', 0)
+            except:
+                pass
+        if days_on_path < 21 and earnings == 0:
+            return f"You've been on {current_path} for {days_on_path} days with no income yet. Most people see results between day 14–28. Do you want to continue or explore another path?"
+        if days_on_path >= 42 and earnings == 0:
+            return f"6 weeks on {current_path} with ₦0 earned. Something isn't working. Let's diagnose."
+        return None
+    except Exception as e:
+        print(f"[S12] check_diversification_guard error: {e}")
+        return None
+
+def build_income_system_prompt(profile: dict, knowledge: dict) -> str:
+    try:
+        user_type = profile.get('user_type', 'individual')
+        business_type = profile.get('business_type', None)
+        lines = ["USER INCOME PROFILE:"]
+        skills = profile.get('skills', [])
+        if skills:
+            lines.append(f"- Skills: {', '.join(skills)}")
+        lines.append(f"- User type: {user_type}")
+        if user_type == 'business_owner' and business_type:
+            lines.append(f"- Business type: {business_type}")
+        lines.append(f"- Available hours/week: {profile.get('available_hours_per_week', 'N/A')}")
+        lines.append(f"- Startup capital (₦): {profile.get('startup_capital_naira', 'N/A')}")
+        lines.append(f"- Current monthly income (₦): {profile.get('current_monthly_income', 'N/A')}")
+        lines.append(f"- Target monthly income (₦): {profile.get('target_monthly_income', 'N/A')}")
+        lines.append("")
+        knowledge_lines = []
+        if isinstance(knowledge, dict) and knowledge.get('items'):
+            knowledge_lines.append("NIGERIAN INCOME PATHS AVAILABLE:")
+            for item in knowledge['items'][:3]:
+                knowledge_lines.append(f"• {item.get('name', 'Unknown')}")
+                knowledge_lines.append(f"  Earnings: {item.get('realistic_monthly_naira', {}).get('min', 'N/A')}–{item.get('realistic_monthly_naira', {}).get('max', 'N/A')} naira/month")
+        parts = [
+            "You are ARIA's income advisor for Nigerians.",
+            "Your role: Help this user identify and execute realistic income generation.",
+            "",
+            "\n".join(lines),
+            "\n".join(knowledge_lines) if knowledge_lines else "",
+            "",
+            "Be direct. No motivational fluff. Always give the next concrete action in Naira terms.",
+            "Speak like a Nigerian income strategist, not a coach."
+        ]
+        return "\n".join([p for p in parts if p])
+    except Exception as e:
+        print(f"[S12] build_income_system_prompt error: {e}")
+        return "You are ARIA's income advisor."
+
+def get_relevant_income_knowledge(message: str) -> dict:
+    if db is None:
+        return {}
+    try:
+        doc = db.collection("aria_knowledge").document("income_ng").get()
+        if doc.exists:
+            return doc.to_dict()
+        return {}
+    except Exception as e:
+        print(f"[S12] get_relevant_income_knowledge error: {e}")
+        return {}
+
+def calculate_confidence(path_data: dict, base_score: int, user_profile: Optional[dict] = None):
+    confidence = base_score
+    reasons = []
+    try:
+        estimated_count = 0
+        for key, value in path_data.items():
+            if isinstance(value, dict) and 'ESTIMATED' in str(value.get('source', '')):
+                estimated_count += 1
+            elif isinstance(value, str) and 'ESTIMATED' in value:
+                estimated_count += 1
+        confidence -= estimated_count * 5
+        confidence = max(0, min(100, confidence))
+        if not reasons:
+            reasons.append("Matches your profile")
+        if estimated_count > 0:
+            reasons.append(f"{estimated_count} data points are estimated")
+        return confidence, reasons
+    except Exception as e:
+        print(f"[S12] calculate_confidence error: {e}")
+        return base_score, ["Calculation incomplete"]
+
+def start_income_onboarding(user_id: str, message: str,
+                            user_type: str = "individual",
+                            business_question=None) -> dict:
+    try:
+        profile = {
+            "user_id": user_id,
+            "user_type": user_type,
+            "created_at": firestore.SERVER_TIMESTAMP,
+            "onboarding_step": 1
+        }
+        if user_type == "business_owner" and business_question:
+            profile["business_type"] = business_question
+            reply = f"To help your business grow — {business_question}"
+        else:
+            reply = "To help you earn income, tell me your main skills (e.g., writing, design, teaching, coding, etc.)"
+        save_income_profile(user_id, profile)
+        return {"reply": reply}
+    except Exception as e:
+        print(f"[S12] start_income_onboarding error: {e}")
+        return {"reply": "Let's start fresh. Tell me your skills."}
 
 class Handler(BaseHTTPRequestHandler):
 
@@ -2615,263 +2870,6 @@ class Handler(BaseHTTPRequestHandler):
             pass
         except Exception as e:
             print(f"Error sending JSON: {e}")
-
-
-# =====================================================================
-# [S12] INCOME MODULE – Income guidance & tracking
-# =====================================================================
-from typing import Optional, List, Tuple
-
-INCOME_KEYWORDS = [
-    r'\b(income|earn|money|salary|wages|revenue|profit|cash)\b',
-    r'\b(hustle|side hustle|business|startup|capital|investment|skill|job)\b',
-    r'\b(naira|₦|ngn|kobo)\b',
-    r'\b(make money|chop money|bag|stack|kala|freelance|gig)\b',
-    r'₦\s*\d+', r'\d+\s*k\b', r'\d+\s*naira\b', r'\d+\s*ngn\b'
-]
-_INCOME_PATTERN = re.compile('|'.join(INCOME_KEYWORDS), re.IGNORECASE)
-
-def is_income_query(message: str) -> bool:
-    if not message or not isinstance(message, str):
-        return False
-    try:
-        return bool(_INCOME_PATTERN.search(message))
-    except Exception as e:
-        print(f"[S12] is_income_query error: {e}")
-        return False
-
-def get_or_create_income_profile(user_id: str):
-    if db is None:
-        return None
-    try:
-        doc_ref = db.collection('user_income_profiles').document(user_id)
-        doc = doc_ref.get()
-        return doc.to_dict() if doc.exists else None
-    except Exception as e:
-        print(f"[S12] get_or_create_income_profile error: {e}")
-        return None
-
-def save_income_profile(user_id: str, profile: dict) -> bool:
-    if db is None:
-        return False
-    try:
-        profile['updated_at'] = firestore.SERVER_TIMESTAMP
-        doc_ref = db.collection('user_income_profiles').document(user_id)
-        doc_ref.set(profile, merge=True)
-        return True
-    except Exception as e:
-        print(f"[S12] save_income_profile error: {e}")
-        return False
-
-_MONEY_PATTERN = re.compile(
-    r'(₦\s*|\bnaira\s*|\bngn\s*)?'
-    r'(\d{1,3}(?:,\d{3})*(?:\.\d+)?)'
-    r'\s*'
-    r'(k|naira|₦|ngn)?',
-    re.IGNORECASE
-)
-_EARNING_VERBS = re.compile(
-    r'\b(made|earned|got|received|gained|won|collected|bagged|chop|'
-    r'make|earn|get|receive|gain|win|collect|bag)\b',
-    re.IGNORECASE
-)
-
-def detect_and_record_outcome(user_id: str, message: str) -> dict:
-    if db is None:
-        return {"recorded": False, "error": "Firestore unavailable"}
-    result = {"recorded": False}
-    try:
-        if not _EARNING_VERBS.search(message):
-            return result
-        match = _MONEY_PATTERN.search(message)
-        if not match:
-            return result
-        amount_str = match.group(2).replace(',', '')
-        amount = float(amount_str)
-        multiplier = (match.group(1) or match.group(3) or '').strip().lower()
-        if 'k' in multiplier:
-            amount *= 1000
-        final_amount = int(amount)
-        if final_amount <= 0:
-            return result
-        profile = get_or_create_income_profile(user_id)
-        path_name = ""
-        if profile:
-            active_paths = profile.get('active_paths', [])
-            if active_paths:
-                path_name = active_paths[0]
-            else:
-                path_name = profile.get('assigned_income_path', '')
-        doc_data = {
-            "user_id": user_id,
-            "amount_naira": final_amount,
-            "path_name": path_name,
-            "raw_message": message,
-            "created_at": firestore.SERVER_TIMESTAMP
-        }
-        doc_ref = db.collection("income_outcomes").document()
-        doc_ref.set(doc_data)
-        result = {"recorded": True, "amount": final_amount, "doc_id": doc_ref.id}
-        return result
-    except Exception as e:
-        print(f"[S12] detect_and_record_outcome error: {e}")
-        return {"recorded": False, "error": str(e)}
-
-def classify_user_type(message: str):
-    business_triggers = re.compile(
-        r'\b(business|shop|store|sell|selling|customers|market|trade|enterprise)\b',
-        re.IGNORECASE
-    )
-    if business_triggers.search(message):
-        return ("business_owner", "What type of business do you run?")
-    return ("individual", None)
-
-def _parse_timestamp(ts):
-    if ts is None:
-        return None
-    if isinstance(ts, datetime):
-        return ts.replace(tzinfo=timezone.utc) if ts.tzinfo is None else ts
-    if hasattr(ts, 'seconds'):
-        try:
-            return datetime.fromtimestamp(ts.seconds, tz=timezone.utc)
-        except:
-            return None
-    return None
-
-def check_diversification_guard(user_id: str):
-    if db is None:
-        return None
-    try:
-        profile = get_or_create_income_profile(user_id)
-        if not profile:
-            return None
-        active_paths = profile.get('active_paths', [])
-        if not active_paths:
-            single = profile.get('assigned_income_path')
-            if single:
-                active_paths = [single]
-            else:
-                return None
-        if len(active_paths) >= 2:
-            primary = active_paths[0]
-            return f"You already have {len(active_paths)} active income paths. Focus on {primary} first."
-        current_path = active_paths[0]
-        start_date_raw = profile.get('path_start_date') or profile.get('created_at')
-        start_date = _parse_timestamp(start_date_raw)
-        if not start_date:
-            return None
-        now = datetime.now(timezone.utc)
-        days_on_path = (now - start_date).days
-        earnings = 0
-        if db:
-            try:
-                outcomes = db.collection('income_outcomes') \
-                            .where('user_id', '==', user_id) \
-                            .where('path_name', '==', current_path) \
-                            .stream()
-                for doc in outcomes:
-                    earnings += doc.to_dict().get('amount_naira', 0)
-            except:
-                pass
-        if days_on_path < 21 and earnings == 0:
-            return f"You've been on {current_path} for {days_on_path} days with no income yet. Most people see results between day 14–28. Do you want to continue or explore another path?"
-        if days_on_path >= 42 and earnings == 0:
-            return f"6 weeks on {current_path} with ₦0 earned. Something isn't working. Let's diagnose."
-        return None
-    except Exception as e:
-        print(f"[S12] check_diversification_guard error: {e}")
-        return None
-
-def build_income_system_prompt(profile: dict, knowledge: dict) -> str:
-    try:
-        user_type = profile.get('user_type', 'individual')
-        business_type = profile.get('business_type', None)
-        lines = ["USER INCOME PROFILE:"]
-        skills = profile.get('skills', [])
-        if skills:
-            lines.append(f"- Skills: {', '.join(skills)}")
-        lines.append(f"- User type: {user_type}")
-        if user_type == 'business_owner' and business_type:
-            lines.append(f"- Business type: {business_type}")
-        lines.append(f"- Available hours/week: {profile.get('available_hours_per_week', 'N/A')}")
-        lines.append(f"- Startup capital (₦): {profile.get('startup_capital_naira', 'N/A')}")
-        lines.append(f"- Current monthly income (₦): {profile.get('current_monthly_income', 'N/A')}")
-        lines.append(f"- Target monthly income (₦): {profile.get('target_monthly_income', 'N/A')}")
-        lines.append("")
-        knowledge_lines = []
-        if isinstance(knowledge, dict) and knowledge.get('items'):
-            knowledge_lines.append("NIGERIAN INCOME PATHS AVAILABLE:")
-            for item in knowledge['items'][:3]:
-                knowledge_lines.append(f"• {item.get('name', 'Unknown')}")
-                knowledge_lines.append(f"  Earnings: {item.get('realistic_monthly_naira', {}).get('min', 'N/A')}–{item.get('realistic_monthly_naira', {}).get('max', 'N/A')} naira/month")
-        parts = [
-            "You are ARIA's income advisor for Nigerians.",
-            "Your role: Help this user identify and execute realistic income generation.",
-            "",
-            "\n".join(lines),
-            "\n".join(knowledge_lines) if knowledge_lines else "",
-            "",
-            "Be direct. No motivational fluff. Always give the next concrete action in Naira terms.",
-            "Speak like a Nigerian income strategist, not a coach."
-        ]
-        return "\n".join([p for p in parts if p])
-    except Exception as e:
-        print(f"[S12] build_income_system_prompt error: {e}")
-        return "You are ARIA's income advisor."
-
-def get_relevant_income_knowledge(message: str) -> dict:
-    if db is None:
-        return {}
-    try:
-        doc = db.collection("aria_knowledge").document("income_ng").get()
-        if doc.exists:
-            return doc.to_dict()
-        return {}
-    except Exception as e:
-        print(f"[S12] get_relevant_income_knowledge error: {e}")
-        return {}
-
-def calculate_confidence(path_data: dict, base_score: int, user_profile: Optional[dict] = None):
-    confidence = base_score
-    reasons = []
-    try:
-        estimated_count = 0
-        for key, value in path_data.items():
-            if isinstance(value, dict) and 'ESTIMATED' in str(value.get('source', '')):
-                estimated_count += 1
-            elif isinstance(value, str) and 'ESTIMATED' in value:
-                estimated_count += 1
-        confidence -= estimated_count * 5
-        confidence = max(0, min(100, confidence))
-        if not reasons:
-            reasons.append("Matches your profile")
-        if estimated_count > 0:
-            reasons.append(f"{estimated_count} data points are estimated")
-        return confidence, reasons
-    except Exception as e:
-        print(f"[S12] calculate_confidence error: {e}")
-        return base_score, ["Calculation incomplete"]
-
-def start_income_onboarding(user_id: str, message: str,
-                            user_type: str = "individual",
-                            business_question=None) -> dict:
-    try:
-        profile = {
-            "user_id": user_id,
-            "user_type": user_type,
-            "created_at": firestore.SERVER_TIMESTAMP,
-            "onboarding_step": 1
-        }
-        if user_type == "business_owner" and business_question:
-            profile["business_type"] = business_question
-            reply = f"To help your business grow — {business_question}"
-        else:
-            reply = "To help you earn income, tell me your main skills (e.g., writing, design, teaching, coding, etc.)"
-        save_income_profile(user_id, profile)
-        return {"reply": reply}
-    except Exception as e:
-        print(f"[S12] start_income_onboarding error: {e}")
-        return {"reply": "Let's start fresh. Tell me your skills."}
 
 
 # =====================================================================
