@@ -2443,7 +2443,7 @@ class Handler(BaseHTTPRequestHandler):
 # =====================================================================
 # [S12] INCOME MODULE – Income guidance & tracking
 # =====================================================================
-# No imports – all are in S1. Uses global `db` from S2.
+# No imports – all in S1. Uses global `db`.
 
 INCOME_KEYWORDS = [
     r'\b(income|earn|money|salary|wages|revenue|profit|cash)\b',
@@ -2654,6 +2654,27 @@ def get_relevant_income_knowledge(message: str) -> dict:
         print(f"[S12] get_relevant_income_knowledge error: {e}")
         return {}
 
+def calculate_confidence(path_data: dict, base_score: int, user_profile: Optional[dict] = None):
+    confidence = base_score
+    reasons = []
+    try:
+        estimated_count = 0
+        for key, value in path_data.items():
+            if isinstance(value, dict) and 'ESTIMATED' in str(value.get('source', '')):
+                estimated_count += 1
+            elif isinstance(value, str) and 'ESTIMATED' in value:
+                estimated_count += 1
+        confidence -= estimated_count * 5
+        confidence = max(0, min(100, confidence))
+        if not reasons:
+            reasons.append("Matches your profile")
+        if estimated_count > 0:
+            reasons.append(f"{estimated_count} data points are estimated")
+        return confidence, reasons
+    except Exception as e:
+        print(f"[S12] calculate_confidence error: {e}")
+        return base_score, ["Calculation incomplete"]
+
 def start_income_onboarding(user_id: str, message: str,
                             user_type: str = "individual",
                             business_question=None) -> dict:
@@ -2679,11 +2700,9 @@ def start_income_onboarding(user_id: str, message: str,
 # =====================================================================
 # [S13] ACTION TRACKER – Task assignment & outcome recording
 # =====================================================================
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+# No imports – uses S12 functions and global `db`.
 
-def assign_first_action(user_id: str, recommended_path: str,
-                        action_text: str) -> Dict[str, Any]:
+def assign_first_action(user_id: str, recommended_path: str, action_text: str) -> dict:
     if db is None:
         return {"success": False, "error": "Firestore unavailable"}
     try:
@@ -2701,17 +2720,12 @@ def assign_first_action(user_id: str, recommended_path: str,
         }
         doc_ref = db.collection("user_action_queue").document(user_id)
         doc_ref.set(task_data)
-        return {
-            "success": True,
-            "task_id": doc_ref.id,
-            "due_by": due_by.isoformat(),
-        }
+        return {"success": True, "task_id": doc_ref.id, "due_by": due_by.isoformat()}
     except Exception as e:
-        print(f"[S14] assign_first_action error: {e}")
+        print(f"[S13] assign_first_action error: {e}")
         return {"success": False, "error": str(e)}
 
-def update_path_success_pattern(path_name: str, amount_naira: int,
-                                days_taken: int) -> None:
+def update_path_success_pattern(path_name: str, amount_naira: int, days_taken: int) -> None:
     if db is None:
         return
     try:
@@ -2732,26 +2746,21 @@ def update_path_success_pattern(path_name: str, amount_naira: int,
                 total_days = days_taken
                 avg_amount = amount_naira
                 avg_days = days_taken
-            transaction.set(
-                ref,
-                {
-                    "path_name": path_name,
-                    "total_outcomes": total_outcomes,
-                    "total_amount_naira": total_amount,
-                    "total_days_taken": total_days,
-                    "avg_amount_naira": avg_amount,
-                    "avg_days_taken": avg_days,
-                    "last_updated": firestore.SERVER_TIMESTAMP,
-                },
-                merge=True,
-            )
+            transaction.set(ref, {
+                "path_name": path_name,
+                "total_outcomes": total_outcomes,
+                "total_amount_naira": total_amount,
+                "total_days_taken": total_days,
+                "avg_amount_naira": avg_amount,
+                "avg_days_taken": avg_days,
+                "last_updated": firestore.SERVER_TIMESTAMP,
+            }, merge=True)
         transaction = db.transaction()
         update_in_transaction(transaction, doc_ref)
     except Exception as e:
-        print(f"[S14] update_path_success_pattern error: {e}")
+        print(f"[S13] update_path_success_pattern error: {e}")
 
-def record_outcome(user_id: str, amount_naira: int, days_taken: int,
-                   path_name: Optional[str] = None) -> Dict[str, Any]:
+def record_outcome(user_id: str, amount_naira: int, days_taken: int, path_name: str = None) -> dict:
     if db is None:
         return {"recorded": False, "error": "Firestore unavailable"}
     try:
@@ -2769,7 +2778,7 @@ def record_outcome(user_id: str, amount_naira: int, days_taken: int,
             update_path_success_pattern(path_name, amount_naira, days_taken)
         return {"recorded": True, "doc_id": doc_ref.id}
     except Exception as e:
-        print(f"[S14] record_outcome error: {e}")
+        print(f"[S13] record_outcome error: {e}")
         return {"recorded": False, "error": str(e)}
 
 def get_user_active_path(user_id: str) -> str:
@@ -2786,10 +2795,9 @@ def get_user_active_path(user_id: str) -> str:
 
 
 # =====================================================================
-# [S14] CHECK-IN ENGINE – Proactive follow-up & blocker detection
+# [S14] CHECK-IN ENGINE – Proactive follow‑up & blocker detection
 # =====================================================================
-import re
-from firebase_admin import messaging
+# No imports – uses global `db` and `messaging` (if available).
 
 def _to_datetime(ts):
     if ts is None:
@@ -2803,7 +2811,7 @@ def _to_datetime(ts):
             return None
     return None
 
-def check_in_on_open(user_id: str) -> Optional[str]:
+def check_in_on_open(user_id: str):
     if db is None:
         return None
     try:
@@ -2827,30 +2835,20 @@ def check_in_on_open(user_id: str) -> Optional[str]:
         hours_elapsed = (now - assigned_at).total_seconds() / 3600
         message = None
         if hours_elapsed >= 20 and follow_up_count == 0:
-            message = (
-                "👋 It's been about a day since your first action step. "
-                "How's it going? Did you take that first small step? "
-                "Reply with what you did, or let me know what's blocking you."
-            )
+            message = "👋 It's been about a day since your first action step. How's it going? Did you take that first small step? Reply with what you did, or let me know what's blocking you."
             if last_message_at is None or (now - last_message_at).total_seconds() > 72000:
                 send_fcm_notification(user_id, "ARIA Check-in", "It's been a day. Tap to update me!")
         elif hours_elapsed >= 72 and follow_up_count == 1:
-            message = (
-                "⏰ Three days passed. I know life gets busy, but even 10 minutes "
-                "today can move you forward. What's the biggest thing holding you back?"
-            )
+            message = "⏰ Three days passed. I know life gets busy, but even 10 minutes today can move you forward. What's the biggest thing holding you back?"
         elif hours_elapsed >= 168 and follow_up_count == 2:
-            message = (
-                "💰 It's been a week. Have you made any money yet from this path? "
-                "Even ₦1,000 counts. Tell me the amount and I'll record it."
-            )
+            message = "💰 It's been a week. Have you made any money yet from this path? Even ₦1,000 counts. Tell me the amount and I'll record it."
         updates = {"last_message_at": firestore.SERVER_TIMESTAMP}
         if message:
             updates["follow_up_count"] = follow_up_count + 1
         task_ref.update(updates)
         return message
     except Exception as e:
-        print(f"[S15] check_in_on_open error: {e}")
+        print(f"[S14] check_in_on_open error: {e}")
         return None
 
 def send_fcm_notification(user_id: str, title: str, body: str) -> bool:
@@ -2863,42 +2861,27 @@ def send_fcm_notification(user_id: str, title: str, body: str) -> bool:
         fcm_token = user_doc.get("fcm_token")
         if not fcm_token:
             return False
-        message = messaging.Message(
-            notification=messaging.Notification(title=title, body=body),
-            token=fcm_token,
-        )
-        messaging.send(message)
-        return True
+        if messaging is not None:
+            message = messaging.Message(
+                notification=messaging.Notification(title=title, body=body),
+                token=fcm_token,
+            )
+            messaging.send(message)
+            return True
+        else:
+            print("[S14] messaging not available – skipping FCM")
+            return False
     except Exception as e:
-        print(f"[S15] send_fcm_notification error: {e}")
+        print(f"[S14] send_fcm_notification error: {e}")
         return False
 
 BLOCKER_RESPONSES = {
-    "no_data": (
-        "📶 No data is a real blocker. Try: Opera Mini extreme mode, "
-        "library WiFi, or check if your network offers free data. "
-        "What's available to you right now?"
-    ),
-    "no_money": (
-        "💸 Many income paths need ₦0 to start — just skills and a phone. "
-        "Want me to suggest zero-capital paths?"
-    ),
-    "scared": (
-        "😟 Fear is normal. Every successful person started scared. "
-        "What specifically worries you about trying this?"
-    ),
-    "no_client": (
-        "🔍 Post on WhatsApp status + Facebook groups. Offer a free sample "
-        "for testimonials. Join community groups. Which feels doable?"
-    ),
-    "NEPA": (
-        "⚡ NEPA is tough. Do offline tasks: write drafts, plan content, "
-        "design mockups. Batch online work when light comes. Power bank helps."
-    ),
-    "no_time": (
-        "⏳ Even 15 minutes daily builds momentum. What part of your day "
-        "has a small gap — morning, lunch, evening?"
-    ),
+    "no_data": "📶 No data is a real blocker. Try: Opera Mini extreme mode, library WiFi, or check if your network offers free data. What's available to you right now?",
+    "no_money": "💸 Many income paths need ₦0 to start — just skills and a phone. Want me to suggest zero-capital paths?",
+    "scared": "😟 Fear is normal. Every successful person started scared. What specifically worries you about trying this?",
+    "no_client": "🔍 Post on WhatsApp status + Facebook groups. Offer a free sample for testimonials. Join community groups. Which feels doable?",
+    "NEPA": "⚡ NEPA is tough. Do offline tasks: write drafts, plan content, design mockups. Batch online work when light comes. Power bank helps.",
+    "no_time": "⏳ Even 15 minutes daily builds momentum. What part of your day has a small gap — morning, lunch, evening?",
 }
 
 BLOCKER_KEYWORDS = re.compile(
@@ -2922,7 +2905,7 @@ BLOCKER_MAP = {
     "no time": "no_time", "i no get time": "no_time", "busy": "no_time",
 }
 
-def detect_blocker(user_id: str, message: str) -> Optional[str]:
+def detect_blocker(user_id: str, message: str):
     if not message or db is None:
         return None
     try:
@@ -2942,7 +2925,7 @@ def detect_blocker(user_id: str, message: str) -> Optional[str]:
         db.collection("user_blockers").add(log_data)
         return BLOCKER_RESPONSES.get(blocker_type, "I see you're facing a challenge. Tell me more.")
     except Exception as e:
-        print(f"[S15] detect_blocker error: {e}")
+        print(f"[S14] detect_blocker error: {e}")
         return None
 
 # ════════════════════════════════════════════════════════════════════
