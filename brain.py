@@ -2185,27 +2185,22 @@ class Handler(BaseHTTPRequestHandler):
                         income_profile = get_or_create_income_profile(u)
 
                         if income_profile is None:
-                            # Onboarding
                             user_type, business_question = classify_user_type(message)
                             result = start_income_onboarding(u, message, user_type=user_type,
                                                             business_question=business_question)
                             self._json(result)
                             return
 
-                        # Anti-diversification guard
                         guard_msg = check_diversification_guard(u)
                         if guard_msg:
                             self._json({"reply": guard_msg})
                             return
 
-                        # Record earnings
                         detect_and_record_outcome(u, message)
 
-                        # Income-specific system prompt
                         knowledge = get_relevant_income_knowledge(message)
                         system_prompt = build_income_system_prompt(income_profile, knowledge)
 
-                        # Call LLM with override
                         response = ask(message, u, 'groq', system_prompt_override=system_prompt)
                         self._json({"reply": response})
                         return
@@ -2226,7 +2221,7 @@ class Handler(BaseHTTPRequestHandler):
                 error_msg = str(e)
                 print(traceback.format_exc())
                 self._json({"error": f"Server error: {error_msg}"}, 500)
-
+    
         if self.path == "/feedback":
             data = self._body()
             u = data.get("user_id", "default_user")
