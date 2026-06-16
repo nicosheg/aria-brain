@@ -42,6 +42,12 @@ except ImportError:
     HAS_PATTERN_MINER = False
     mine_patterns = None
 
+# ✅ New imports needed for income module
+try:
+    from firebase_admin import messaging
+except ImportError:
+    messaging = None
+
 # ════════════════════════════════════════════════════════════════════
 # SUPABASE CONNECTION TEST (runs once at startup)
 # ════════════════════════════════════════════════════════════════════
