@@ -2143,8 +2143,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"error": "Upload past questions first (PDF or image) to enable predictions."}, 400)
             return
 
-        # ========== ENDPOINTS THAT NEED REQUEST BODY ==========
-        if self.path == "/chat":
+        # ========== ENDPOINTS THAT NEED REQUEST BODY =========
         if self.path == "/chat":
             try:
                 data = self._body()
@@ -2216,6 +2215,7 @@ class Handler(BaseHTTPRequestHandler):
                 error_msg = str(e) + "\n" + traceback.format_exc()
                 self._json({"reply": f"[Server Error] {error_msg}"})
 
+            
         if self.path == "/test":
             self.send_response(200)
             self.send_header("Content-Type", "text/plain")
