@@ -2154,6 +2154,16 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"reply": "Say something!"})
                     return
                 if not email:
+        if self.path == "/chat":
+            try:
+                data = self._body()
+                message = data.get("message", "").strip()
+                email = data.get("email", "").strip().lower()
+                
+                if not message:
+                    self._json({"reply": "Say something!"})
+                    return
+                if not email:
                     self._json({"error": "Missing email"}, 400)
                     return
                 
