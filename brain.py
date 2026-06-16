@@ -2085,6 +2085,102 @@ def start_income_onboarding(user_id: str, message: str,
         print(f"[S12] start_income_onboarding error: {e}")
         return {"reply": "Let's start fresh. Tell me your skills."}
 
+# =====================================================================
+# [S13] ACTION TRACKER – Task assignment & outcome recording
+# =====================================================================
+# No imports – uses S12 functions and global `db`.
+
+def assign_first_action(user_id: str, recommended_path: str, action_text: str) -> dict:
+    if db is None:
+        return {"success": False, "error": "Firestore unavailable"}
+    try:
+        now = datetime.utcnow()
+        due_by = now + timedelta(hours=24)
+        task_data = {
+            "user_id": user_id,
+            "path_name": recommended_path,
+            "action": action_text,
+            "assigned_at": now,
+            "due_by": due_by,
+            "status": "active",
+            "follow_up_count": 0,
+            "created_at": firestore.SERVER_TIMESTAMP,
+        }
+        doc_ref = db.collection("user_action_queue").document(user_id)
+        doc_ref.set(task_data)
+        return {"success": True, "task_id": doc_ref.id, "due_by": due_by.isoformat()}
+    except Exception as e:
+        print(f"[S13] assign_first_action error: {e}")
+        return {"success": False, "error": str(e)}
+
+def update_path_success_pattern(path_name: str, amount_naira: int, days_taken: int) -> None:
+    if db is None:
+        return
+    try:
+        doc_ref = db.collection("path_success_patterns").document(path_name)
+        @firestore.transactional
+        def update_in_transaction(transaction, ref):
+            snapshot = ref.get(transaction=transaction)
+            if snapshot.exists:
+                data = snapshot.to_dict()
+                total_outcomes = data.get("total_outcomes", 0) + 1
+                total_amount = data.get("total_amount_naira", 0) + amount_naira
+                total_days = data.get("total_days_taken", 0) + days_taken
+                avg_amount = total_amount / total_outcomes
+                avg_days = total_days / total_outcomes
+            else:
+                total_outcomes = 1
+                total_amount = amount_naira
+                total_days = days_taken
+                avg_amount = amount_naira
+                avg_days = days_taken
+            transaction.set(ref, {
+                "path_name": path_name,
+                "total_outcomes": total_outcomes,
+                "total_amount_naira": total_amount,
+                "total_days_taken": total_days,
+                "avg_amount_naira": avg_amount,
+                "avg_days_taken": avg_days,
+                "last_updated": firestore.SERVER_TIMESTAMP,
+            }, merge=True)
+        transaction = db.transaction()
+        update_in_transaction(transaction, doc_ref)
+    except Exception as e:
+        print(f"[S13] update_path_success_pattern error: {e}")
+
+def record_outcome(user_id: str, amount_naira: int, days_taken: int, path_name: str = None) -> dict:
+    if db is None:
+        return {"recorded": False, "error": "Firestore unavailable"}
+    try:
+        outcome_data = {
+            "user_id": user_id,
+            "amount_naira": amount_naira,
+            "days_taken": days_taken,
+            "path_name": path_name or "",
+            "recorded_at": firestore.SERVER_TIMESTAMP,
+            "source": "manual_outcome_report",
+        }
+        doc_ref = db.collection("income_outcomes").document()
+        doc_ref.set(outcome_data)
+        if path_name:
+            update_path_success_pattern(path_name, amount_naira, days_taken)
+        return {"recorded": True, "doc_id": doc_ref.id}
+    except Exception as e:
+        print(f"[S13] record_outcome error: {e}")
+        return {"recorded": False, "error": str(e)}
+
+def get_user_active_path(user_id: str) -> str:
+    try:
+        profile = get_or_create_income_profile(user_id)
+        if not profile:
+            return ""
+        paths = profile.get('active_paths', [])
+        if paths:
+            return paths[0]
+        return profile.get('assigned_income_path', "")
+    except:
+        return ""
+
 class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
@@ -2870,104 +2966,6 @@ class Handler(BaseHTTPRequestHandler):
             pass
         except Exception as e:
             print(f"Error sending JSON: {e}")
-
-
-# =====================================================================
-# [S13] ACTION TRACKER – Task assignment & outcome recording
-# =====================================================================
-# No imports – uses S12 functions and global `db`.
-
-def assign_first_action(user_id: str, recommended_path: str, action_text: str) -> dict:
-    if db is None:
-        return {"success": False, "error": "Firestore unavailable"}
-    try:
-        now = datetime.utcnow()
-        due_by = now + timedelta(hours=24)
-        task_data = {
-            "user_id": user_id,
-            "path_name": recommended_path,
-            "action": action_text,
-            "assigned_at": now,
-            "due_by": due_by,
-            "status": "active",
-            "follow_up_count": 0,
-            "created_at": firestore.SERVER_TIMESTAMP,
-        }
-        doc_ref = db.collection("user_action_queue").document(user_id)
-        doc_ref.set(task_data)
-        return {"success": True, "task_id": doc_ref.id, "due_by": due_by.isoformat()}
-    except Exception as e:
-        print(f"[S13] assign_first_action error: {e}")
-        return {"success": False, "error": str(e)}
-
-def update_path_success_pattern(path_name: str, amount_naira: int, days_taken: int) -> None:
-    if db is None:
-        return
-    try:
-        doc_ref = db.collection("path_success_patterns").document(path_name)
-        @firestore.transactional
-        def update_in_transaction(transaction, ref):
-            snapshot = ref.get(transaction=transaction)
-            if snapshot.exists:
-                data = snapshot.to_dict()
-                total_outcomes = data.get("total_outcomes", 0) + 1
-                total_amount = data.get("total_amount_naira", 0) + amount_naira
-                total_days = data.get("total_days_taken", 0) + days_taken
-                avg_amount = total_amount / total_outcomes
-                avg_days = total_days / total_outcomes
-            else:
-                total_outcomes = 1
-                total_amount = amount_naira
-                total_days = days_taken
-                avg_amount = amount_naira
-                avg_days = days_taken
-            transaction.set(ref, {
-                "path_name": path_name,
-                "total_outcomes": total_outcomes,
-                "total_amount_naira": total_amount,
-                "total_days_taken": total_days,
-                "avg_amount_naira": avg_amount,
-                "avg_days_taken": avg_days,
-                "last_updated": firestore.SERVER_TIMESTAMP,
-            }, merge=True)
-        transaction = db.transaction()
-        update_in_transaction(transaction, doc_ref)
-    except Exception as e:
-        print(f"[S13] update_path_success_pattern error: {e}")
-
-def record_outcome(user_id: str, amount_naira: int, days_taken: int, path_name: str = None) -> dict:
-    if db is None:
-        return {"recorded": False, "error": "Firestore unavailable"}
-    try:
-        outcome_data = {
-            "user_id": user_id,
-            "amount_naira": amount_naira,
-            "days_taken": days_taken,
-            "path_name": path_name or "",
-            "recorded_at": firestore.SERVER_TIMESTAMP,
-            "source": "manual_outcome_report",
-        }
-        doc_ref = db.collection("income_outcomes").document()
-        doc_ref.set(outcome_data)
-        if path_name:
-            update_path_success_pattern(path_name, amount_naira, days_taken)
-        return {"recorded": True, "doc_id": doc_ref.id}
-    except Exception as e:
-        print(f"[S13] record_outcome error: {e}")
-        return {"recorded": False, "error": str(e)}
-
-def get_user_active_path(user_id: str) -> str:
-    try:
-        profile = get_or_create_income_profile(user_id)
-        if not profile:
-            return ""
-        paths = profile.get('active_paths', [])
-        if paths:
-            return paths[0]
-        return profile.get('assigned_income_path', "")
-    except:
-        return ""
-
 
 # =====================================================================
 # [S14] CHECK-IN ENGINE – Proactive follow‑up & blocker detection
