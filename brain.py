@@ -2181,6 +2181,140 @@ def get_user_active_path(user_id: str) -> str:
     except:
         return ""
 
+# =====================================================================
+# [S14] CHECK-IN ENGINE – Proactive follow‑up & blocker detection
+# =====================================================================
+# No imports – uses global `db` and `messaging` (if available).
+
+def _to_datetime(ts):
+    if ts is None:
+        return None
+    if isinstance(ts, datetime):
+        return ts.replace(tzinfo=timezone.utc) if ts.tzinfo is None else ts
+    if hasattr(ts, 'seconds'):
+        try:
+            return datetime.fromtimestamp(ts.seconds, tz=timezone.utc)
+        except:
+            return None
+    return None
+
+def check_in_on_open(user_id: str):
+    if db is None:
+        return None
+    try:
+        task_ref = db.collection("user_action_queue").document(user_id)
+        task_doc = task_ref.get()
+        if not task_doc.exists:
+            return None
+        task = task_doc.to_dict()
+        if task.get("status") != "active":
+            return None
+        assigned_at = _to_datetime(task.get("assigned_at"))
+        if assigned_at is None:
+            return None
+        now = datetime.now(timezone.utc)
+        last_message_at_raw = task.get("last_message_at")
+        last_message_at = _to_datetime(last_message_at_raw)
+        if last_message_at is not None and (now - last_message_at).total_seconds() < 7200:
+            task_ref.update({"last_message_at": firestore.SERVER_TIMESTAMP})
+            return None
+        follow_up_count = task.get("follow_up_count", 0)
+        hours_elapsed = (now - assigned_at).total_seconds() / 3600
+        message = None
+        if hours_elapsed >= 20 and follow_up_count == 0:
+            message = "👋 It's been about a day since your first action step. How's it going? Did you take that first small step? Reply with what you did, or let me know what's blocking you."
+            if last_message_at is None or (now - last_message_at).total_seconds() > 72000:
+                send_fcm_notification(user_id, "ARIA Check-in", "It's been a day. Tap to update me!")
+        elif hours_elapsed >= 72 and follow_up_count == 1:
+            message = "⏰ Three days passed. I know life gets busy, but even 10 minutes today can move you forward. What's the biggest thing holding you back?"
+        elif hours_elapsed >= 168 and follow_up_count == 2:
+            message = "💰 It's been a week. Have you made any money yet from this path? Even ₦1,000 counts. Tell me the amount and I'll record it."
+        updates = {"last_message_at": firestore.SERVER_TIMESTAMP}
+        if message:
+            updates["follow_up_count"] = follow_up_count + 1
+        task_ref.update(updates)
+        return message
+    except Exception as e:
+        print(f"[S14] check_in_on_open error: {e}")
+        return None
+
+def send_fcm_notification(user_id: str, title: str, body: str) -> bool:
+    if db is None:
+        return False
+    try:
+        user_doc = db.collection("users").document(user_id).get()
+        if not user_doc.exists:
+            return False
+        fcm_token = user_doc.get("fcm_token")
+        if not fcm_token:
+            return False
+        if messaging is not None:
+            message = messaging.Message(
+                notification=messaging.Notification(title=title, body=body),
+                token=fcm_token,
+            )
+            messaging.send(message)
+            return True
+        else:
+            print("[S14] messaging not available – skipping FCM")
+            return False
+    except Exception as e:
+        print(f"[S14] send_fcm_notification error: {e}")
+        return False
+
+BLOCKER_RESPONSES = {
+    "no_data": "📶 No data is a real blocker. Try: Opera Mini extreme mode, library WiFi, or check if your network offers free data. What's available to you right now?",
+    "no_money": "💸 Many income paths need ₦0 to start — just skills and a phone. Want me to suggest zero-capital paths?",
+    "scared": "😟 Fear is normal. Every successful person started scared. What specifically worries you about trying this?",
+    "no_client": "🔍 Post on WhatsApp status + Facebook groups. Offer a free sample for testimonials. Join community groups. Which feels doable?",
+    "NEPA": "⚡ NEPA is tough. Do offline tasks: write drafts, plan content, design mockups. Batch online work when light comes. Power bank helps.",
+    "no_time": "⏳ Even 15 minutes daily builds momentum. What part of your day has a small gap — morning, lunch, evening?",
+}
+
+BLOCKER_KEYWORDS = re.compile(
+    r'\b('
+    r'no data|no internet|data finished|data don finish|'
+    r'no money|broke|no capital|i no get money|'
+    r'scared|fear|afraid|i dey fear|'
+    r'no client|i no get client|nobody to work for|'
+    r'nepa|no phcn|light don go|power don finish|no light|'
+    r'no time|i no get time|busy|time no dey'
+    r')\b',
+    re.IGNORECASE
+)
+
+BLOCKER_MAP = {
+    "no data": "no_data", "no internet": "no_data", "data finished": "no_data",
+    "no money": "no_money", "broke": "no_money", "no capital": "no_money",
+    "scared": "scared", "fear": "scared", "afraid": "scared",
+    "no client": "no_client", "i no get client": "no_client",
+    "nepa": "NEPA", "no phcn": "NEPA", "light don go": "NEPA", "power don finish": "NEPA",
+    "no time": "no_time", "i no get time": "no_time", "busy": "no_time",
+}
+
+def detect_blocker(user_id: str, message: str):
+    if not message or db is None:
+        return None
+    try:
+        match = BLOCKER_KEYWORDS.search(message)
+        if not match:
+            return None
+        matched_phrase = match.group(1).lower()
+        blocker_type = BLOCKER_MAP.get(matched_phrase)
+        if not blocker_type:
+            return None
+        log_data = {
+            "user_id": user_id,
+            "blocker_type": blocker_type,
+            "message_snippet": message[:200],
+            "detected_at": firestore.SERVER_TIMESTAMP,
+        }
+        db.collection("user_blockers").add(log_data)
+        return BLOCKER_RESPONSES.get(blocker_type, "I see you're facing a challenge. Tell me more.")
+    except Exception as e:
+        print(f"[S14] detect_blocker error: {e}")
+        return None
+
 class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
@@ -2966,143 +3100,6 @@ class Handler(BaseHTTPRequestHandler):
             pass
         except Exception as e:
             print(f"Error sending JSON: {e}")
-
-# =====================================================================
-# [S14] CHECK-IN ENGINE – Proactive follow‑up & blocker detection
-# =====================================================================
-# No imports – uses global `db` and `messaging` (if available).
-
-def _to_datetime(ts):
-    if ts is None:
-        return None
-    if isinstance(ts, datetime):
-        return ts.replace(tzinfo=timezone.utc) if ts.tzinfo is None else ts
-    if hasattr(ts, 'seconds'):
-        try:
-            return datetime.fromtimestamp(ts.seconds, tz=timezone.utc)
-        except:
-            return None
-    return None
-
-def check_in_on_open(user_id: str):
-    if db is None:
-        return None
-    try:
-        task_ref = db.collection("user_action_queue").document(user_id)
-        task_doc = task_ref.get()
-        if not task_doc.exists:
-            return None
-        task = task_doc.to_dict()
-        if task.get("status") != "active":
-            return None
-        assigned_at = _to_datetime(task.get("assigned_at"))
-        if assigned_at is None:
-            return None
-        now = datetime.now(timezone.utc)
-        last_message_at_raw = task.get("last_message_at")
-        last_message_at = _to_datetime(last_message_at_raw)
-        if last_message_at is not None and (now - last_message_at).total_seconds() < 7200:
-            task_ref.update({"last_message_at": firestore.SERVER_TIMESTAMP})
-            return None
-        follow_up_count = task.get("follow_up_count", 0)
-        hours_elapsed = (now - assigned_at).total_seconds() / 3600
-        message = None
-        if hours_elapsed >= 20 and follow_up_count == 0:
-            message = "👋 It's been about a day since your first action step. How's it going? Did you take that first small step? Reply with what you did, or let me know what's blocking you."
-            if last_message_at is None or (now - last_message_at).total_seconds() > 72000:
-                send_fcm_notification(user_id, "ARIA Check-in", "It's been a day. Tap to update me!")
-        elif hours_elapsed >= 72 and follow_up_count == 1:
-            message = "⏰ Three days passed. I know life gets busy, but even 10 minutes today can move you forward. What's the biggest thing holding you back?"
-        elif hours_elapsed >= 168 and follow_up_count == 2:
-            message = "💰 It's been a week. Have you made any money yet from this path? Even ₦1,000 counts. Tell me the amount and I'll record it."
-        updates = {"last_message_at": firestore.SERVER_TIMESTAMP}
-        if message:
-            updates["follow_up_count"] = follow_up_count + 1
-        task_ref.update(updates)
-        return message
-    except Exception as e:
-        print(f"[S14] check_in_on_open error: {e}")
-        return None
-
-def send_fcm_notification(user_id: str, title: str, body: str) -> bool:
-    if db is None:
-        return False
-    try:
-        user_doc = db.collection("users").document(user_id).get()
-        if not user_doc.exists:
-            return False
-        fcm_token = user_doc.get("fcm_token")
-        if not fcm_token:
-            return False
-        if messaging is not None:
-            message = messaging.Message(
-                notification=messaging.Notification(title=title, body=body),
-                token=fcm_token,
-            )
-            messaging.send(message)
-            return True
-        else:
-            print("[S14] messaging not available – skipping FCM")
-            return False
-    except Exception as e:
-        print(f"[S14] send_fcm_notification error: {e}")
-        return False
-
-BLOCKER_RESPONSES = {
-    "no_data": "📶 No data is a real blocker. Try: Opera Mini extreme mode, library WiFi, or check if your network offers free data. What's available to you right now?",
-    "no_money": "💸 Many income paths need ₦0 to start — just skills and a phone. Want me to suggest zero-capital paths?",
-    "scared": "😟 Fear is normal. Every successful person started scared. What specifically worries you about trying this?",
-    "no_client": "🔍 Post on WhatsApp status + Facebook groups. Offer a free sample for testimonials. Join community groups. Which feels doable?",
-    "NEPA": "⚡ NEPA is tough. Do offline tasks: write drafts, plan content, design mockups. Batch online work when light comes. Power bank helps.",
-    "no_time": "⏳ Even 15 minutes daily builds momentum. What part of your day has a small gap — morning, lunch, evening?",
-}
-
-BLOCKER_KEYWORDS = re.compile(
-    r'\b('
-    r'no data|no internet|data finished|data don finish|'
-    r'no money|broke|no capital|i no get money|'
-    r'scared|fear|afraid|i dey fear|'
-    r'no client|i no get client|nobody to work for|'
-    r'nepa|no phcn|light don go|power don finish|no light|'
-    r'no time|i no get time|busy|time no dey'
-    r')\b',
-    re.IGNORECASE
-)
-
-BLOCKER_MAP = {
-    "no data": "no_data", "no internet": "no_data", "data finished": "no_data",
-    "no money": "no_money", "broke": "no_money", "no capital": "no_money",
-    "scared": "scared", "fear": "scared", "afraid": "scared",
-    "no client": "no_client", "i no get client": "no_client",
-    "nepa": "NEPA", "no phcn": "NEPA", "light don go": "NEPA", "power don finish": "NEPA",
-    "no time": "no_time", "i no get time": "no_time", "busy": "no_time",
-}
-
-def detect_blocker(user_id: str, message: str):
-    if not message or db is None:
-        return None
-    try:
-        match = BLOCKER_KEYWORDS.search(message)
-        if not match:
-            return None
-        matched_phrase = match.group(1).lower()
-        blocker_type = BLOCKER_MAP.get(matched_phrase)
-        if not blocker_type:
-            return None
-        log_data = {
-            "user_id": user_id,
-            "blocker_type": blocker_type,
-            "message_snippet": message[:200],
-            "detected_at": firestore.SERVER_TIMESTAMP,
-        }
-        db.collection("user_blockers").add(log_data)
-        return BLOCKER_RESPONSES.get(blocker_type, "I see you're facing a challenge. Tell me more.")
-    except Exception as e:
-        print(f"[S14] detect_blocker error: {e}")
-        return None
-
-
-# ── Your Handler class ends here ──
 
 # ════════════════════════════════════════════════════════════════════
 # [S15] SERVER START
