@@ -3112,7 +3112,7 @@ class Handler(BaseHTTPRequestHandler):
 # ════════════════════════════════════════════════════════════════════
 # [S15] SERVER START
 # ════════════════════════════════════════════════════════════════════
-if __name__ == "__main__":
+    if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     server = HTTPServer(("0.0.0.0", port), Handler)
     print(f"ARIA 3.5 running on port {port}")
