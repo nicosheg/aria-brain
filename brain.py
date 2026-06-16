@@ -2200,7 +2200,6 @@ class Handler(BaseHTTPRequestHandler):
                         return
 
                 except Exception as income_err:
-                    # Return the income module error in the chat
                     self._json({"reply": f"[Income Module Error] {str(income_err)}"})
                     return
 
