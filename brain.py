@@ -2371,17 +2371,8 @@ class Handler(BaseHTTPRequestHandler):
             print(f"Error sending JSON: {e}")
 
 
-# ════════════════════════════════════════════════════════════════════
-# [S12] SERVER START
-# ════════════════════════════════════════════════════════════════════
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    server = HTTPServer(("0.0.0.0", port), Handler)
-    print(f"ARIA 3.5 running on port {port}")
-    server.serve_forever()
-
 # =====================================================================
-# [S13] INCOME MODULE – Income generation guidance & tracking
+# [S12] INCOME MODULE – Income generation guidance & tracking
 # =====================================================================
 import re
 from datetime import datetime, timezone, timedelta
@@ -2669,7 +2660,7 @@ def calculate_confidence(path_data: dict, base_score: int,
 
 
 # =====================================================================
-# [S14] ACTION TRACKER – Task assignment & outcome recording
+# [S13] ACTION TRACKER – Task assignment & outcome recording
 # =====================================================================
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
@@ -2778,7 +2769,7 @@ def get_user_active_path(user_id: str) -> str:
 
 
 # =====================================================================
-# [S15] CHECK-IN ENGINE – Proactive follow-up & blocker detection
+# [S14] CHECK-IN ENGINE – Proactive follow-up & blocker detection
 # =====================================================================
 import re
 from firebase_admin import messaging
@@ -2936,3 +2927,12 @@ def detect_blocker(user_id: str, message: str) -> Optional[str]:
     except Exception as e:
         print(f"[S15] detect_blocker error: {e}")
         return None
+
+# ════════════════════════════════════════════════════════════════════
+# [S15] SERVER START
+# ════════════════════════════════════════════════════════════════════
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
+    server = HTTPServer(("0.0.0.0", port), Handler)
+    print(f"ARIA 3.5 running on port {port}")
+    server.serve_forever()
