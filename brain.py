@@ -2093,6 +2093,72 @@ def test_postgres_connection():
             
             self._json({"status": "OK" if not errors else "FAILED", "errors": errors, "warnings": warnings, "summary": {"total_errors": len(errors), "total_warnings": len(warnings)}})
             return
+
+                # ════════════════════════════════════════════════════════════════
+        # ARIA DEBUG DASHBOARD
+        # ════════════════════════════════════════════════════════════════
+        if self.path.startswith("/aria_debug"):
+            from urllib.parse import urlparse, parse_qs
+            query_params = parse_qs(urlparse(self.path).query)
+            provided_pass = query_params.get("auth", [""])[0]
+            
+            if provided_pass != OWNER_PASSPHRASE:
+                self._json({"error": "Unauthorized. Add ?auth=YOUR_PASSPHRASE"}, 401)
+                return
+            
+            health = get_system_health()
+            self._json(health)
+            logger.info("DEBUG_ACCESS | /aria_debug")
+            return
+
+        # ════════════════════════════════════════════════════════════════
+        # ARIA LOGS
+        # ════════════════════════════════════════════════════════════════
+        if self.path.startswith("/aria_logs"):
+            from urllib.parse import urlparse, parse_qs
+            query_params = parse_qs(urlparse(self.path).query)
+            provided_pass = query_params.get("auth", [""])[0]
+            
+            if provided_pass != OWNER_PASSPHRASE:
+                self._json({"error": "Unauthorized"}, 401)
+                return
+            
+            try:
+                with open("logs/aria.log", "r") as f:
+                    all_lines = f.readlines()
+                    last_100 = all_lines[-100:]
+                
+                self._json({
+                    "total_lines": len(all_lines),
+                    "last_100": last_100,
+                    "message": f"Showing last {min(100, len(all_lines))} lines of logs/aria.log"
+                })
+            except FileNotFoundError:
+                self._json({"error": "No logs yet", "logs": []})
+            
+            logger.info("DEBUG_ACCESS | /aria_logs")
+            return
+
+        # ════════════════════════════════════════════════════════════════
+        # ARIA ERROR HISTORY
+        # ════════════════════════════════════════════════════════════════
+        if self.path.startswith("/aria_errors"):
+            from urllib.parse import urlparse, parse_qs
+            query_params = parse_qs(urlparse(self.path).query)
+            provided_pass = query_params.get("auth", [""])[0]
+            
+            if provided_pass != OWNER_PASSPHRASE:
+                self._json({"error": "Unauthorized"}, 401)
+                return
+            
+            self._json({
+                "total_errors": len(error_history),
+                "recent_errors": list(error_history),
+                "message": "Last 20 errors with timestamps and details"
+            })
+            
+            logger.info("DEBUG_ACCESS | /aria_errors")
+            return
         # ── 404 for everything else ─────────────────
         else:
             self.send_response(404)
