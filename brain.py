@@ -15,6 +15,11 @@
 #  [S9]  MAIN ask() FUNCTION  ← Core response engine
 #  [S10] HTML UI  ← Edit interface here
 #  [S11] HTTP ENDPOINTS  ← Routes: /chat /feedback /analytics etc
+# =====================================================================
+# [S12] INCOME MODULE – Income guidance & tracking
+# [S13] ACTION TRACKER – Task assignment & outcome recording
+# [S14] CHECK-IN ENGINE – Proactive follow‑up & blocker detection
+# =====================================================================
 #  [S15] SERVER START
 # ════════════════════════════════════════════════════════════════════
 
