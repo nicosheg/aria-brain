@@ -2154,16 +2154,6 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"reply": "Say something!"})
                     return
                 if not email:
-        if self.path == "/chat":
-            try:
-                data = self._body()
-                message = data.get("message", "").strip()
-                email = data.get("email", "").strip().lower()
-                
-                if not message:
-                    self._json({"reply": "Say something!"})
-                    return
-                if not email:
                     self._json({"error": "Missing email"}, 400)
                     return
                 
@@ -2174,23 +2164,18 @@ class Handler(BaseHTTPRequestHandler):
                 
                 u = uid_result["aria_uid"]
                 
-                # ───────────────────────────────────────────────────────────
-                # [S13/S14/S15] INCOME MODULE ROUTING
-                # ───────────────────────────────────────────────────────────
+                # ── Income module routing ──
                 try:
-                    # 1. Proactive Check-in (S15)
                     checkin_msg = check_in_on_open(u)
                     if checkin_msg:
                         self._json({"reply": checkin_msg})
                         return
 
-                    # 2. Blocker Detection (S15)
                     blocker_msg = detect_blocker(u, message)
                     if blocker_msg:
                         self._json({"reply": blocker_msg})
                         return
 
-                    # 3. Income Module (S13)
                     if is_income_query(message):
                         income_profile = get_or_create_income_profile(u)
 
@@ -2218,9 +2203,7 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as e:
                     print(f"[Income Module] Error, falling back: {e}")
 
-                # ───────────────────────────────────────────────────────────
-                # FALLBACK: Normal ask()
-                # ───────────────────────────────────────────────────────────
+                # Fallback
                 reply = ask(message, u, 'groq')
                 if not reply:
                     reply = "I'm having trouble responding right now. Please try again."
