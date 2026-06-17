@@ -1994,42 +1994,170 @@ def check_diversification_guard(user_id: str):
         print(f"[S12] check_diversification_guard error: {e}")
         return None
 
-def build_income_system_prompt(profile: dict, knowledge: dict) -> str:
+def build_income_system_prompt(profile: dict, knowledge: dict, current_path: str = None) -> str:
+    """
+    Build a behaviorally‑enhanced, constitution‑driven system prompt.
+    Includes Fogg Behavior Check, pre‑written templates, social proof,
+    stage‑based guidance, emotional acknowledgment, and recovery protocol.
+    """
     try:
         user_type = profile.get('user_type', 'individual')
         business_type = profile.get('business_type', None)
-        lines = ["USER INCOME PROFILE:"]
         skills = profile.get('skills', [])
+        available_hours = profile.get('available_hours_per_week', 'N/A')
+        capital = profile.get('startup_capital_naira', 'N/A')
+        current_income = profile.get('current_monthly_income', 'N/A')
+        target_income = profile.get('target_monthly_income', 'N/A')
+        
+        # ── Get current stage and status ──
+        stage = profile.get('current_stage', 'onboarding')
+        stage_status = profile.get('stage_status', 'active')  # active / paused / complete
+        last_action = profile.get('last_action_given', 'none')
+        last_message_date = profile.get('last_message_at', None)
+        
+        # ── Profile section ──
+        lines = ["USER INCOME PROFILE:"]
         if skills:
             lines.append(f"- Skills: {', '.join(skills)}")
         lines.append(f"- User type: {user_type}")
         if user_type == 'business_owner' and business_type:
             lines.append(f"- Business type: {business_type}")
-        lines.append(f"- Available hours/week: {profile.get('available_hours_per_week', 'N/A')}")
-        lines.append(f"- Startup capital (₦): {profile.get('startup_capital_naira', 'N/A')}")
-        lines.append(f"- Current monthly income (₦): {profile.get('current_monthly_income', 'N/A')}")
-        lines.append(f"- Target monthly income (₦): {profile.get('target_monthly_income', 'N/A')}")
+        lines.append(f"- Available hours/week: {available_hours}")
+        lines.append(f"- Startup capital (₦): {capital}")
+        lines.append(f"- Current monthly income (₦): {current_income}")
+        lines.append(f"- Target monthly income (₦): {target_income}")
+        lines.append(f"- Current stage: {stage} ({stage_status})")
+        if last_action != 'none':
+            lines.append(f"- Last action given: {last_action}")
         lines.append("")
+        
+        # ── Knowledge section (income paths + social proof) ──
         knowledge_lines = []
         if isinstance(knowledge, dict) and knowledge.get('items'):
             knowledge_lines.append("NIGERIAN INCOME PATHS AVAILABLE:")
             for item in knowledge['items'][:3]:
-                knowledge_lines.append(f"• {item.get('name', 'Unknown')}")
-                knowledge_lines.append(f"  Earnings: {item.get('realistic_monthly_naira', {}).get('min', 'N/A')}–{item.get('realistic_monthly_naira', {}).get('max', 'N/A')} naira/month")
+                path_name = item.get('name', 'Unknown')
+                knowledge_lines.append(f"• {path_name}")
+                # Social Proof
+                proof = get_social_proof(path_name)
+                if proof and proof.get('total_outcomes', 0) > 0:
+                    avg_amt = proof['avg_amount']
+                    avg_days = proof['avg_days']
+                    knowledge_lines.append(f"  ✅ Real users similar to you earned ₦{avg_amt:,} in {avg_days} days on this path.")
+                earnings = item.get('realistic_monthly_naira', {})
+                min_earn = earnings.get('min', 'N/A')
+                max_earn = earnings.get('max', 'N/A')
+                knowledge_lines.append(f"  💰 Typical monthly earnings: ₦{min_earn}–₦{max_earn}")
+                knowledge_lines.append("")
+        
+        # ── Confidence Score (from S13) ──
+        confidence_score = 50  # default
+        try:
+            # If we have a recommended path, calculate its confidence
+            if current_path:
+                # find path data in knowledge
+                path_data = None
+                if isinstance(knowledge, dict) and knowledge.get('items'):
+                    for p in knowledge['items']:
+                        if p.get('name') == current_path:
+                            path_data = p
+                            break
+                if path_data:
+                    # Use the existing calculate_confidence function
+                    confidence_score, reasons = calculate_confidence(path_data, 70, profile)
+        except:
+            pass
+        
+        # ── Behavioral Science: Fogg Behavior Check ──
+        fogg_guidance = f"""
+# BEHAVIORAL SCIENCE: FOGG BEHAVIOR CHECK
+Before every recommendation, silently verify:
+1. **Motivation**: Remind the user of their goal (e.g., "You wanted to reach ₦{target_income} this month").
+2. **Ability**: Confirm they can do this today (e.g., "You have a phone and internet, right?").
+3. **Prompt**: Give an exact if‑then trigger:
+   "When you [specific moment], you will [specific action]."
+"""
+
+        # ── Pre‑written Templates ──
+        template_guidance = """
+# PRE-WRITTEN TEMPLATES
+For every income path you recommend, provide these ready‑to‑copy templates:
+1. **Cold Outreach Message** — for contacting potential clients/students.
+2. **Follow‑up Message** — for checking in after 48 hours.
+3. **Pricing Proposal** — how to quote your price in Naira.
+4. **Objection Response** — replies to common objections.
+
+Format each template as:
+📋 **Cold Outreach:** [copy‑paste text]
+📋 **Follow‑up:** [copy‑paste text]
+📋 **Pricing:** [copy‑paste text]
+📋 **Objection:** [copy‑paste text]
+"""
+
+        # ── Constitution: Stage‑Based Guidance & Rules ──
+        constitution = f"""
+# ARIA INCOME OPERATING CONSTITUTION
+
+## PRIMARY OBJECTIVE
+Maximize the probability that each user earns legitimate, sustainable income.
+
+## DECISION RULE
+Before any recommendation, determine:
+1. What income path is the user following?
+2. What stage are they currently in? (Current: {stage})
+3. What is preventing progress?
+4. What single action will most increase their probability of earning?
+
+## STAGE MANAGEMENT
+- Each income path has defined stages with **completion criteria**.
+- A stage is **complete** only when the criteria are met.
+- If stage_status is **paused**, recap the last position and continue from there – never restart.
+- If no progress for 7+ days, use the **recovery protocol** (see below).
+
+## EMOTIONAL ACKNOWLEDGMENT
+If the user expresses frustration, fear, or shame:
+- Acknowledge it in ONE sentence.
+- Then give the next action.
+- Never ignore emotional signals – never dwell on them either.
+
+## RECOVERY PROTOCOL
+If last_message_at > 7 days ago:
+- Recap the last stage and the last action given.
+- Ask what happened (no judgment).
+- Continue from that exact stopping point.
+- Give one new action immediately.
+
+## CONFIDENCE ASSESSMENT
+- Use `calculate_confidence()` to get a score (current: {confidence_score}).
+- If score < 60, explain why and improve the plan before proceeding.
+- If score >= 60, proceed with confidence.
+
+## SUCCESS METRICS
+- Average days from stage 1 to first income per path – tracked in `path_success_patterns`.
+- Use this data to adjust recommendations.
+"""
+
+        # ── Combine all parts ──
         parts = [
-            "You are ARIA's income advisor for Nigerians.",
-            "Your role: Help this user identify and execute realistic income generation.",
+            "You are ARIA, the income advisor for Nigerians.",
+            "Your purpose is to help users earn legitimate income.",
             "",
             "\n".join(lines),
             "\n".join(knowledge_lines) if knowledge_lines else "",
             "",
-            "Be direct. No motivational fluff. Always give the next concrete action in Naira terms.",
-            "Speak like a Nigerian income strategist, not a coach."
+            fogg_guidance,
+            template_guidance,
+            constitution,
+            "",
+            "Always end your response with ONE clearly defined next action.",
+            "Be direct, practical, and focused on execution – not theory."
         ]
+        
         return "\n".join([p for p in parts if p])
+    
     except Exception as e:
         print(f"[S12] build_income_system_prompt error: {e}")
-        return "You are ARIA's income advisor."
+        return "You are ARIA's income advisor. Help with realistic Nigerian income strategies."
 
 def get_relevant_income_knowledge(message: str) -> dict:
     if db is None:
