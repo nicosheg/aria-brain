@@ -2192,6 +2192,39 @@ def calculate_confidence(path_data: dict, base_score: int, user_profile: Optiona
         print(f"[S12] calculate_confidence error: {e}")
         return base_score, ["Calculation incomplete"]
 
+def update_user_stage(user_id: str, stage: str, status: str = "active", completion_note: str = ""):
+    """Update the user's current stage and status in Firestore."""
+    if db is None:
+        return False
+    try:
+        doc_ref = db.collection('user_income_profiles').document(user_id)
+        doc_ref.update({
+            'current_stage': stage,
+            'stage_status': status,
+            'stage_completion_note': completion_note,
+            'updated_at': firestore.SERVER_TIMESTAMP
+        })
+        return True
+    except Exception as e:
+        print(f"[S12] update_user_stage error: {e}")
+        return False
+
+def get_stage_completion_criteria(stage: str, path_name: str) -> str:
+    """
+    Return the completion criteria for a given stage and path.
+    This can be extended with path‑specific criteria.
+    """
+    criteria_map = {
+        "onboarding": "User has provided skills, hours, capital, and target income.",
+        "path_selection": "User has selected one income path to pursue.",
+        "outreach": "User has sent at least 5 cold outreach messages.",
+        "negotiation": "User has received at least one positive response and started price discussion.",
+        "first_payment": "User has received their first payment from a client/student.",
+        "repeat_customer": "User has at least one repeat client or recurring income."
+    }
+    # Default fallback
+    return criteria_map.get(stage, "Stage complete when user reports progress.")
+
 def start_income_onboarding(user_id: str, message: str,
                             user_type: str = "individual",
                             business_question=None) -> dict:
