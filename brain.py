@@ -3064,6 +3064,30 @@ class Handler(BaseHTTPRequestHandler):
 
                     if is_income_query(message):
                         income_profile = get_or_create_income_profile(u)
+                                    # Stage management
+                        if income_profile:
+                            # Check if user has been inactive > 7 days
+                            last_msg = income_profile.get('last_message_at')
+                            if last_msg and isinstance(last_msg, datetime):
+                                days_since = (datetime.now(timezone.utc) - last_msg).days
+                                if days_since > 7:
+                                    # Recovery protocol – we'll let the system prompt handle it
+                                    # but we also mark stage_status as 'paused' if not already
+                                    if income_profile.get('stage_status') != 'paused':
+                                        update_user_stage(u, income_profile.get('current_stage', 'onboarding'), 'paused')
+                            
+                            # Update last_message_at
+                            db.collection('user_income_profiles').document(u).update({
+                                'last_message_at': firestore.SERVER_TIMESTAMP
+                            })
+                            
+                            # Determine current path
+                            current_path = None
+                            active = income_profile.get('active_paths', [])
+                            if active:
+                                current_path = active[0]
+                            else:
+                                current_path = income_profile.get('assigned_income_path')
 
                         if income_profile is None:
                             user_type, business_question = classify_user_type(message)
