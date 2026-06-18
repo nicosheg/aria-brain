@@ -2178,6 +2178,7 @@ If last_message_at > 7 days ago:
             fogg_guidance,
             template_guidance,
             constitution,
+            best_practices_rule,
             "",
             "Always end your response with ONE clearly defined next action.",
             "Be direct, practical, and focused on execution – not theory."
