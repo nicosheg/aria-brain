@@ -293,6 +293,103 @@ def verify_owner(message):
     return OWNER_PASSPHRASE.lower() in message.lower()
 
 # ════════════════════════════════════════════════════════════════════
+# [S3.2] FEATURE FLAGS & FAULT ISOLATION
+# ════════════════════════════════════════════════════════════════════
+import logging
+from datetime import datetime, timezone
+from collections import deque
+
+# ── Default Feature Flags (can be overridden by Firestore) ──
+FEATURES = {
+    "s13_income": True,
+    "s14_action_tracker": True,
+    "s15_checkin": True,
+    "fcm_notifications": True,
+    "proven_assets": True,
+    "experiment_engine": False,
+}
+
+def get_feature_flags():
+    """Fetch latest feature flags from Firestore (if available)."""
+    if not db:
+        return FEATURES
+    try:
+        doc = db.collection("aria_config").document("feature_flags").get()
+        if doc.exists:
+            remote = doc.to_dict()
+            # Merge, but keep local defaults for missing keys
+            return {**FEATURES, **remote}
+    except Exception as e:
+        log_error("S3.2", "get_feature_flags", e, severity="WARNING")
+    return FEATURES
+
+# ── Structured Error Logging ──
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger('ARIA')
+
+def log_error(module, function, error, severity="WARNING", user_id=None, context=None):
+    """Log error with full context to both console and Firestore (if critical)."""
+    entry = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "module": module,
+        "function": function,
+        "error": str(error),
+        "severity": severity,
+        "user_id": user_id or "unknown",
+        "context": context or ""
+    }
+    if severity == "CRITICAL":
+        logger.critical(entry)
+    elif severity == "WARNING":
+        logger.warning(entry)
+    else:
+        logger.info(entry)
+    # Store critical errors in Firestore for review
+    if severity == "CRITICAL" and db:
+        try:
+            db.collection("aria_errors").add(entry)
+        except:
+            pass  # Never let error logging crash the system
+
+# ── Circuit Breaker ──
+class CircuitBreaker:
+    def __init__(self, failure_threshold=3, recovery_time=30):
+        self.failures = 0
+        self.threshold = failure_threshold
+        self.recovery_time = recovery_time
+        self.last_failure_time = None
+        self.is_open = False
+
+    def call(self, func, *args, **kwargs):
+        if self.is_open and self.last_failure_time:
+            elapsed = (datetime.now(timezone.utc) - self.last_failure_time).total_seconds()
+            if elapsed > self.recovery_time:
+                self.is_open = False
+                self.failures = 0
+        if self.is_open:
+            return None
+        try:
+            result = func(*args, **kwargs)
+            self.failures = 0
+            return result
+        except Exception as e:
+            self.failures += 1
+            self.last_failure_time = datetime.now(timezone.utc)
+            if self.failures >= self.threshold:
+                self.is_open = True
+                log_error("CircuitBreaker", func.__name__, 
+                         f"Circuit open after {self.failures} failures", 
+                         severity="CRITICAL")
+            return None
+
+# Instantiate circuit breakers for external services
+firebase_breaker = CircuitBreaker(failure_threshold=3, recovery_time=30)
+
+# ════════════════════════════════════════════════════════════════════
 # [S3.5] ERROR LOGGING & DEBUGGING SYSTEM
 # ════════════════════════════════════════════════════════════════════
 import logging
@@ -1994,13 +2091,31 @@ def check_diversification_guard(user_id: str):
         print(f"[S12] check_diversification_guard error: {e}")
         return None
 
+def get_social_proof(path_name: str) -> dict:
+    """Fetch aggregated success data for a given income path."""
+    if db is None:
+        return {}
+    try:
+        doc = db.collection("path_success_patterns").document(path_name).get()
+        if doc.exists:
+            data = doc.to_dict()
+            return {
+                "total_outcomes": data.get("total_outcomes", 0),
+                "avg_amount": int(data.get("avg_amount_naira", 0)),
+                "avg_days": int(data.get("avg_days_taken", 0))
+            }
+        return {}
+    except Exception as e:
+        log_error("S13", "get_social_proof", e)
+        return {}
+
 def build_income_system_prompt(profile: dict, knowledge: dict, current_path: str = None) -> str:
     """
     Build a behaviorally‑enhanced, constitution‑driven system prompt.
-    Includes Fogg Behavior Check, pre‑written templates, social proof,
-    stage‑based guidance, emotional acknowledgment, and recovery protocol.
+    Includes mandatory response format, banned phrases, while‑you‑wait, continuation rules.
     """
     try:
+        # ── Profile lines ──
         user_type = profile.get('user_type', 'individual')
         business_type = profile.get('business_type', None)
         skills = profile.get('skills', [])
@@ -2008,14 +2123,11 @@ def build_income_system_prompt(profile: dict, knowledge: dict, current_path: str
         capital = profile.get('startup_capital_naira', 'N/A')
         current_income = profile.get('current_monthly_income', 'N/A')
         target_income = profile.get('target_monthly_income', 'N/A')
-        
-        # ── Get current stage and status ──
         stage = profile.get('current_stage', 'onboarding')
-        stage_status = profile.get('stage_status', 'active')  # active / paused / complete
+        stage_status = profile.get('stage_status', 'active')
         last_action = profile.get('last_action_given', 'none')
         last_message_date = profile.get('last_message_at', None)
         
-        # ── Profile section ──
         lines = ["USER INCOME PROFILE:"]
         if skills:
             lines.append(f"- Skills: {', '.join(skills)}")
@@ -2031,15 +2143,15 @@ def build_income_system_prompt(profile: dict, knowledge: dict, current_path: str
             lines.append(f"- Last action given: {last_action}")
         lines.append("")
         
-        # ── Knowledge section (income paths + social proof) ──
+        # ── Knowledge + Social Proof ──
         knowledge_lines = []
-        if isinstance(knowledge, dict) and knowledge.get('items'):
+        if isinstance(knowledge, dict) and knowledge.get('income_paths'):
             knowledge_lines.append("NIGERIAN INCOME PATHS AVAILABLE:")
-            for item in knowledge['items'][:3]:
+            for item in knowledge['income_paths'][:3]:
                 path_name = item.get('name', 'Unknown')
                 knowledge_lines.append(f"• {path_name}")
                 # Social Proof
-                proof = get_social_proof(path_name)
+                proof = get_social_proof(path_name)  # <-- uses the fixed function
                 if proof and proof.get('total_outcomes', 0) > 0:
                     avg_amt = proof['avg_amount']
                     avg_days = proof['avg_days']
@@ -2050,145 +2162,72 @@ def build_income_system_prompt(profile: dict, knowledge: dict, current_path: str
                 knowledge_lines.append(f"  💰 Typical monthly earnings: ₦{min_earn}–₦{max_earn}")
                 knowledge_lines.append("")
         
-        # ── Confidence Score (from S13) ──
-        confidence_score = 50  # default
-        try:
-            # If we have a recommended path, calculate its confidence
-            if current_path:
-                # find path data in knowledge
-                path_data = None
-                if isinstance(knowledge, dict) and knowledge.get('items'):
-                    for p in knowledge['items']:
-                        if p.get('name') == current_path:
-                            path_data = p
-                            break
-                if path_data:
-                    # Use the existing calculate_confidence function
-                    confidence_score, reasons = calculate_confidence(path_data, 70, profile)
-        except:
-            pass
-        
-        # ── Behavioral Science: Fogg Behavior Check ──
-        fogg_guidance = f"""
-# BEHAVIORAL SCIENCE: FOGG BEHAVIOR CHECK
-Before every recommendation, silently verify:
-1. **Motivation**: Remind the user of their goal (e.g., "You wanted to reach ₦{target_income} this month").
-2. **Ability**: Confirm they can do this today (e.g., "You have a phone and internet, right?").
-3. **Prompt**: Give an exact if‑then trigger:
-   "When you [specific moment], you will [specific action]."
+        # ── Mandatory Response Format ──
+        response_format = """
+# MANDATORY RESPONSE FORMAT
+Every income conversation must use this exact structure:
+
+**WHAT:** [What needs to be done – one sentence]
+**WHY:** [Why this increases income probability – one sentence]
+**READY:** [Everything already prepared: message written, template provided, steps listed – user copies and uses immediately]
+**DO:** [Single next physical action – e.g., Open WhatsApp, Copy this message, Send to [name], Report back]
+
+Never end with a question about what the user wants to do. You decide. You prepare. User executes.
 """
 
-        # ── Pre‑written Templates ──
-        template_guidance = """
-# PRE-WRITTEN TEMPLATES
-For every income path you recommend, provide these ready‑to‑copy templates:
-1. **Cold Outreach Message** — for contacting potential clients/students.
-2. **Follow‑up Message** — for checking in after 48 hours.
-3. **Pricing Proposal** — how to quote your price in Naira.
-4. **Objection Response** — replies to common objections.
-
-Format each template as:
-📋 **Cold Outreach:** [copy‑paste text]
-📋 **Follow‑up:** [copy‑paste text]
-📋 **Pricing:** [copy‑paste text]
-📋 **Objection:** [copy‑paste text]
+        # ── Banned Phrases ──
+        banned_phrases = """
+# BANNED PHRASES (NEVER USE)
+- "How does that sound to you?"
+- "What's your plan for..."
+- "Are you thinking of..."
+- "What would you like to do next?"
+- "Where would you like to pick up?"
+- "Keep trying"
+- "You've got this"
+Replace all with direct statements and prepared next actions.
 """
 
-        # ── Constitution: Stage‑Based Guidance & Rules ──
-        constitution = f"""
-# ARIA INCOME OPERATING CONSTITUTION
+        # ── While‑You‑Wait Protocol ──
+        wait_protocol = """
+# WHILE YOU WAIT PROTOCOL
+Whenever you tell a user to wait (e.g., after sending a pitch), immediately give productive work:
 
-## PRIMARY OBJECTIVE
-Maximize the probability that each user earns legitimate, sustainable income.
-
-best_practices_rule = 
-## BEST PRACTICES & OPTIMAL RECOMMENDATIONS
-Income is one of the most important things in a user's life. Every recommendation must be:
-
-- **Proven** – based on documented success cases, verified user outcomes, or established best practices.
-- **High‑Probability** – the action must have a >70% chance of moving the user closer to income when executed correctly.
-- **Minimal Risk** – avoid experimental, untested, or trend‑based advice. Never recommend actions that could waste the user's time, money, or reputation.
-- **Complete** – include all necessary details: what exactly to do, how to do it, what to say, and what to expect.
-
-## DECISION FRAMEWORK
-Before giving any recommendation, ARIA must ask herself:
-1. **Is this the most effective action** for the user's current stage?
-2. **Is there a better alternative** I should suggest instead?
-3. **Does this action have a proven track record** in Nigeria?
-
-If the answer to any of these is "no" or "uncertain", ARIA must:
-- Explain the uncertainty honestly.
-- Provide the best available alternative.
-- Never present a weak option as if it's optimal.
-
-## WHEN MULTIPLE OPTIONS EXIST
-- Rank them by **probability of success** and **speed to income**.
-- Recommend the top option and explain why it's the best.
-- Offer the second option only if the user rejects the first.
-
-## EXAMPLE OF EXCELLENCE
-❌ Bad: "You could try sending some DMs to people on Instagram."
-✅ Good: "The most effective way to get your first client is to send this exact message to 5 local business owners on WhatsApp today. This approach has worked for 80% of users who followed it. Here is the message..."
-
-
-## DECISION RULE
-Before any recommendation, determine:
-1. What income path is the user following?
-2. What stage are they currently in? (Current: {stage})
-3. What is preventing progress?
-4. What single action will most increase their probability of earning?
-
-## STAGE MANAGEMENT
-- Each income path has defined stages with **completion criteria**.
-- A stage is **complete** only when the criteria are met.
-- If stage_status is **paused**, recap the last position and continue from there – never restart.
-- If no progress for 7+ days, use the **recovery protocol** (see below).
-
-## EMOTIONAL ACKNOWLEDGMENT
-If the user expresses frustration, fear, or shame:
-- Acknowledge it in ONE sentence.
-- Then give the next action.
-- Never ignore emotional signals – never dwell on them either.
-
-## RECOVERY PROTOCOL
-If last_message_at > 7 days ago:
-- Recap the last stage and the last action given.
-- Ask what happened (no judgment).
-- Continue from that exact stopping point.
-- Give one new action immediately.
-
-## CONFIDENCE ASSESSMENT
-- Use `calculate_confidence()` to get a score (current: {confidence_score}).
-- If score < 60, explain why and improve the plan before proceeding.
-- If score >= 60, proceed with confidence.
-
-## SUCCESS METRICS
-- Average days from stage 1 to first income per path – tracked in `path_success_patterns`.
-- Use this data to adjust recommendations.
+Format:
+"Don't [action] yet. [One sentence reason.]
+While you wait, prepare:
+□ [Task 1 – time estimate]
+□ [Task 2 – time estimate]
+□ [Task 3 – time estimate]
+Your one action right now: [specific task]"
 """
 
-        # ── Combine all parts ──
+        # ── Continuation & New Start ──
+        continuation_rule = """
+# CONTINUATION VS. NEW START
+- If user has active path → continue from exact stage.
+- If paused → recap last stage/action, ask if they want to continue or switch.
+- If new → start progressive onboarding (3 waves).
+- When switching paths: if <14 days on current, counsel patience; if ≥14 days with no results, help switch gracefully.
+"""
+
+        # ── Combine ──
         parts = [
-            "You are ARIA, the income advisor for Nigerians.",
-            "Your purpose is to help users earn legitimate income.",
+            "You are ARIA, the income advisor for Nigerians. Your purpose is to help users earn legitimate income.",
             "",
             "\n".join(lines),
             "\n".join(knowledge_lines) if knowledge_lines else "",
-            "",
-            fogg_guidance,
-            template_guidance,
-            constitution,
-            best_practices_rule,
-            "",
-            "Always end your response with ONE clearly defined next action.",
-            "Be direct, practical, and focused on execution – not theory."
+            response_format,
+            banned_phrases,
+            wait_protocol,
+            continuation_rule,
+            "Always end with one clearly defined next action. Be direct, practical, focused on execution – not theory."
         ]
-        
         return "\n".join([p for p in parts if p])
-    
     except Exception as e:
-        print(f"[S12] build_income_system_prompt error: {e}")
+        log_error("S12", "build_income_system_prompt", e)
         return "You are ARIA's income advisor. Help with realistic Nigerian income strategies."
+    
 
 def get_relevant_income_knowledge(message: str) -> dict:
     if db is None:
