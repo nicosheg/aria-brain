@@ -293,7 +293,7 @@ def verify_owner(message):
     return OWNER_PASSPHRASE.lower() in message.lower()
 
 # ════════════════════════════════════════════════════════════════════
-# [S3.2] FEATURE FLAGS & FAULT ISOLATION
+# [S3.2] FEATURE FLAGS & LOGGING SYSTEM (Merged)
 # ════════════════════════════════════════════════════════════════════
 import logging
 from datetime import datetime, timezone
@@ -317,13 +317,12 @@ def get_feature_flags():
         doc = db.collection("aria_config").document("feature_flags").get()
         if doc.exists:
             remote = doc.to_dict()
-            # Merge, but keep local defaults for missing keys
             return {**FEATURES, **remote}
     except Exception as e:
         log_error("S3.2", "get_feature_flags", e, severity="WARNING")
     return FEATURES
 
-# ── Structured Error Logging ──
+# ── Unified Logger ──
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
@@ -331,8 +330,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger('ARIA')
 
+# ── Error History (last 20 errors in memory) ──
+error_history = deque(maxlen=20)
+
+# ── Structured Error Logging ──
 def log_error(module, function, error, severity="WARNING", user_id=None, context=None):
-    """Log error with full context to both console and Firestore (if critical)."""
+    """
+    Log error with full context to console and (if critical) to Firestore.
+    """
     entry = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "module": module,
@@ -348,6 +353,8 @@ def log_error(module, function, error, severity="WARNING", user_id=None, context
         logger.warning(entry)
     else:
         logger.info(entry)
+    # Keep in memory for /aria_errors
+    error_history.append(entry)
     # Store critical errors in Firestore for review
     if severity == "CRITICAL" and db:
         try:
@@ -355,88 +362,20 @@ def log_error(module, function, error, severity="WARNING", user_id=None, context
         except:
             pass  # Never let error logging crash the system
 
-# ── Circuit Breaker ──
-class CircuitBreaker:
-    def __init__(self, failure_threshold=3, recovery_time=30):
-        self.failures = 0
-        self.threshold = failure_threshold
-        self.recovery_time = recovery_time
-        self.last_failure_time = None
-        self.is_open = False
-
-    def call(self, func, *args, **kwargs):
-        if self.is_open and self.last_failure_time:
-            elapsed = (datetime.now(timezone.utc) - self.last_failure_time).total_seconds()
-            if elapsed > self.recovery_time:
-                self.is_open = False
-                self.failures = 0
-        if self.is_open:
-            return None
-        try:
-            result = func(*args, **kwargs)
-            self.failures = 0
-            return result
-        except Exception as e:
-            self.failures += 1
-            self.last_failure_time = datetime.now(timezone.utc)
-            if self.failures >= self.threshold:
-                self.is_open = True
-                log_error("CircuitBreaker", func.__name__, 
-                         f"Circuit open after {self.failures} failures", 
-                         severity="CRITICAL")
-            return None
-
-# Instantiate circuit breakers for external services
-firebase_breaker = CircuitBreaker(failure_threshold=3, recovery_time=30)
-
-# ════════════════════════════════════════════════════════════════════
-# [S3.5] ERROR LOGGING & DEBUGGING SYSTEM
-# ════════════════════════════════════════════════════════════════════
-import logging
-from collections import deque
-
-# Create logs directory
-if not os.path.exists("logs"):
-    os.makedirs("logs")
-
-# Configure file logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s | %(levelname)s | %(message)s',
-    handlers=[
-        logging.FileHandler("logs/aria.log"),
-        logging.StreamHandler()
-    ]
-)
-
-logger = logging.getLogger("aria")
-
-# Track last 20 errors in memory
-error_history = deque(maxlen=20)
-
-# ── Error Logging ──
-def log_error(error_type, user_id, api_used, error_message, stack_trace=None):
-    error_entry = {
-        "timestamp": datetime.now().isoformat(),
-        "type": error_type,
-        "user": user_id,
-        "api": api_used,
-        "message": error_message,
-        "stack_trace": str(stack_trace) if stack_trace else None
-    }
-    error_history.append(error_entry)
-    logger.error(f"ERROR | type:{error_type} | user:{user_id} | api:{api_used} | msg:{error_message}")
-    if stack_trace:
-        logger.error(f"STACK_TRACE: {stack_trace}")
-
 # ── Request Logging ──
 def log_request(user_id, message_preview, api_used, response_time_ms, success=True, response_tokens=0):
+    """
+    Log every successful request.
+    """
     status = "✓ SUCCESS" if success else "✗ FAILED"
     tokens_str = f" | tokens:{response_tokens}" if response_tokens > 0 else ""
     logger.info(f"REQUEST | user:{user_id} | api:{api_used} | time:{response_time_ms}ms{tokens_str} | {status}")
 
 # ── API Call Logging ──
 def log_api_call(api_name, model_used, tokens_used, cost_naira=None):
+    """
+    Track which API was called and how much it cost.
+    """
     cost_str = f" | cost:₦{cost_naira}" if cost_naira else ""
     logger.info(f"API_CALL | service:{api_name} | model:{model_used} | tokens:{tokens_used}{cost_str}")
 
@@ -480,6 +419,40 @@ def get_system_health():
         }
     }
     return health
+
+# ── Circuit Breaker ──
+class CircuitBreaker:
+    def __init__(self, failure_threshold=3, recovery_time=30):
+        self.failures = 0
+        self.threshold = failure_threshold
+        self.recovery_time = recovery_time
+        self.last_failure_time = None
+        self.is_open = False
+
+    def call(self, func, *args, **kwargs):
+        if self.is_open and self.last_failure_time:
+            elapsed = (datetime.now(timezone.utc) - self.last_failure_time).total_seconds()
+            if elapsed > self.recovery_time:
+                self.is_open = False
+                self.failures = 0
+        if self.is_open:
+            return None
+        try:
+            result = func(*args, **kwargs)
+            self.failures = 0
+            return result
+        except Exception as e:
+            self.failures += 1
+            self.last_failure_time = datetime.now(timezone.utc)
+            if self.failures >= self.threshold:
+                self.is_open = True
+                log_error("CircuitBreaker", func.__name__, 
+                         f"Circuit open after {self.failures} failures", 
+                         severity="CRITICAL")
+            return None
+
+# Instantiate circuit breakers
+firebase_breaker = CircuitBreaker(failure_threshold=3, recovery_time=30)
 # ════════════════════════════════════════════════════════════════════
 # [S4] SYSTEM PROMPT
 #  Edit ARIA's personality, rules, and knowledge here.
