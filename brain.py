@@ -2573,7 +2573,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._json({"error": str(e)})
             return
-        print("Has _json?", hasattr(self, "_json"))
+        logger.info(f"Has _json? {hasattr(self, '_json')}")
         if self.path == "/ping":
             self.send_response(200)
             self.send_header("Content-type", "text/plain")
