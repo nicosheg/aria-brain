@@ -2393,7 +2393,7 @@ def assign_first_action(user_id: str, recommended_path: str, action_text: str) -
         doc_ref.set(task_data)
         return {"success": True, "task_id": doc_ref.id, "due_by": due_by.isoformat()}
     except Exception as e:
-        print(f"[S13] assign_first_action error: {e}")
+        log_error(f"[S13] assign_first_action error: {e}")
         return {"success": False, "error": str(e)}
 
 def update_path_success_pattern(path_name: str, amount_naira: int, days_taken: int) -> None:
@@ -2429,7 +2429,7 @@ def update_path_success_pattern(path_name: str, amount_naira: int, days_taken: i
         transaction = db.transaction()
         update_in_transaction(transaction, doc_ref)
     except Exception as e:
-        print(f"[S13] update_path_success_pattern error: {e}")
+        log_error(f"[S13] update_path_success_pattern error: {e}")
 
 def record_outcome(user_id: str, amount_naira: int, days_taken: int, path_name: str = None) -> dict:
     if db is None:
@@ -2449,7 +2449,7 @@ def record_outcome(user_id: str, amount_naira: int, days_taken: int, path_name: 
             update_path_success_pattern(path_name, amount_naira, days_taken)
         return {"recorded": True, "doc_id": doc_ref.id}
     except Exception as e:
-        print(f"[S13] record_outcome error: {e}")
+        log_error(f"[S13] record_outcome error: {e}")
         return {"recorded": False, "error": str(e)}
 
 def get_user_active_path(user_id: str) -> str:
@@ -2518,7 +2518,7 @@ def check_in_on_open(user_id: str):
         task_ref.update(updates)
         return message
     except Exception as e:
-        print(f"[S14] check_in_on_open error: {e}")
+        log_error(f"[S14] check_in_on_open error: {e}")
         return None
 
 def send_fcm_notification(user_id: str, title: str, body: str) -> bool:
@@ -2539,10 +2539,10 @@ def send_fcm_notification(user_id: str, title: str, body: str) -> bool:
             messaging.send(message)
             return True
         else:
-            print("[S14] messaging not available – skipping FCM")
+            log_error("[S14] messaging not available – skipping FCM")
             return False
     except Exception as e:
-        print(f"[S14] send_fcm_notification error: {e}")
+        log_error(f"[S14] send_fcm_notification error: {e}")
         return False
 
 BLOCKER_RESPONSES = {
@@ -2595,7 +2595,7 @@ def detect_blocker(user_id: str, message: str):
         db.collection("user_blockers").add(log_data)
         return BLOCKER_RESPONSES.get(blocker_type, "I see you're facing a challenge. Tell me more.")
     except Exception as e:
-        print(f"[S14] detect_blocker error: {e}")
+        log_error(f"[S14] detect_blocker error: {e}")
         return None
 
 class Handler(BaseHTTPRequestHandler):
