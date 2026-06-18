@@ -2366,7 +2366,7 @@ def assign_first_action(user_id: str, recommended_path: str, action_text: str) -
         doc_ref.set(task_data)
         return {"success": True, "task_id": doc_ref.id, "due_by": due_by.isoformat()}
     except Exception as e:
-        log_error(f"[S13] assign_first_action error: {e}")
+        log_error("S13", "assign_first_action", e, user_id=user_id)
         return {"success": False, "error": str(e)}
 
 def update_path_success_pattern(path_name: str, amount_naira: int, days_taken: int) -> None:
@@ -2402,7 +2402,7 @@ def update_path_success_pattern(path_name: str, amount_naira: int, days_taken: i
         transaction = db.transaction()
         update_in_transaction(transaction, doc_ref)
     except Exception as e:
-        log_error(f"[S13] update_path_success_pattern error: {e}")
+        log_error("S13", "update_path_success_pattern", e)
 
 def record_outcome(user_id: str, amount_naira: int, days_taken: int, path_name: str = None) -> dict:
     if db is None:
@@ -2422,7 +2422,7 @@ def record_outcome(user_id: str, amount_naira: int, days_taken: int, path_name: 
             update_path_success_pattern(path_name, amount_naira, days_taken)
         return {"recorded": True, "doc_id": doc_ref.id}
     except Exception as e:
-        log_error(f"[S13] record_outcome error: {e}")
+        log_error("S13", "record_outcome", e, user_id=user_id)
         return {"recorded": False, "error": str(e)}
 
 def get_user_active_path(user_id: str) -> str:
