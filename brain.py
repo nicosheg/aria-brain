@@ -3168,41 +3168,55 @@ class Handler(BaseHTTPRequestHandler):
                 
                 u = uid_result["aria_uid"]
                 
-                # ── Income module routing ──
-                try:
-                    checkin_msg = check_in_on_open(u)
-                    if checkin_msg:
-                        elapsed_ms = (time.time() - start_time) * 1000
-                        log_request(u, message, "checkin", elapsed_ms, success=True)
-                        self._json({"reply": checkin_msg})
-                        return
+                # ── Income module routing (with dynamic feature flags) ──
+                flags = get_feature_flags()  # <-- dynamic feature flags
 
-                    blocker_msg = detect_blocker(u, message)
-                    if blocker_msg:
-                        elapsed_ms = (time.time() - start_time) * 1000
-                        log_request(u, message, "blocker", elapsed_ms, success=True)
-                        self._json({"reply": blocker_msg})
-                        return
+                # ── S15: Check‑in (isolated) ──
+                checkin_msg = None
+                if flags.get("s15_checkin", True):
+                    try:
+                        checkin_msg = check_in_on_open(u)
+                    except Exception as e:
+                        log_error("S15", "check_in_on_open", e, user_id=u)
+                if checkin_msg:
+                    self._json({"reply": checkin_msg})
+                    return
 
-                    if is_income_query(message):
-                        income_profile = get_or_create_income_profile(u)
-                                    # Stage management
+                # ── S15: Blocker Detection (isolated) ──
+                blocker_msg = None
+                if flags.get("s15_checkin", True):
+                    try:
+                        blocker_msg = detect_blocker(u, message)
+                    except Exception as e:
+                        log_error("S15", "detect_blocker", e, user_id=u)
+                if blocker_msg:
+                    self._json({"reply": blocker_msg})
+                    return
+
+                # ── S13: Income Module (isolated) ──
+                income_handled = False
+                if flags.get("s13_income", True) and is_income_query(message):
+                    try:
+                        # ── Corrected Onboarding Wave Handling ──
+                        profile_for_wave = get_or_create_income_profile(u)
+                        if profile_for_wave and not profile_for_wave.get('onboarding_complete'):
+                            wave = profile_for_wave.get('onboarding_wave', 1)
+                        elif not profile_for_wave:
+                            wave = 1
+                        else:
+                            wave = None
+
+                        if wave:
+                            result = start_income_onboarding(u, message, wave)
+                            if result.get('next_wave') or not profile_for_wave:
+                                self._json(result)
+                                return
+                            # Onboarding just completed – fetch fresh profile
+                            income_profile = get_or_create_income_profile(u)
+                        else:
+                            income_profile = profile_for_wave
+
                         if income_profile:
-                            # Check if user has been inactive > 7 days
-                            last_msg = income_profile.get('last_message_at')
-                            if last_msg and isinstance(last_msg, datetime):
-                                days_since = (datetime.now(timezone.utc) - last_msg).days
-                                if days_since > 7:
-                                    # Recovery protocol – we'll let the system prompt handle it
-                                    # but we also mark stage_status as 'paused' if not already
-                                    if income_profile.get('stage_status') != 'paused':
-                                        update_user_stage(u, income_profile.get('current_stage', 'onboarding'), 'paused')
-                            
-                            # Update last_message_at
-                            db.collection('user_income_profiles').document(u).update({
-                                'last_message_at': firestore.SERVER_TIMESTAMP
-                            })
-                            
                             # Determine current path
                             current_path = None
                             active = income_profile.get('active_paths', [])
@@ -3210,46 +3224,37 @@ class Handler(BaseHTTPRequestHandler):
                                 current_path = active[0]
                             else:
                                 current_path = income_profile.get('assigned_income_path')
+                            
+                            # Anti-diversification guard
+                            guard_msg = check_diversification_guard(u)
+                            if guard_msg:
+                                self._json({"reply": guard_msg})
+                                return
 
-                        if income_profile is None:
-                            user_type, business_question = classify_user_type(message)
-                            result = start_income_onboarding(u, message, user_type=user_type,
-                                                            business_question=business_question)
-                            elapsed_ms = (time.time() - start_time) * 1000
-                            log_request(u, message, "income_onboarding", elapsed_ms, success=True)
-                            self._json(result)
-                            return
+                            # Record earnings
+                            detect_and_record_outcome(u, message)
 
-                        guard_msg = check_diversification_guard(u)
-                        if guard_msg:
-                            elapsed_ms = (time.time() - start_time) * 1000
-                            log_request(u, message, "income_guard", elapsed_ms, success=True)
-                            self._json({"reply": guard_msg})
-                            return
+                            # Build system prompt and get response
+                            knowledge = get_relevant_income_knowledge(message)
+                            system_prompt = build_income_system_prompt(income_profile, knowledge, current_path)
+                            response = ask(message, u, 'groq', system_prompt_override=system_prompt)
+                            if response:
+                                self._json({"reply": response})
+                                income_handled = True
+                            else:
+                                income_handled = False
+                        else:
+                            income_handled = False
+                    except Exception as e:
+                        log_error("S13", "income_module", e, user_id=u)
+                        income_handled = False
 
-                        detect_and_record_outcome(u, message)
-                        knowledge = get_relevant_income_knowledge(message)
-                        system_prompt = build_income_system_prompt(income_profile, knowledge)
-
-                        response = ask(message, u, 'groq', system_prompt_override=system_prompt)
-                        elapsed_ms = (time.time() - start_time) * 1000
-                        log_request(u, message, "groq", elapsed_ms, success=True)
-                        self._json({"reply": response})
-                        return
-
-                except Exception as income_err:
-                    log_error("income_module", u, "groq", str(income_err), stack_trace=income_err)
-                    print(f"[Income Module] Error, falling back: {income_err}")
-
-                # ── Fallback ──
-                reply = ask(message, u, 'groq')
-                elapsed_ms = (time.time() - start_time) * 1000
-                if reply:
-                    log_request(u, message, "groq_fallback", elapsed_ms, success=True)
-                else:
-                    log_request(u, message, "groq_fallback", elapsed_ms, success=False)
-                    reply = "I'm having trouble responding right now. Please try again."
-                self._json({"reply": reply})
+                if not income_handled:
+                    # Fallback to normal ask()
+                    reply = ask(message, u, 'groq')
+                    if not reply:
+                        reply = "I'm having trouble. Please try again."
+                    self._json({"reply": reply})
 
             except Exception as e:
                 import traceback
