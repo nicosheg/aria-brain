@@ -2491,7 +2491,7 @@ def check_in_on_open(user_id: str):
         task_ref.update(updates)
         return message
     except Exception as e:
-        log_error(f"[S14] check_in_on_open error: {e}")
+        log_error("S14", "check_in_on_open", e, user_id=user_id)
         return None
 
 def send_fcm_notification(user_id: str, title: str, body: str) -> bool:
@@ -2512,41 +2512,11 @@ def send_fcm_notification(user_id: str, title: str, body: str) -> bool:
             messaging.send(message)
             return True
         else:
-            log_error("[S14] messaging not available – skipping FCM")
+            log_error("S14", "send_fcm_notification", "messaging not available – skipping FCM", severity="WARNING")
             return False
     except Exception as e:
-        log_error(f"[S14] send_fcm_notification error: {e}")
+        log_error("S14", "send_fcm_notification", e, user_id=user_id)
         return False
-
-BLOCKER_RESPONSES = {
-    "no_data": "📶 No data is a real blocker. Try: Opera Mini extreme mode, library WiFi, or check if your network offers free data. What's available to you right now?",
-    "no_money": "💸 Many income paths need ₦0 to start — just skills and a phone. Want me to suggest zero-capital paths?",
-    "scared": "😟 Fear is normal. Every successful person started scared. What specifically worries you about trying this?",
-    "no_client": "🔍 Post on WhatsApp status + Facebook groups. Offer a free sample for testimonials. Join community groups. Which feels doable?",
-    "NEPA": "⚡ NEPA is tough. Do offline tasks: write drafts, plan content, design mockups. Batch online work when light comes. Power bank helps.",
-    "no_time": "⏳ Even 15 minutes daily builds momentum. What part of your day has a small gap — morning, lunch, evening?",
-}
-
-BLOCKER_KEYWORDS = re.compile(
-    r'\b('
-    r'no data|no internet|data finished|data don finish|'
-    r'no money|broke|no capital|i no get money|'
-    r'scared|fear|afraid|i dey fear|'
-    r'no client|i no get client|nobody to work for|'
-    r'nepa|no phcn|light don go|power don finish|no light|'
-    r'no time|i no get time|busy|time no dey'
-    r')\b',
-    re.IGNORECASE
-)
-
-BLOCKER_MAP = {
-    "no data": "no_data", "no internet": "no_data", "data finished": "no_data",
-    "no money": "no_money", "broke": "no_money", "no capital": "no_money",
-    "scared": "scared", "fear": "scared", "afraid": "scared",
-    "no client": "no_client", "i no get client": "no_client",
-    "nepa": "NEPA", "no phcn": "NEPA", "light don go": "NEPA", "power don finish": "NEPA",
-    "no time": "no_time", "i no get time": "no_time", "busy": "no_time",
-}
 
 def detect_blocker(user_id: str, message: str):
     if not message or db is None:
@@ -2568,7 +2538,7 @@ def detect_blocker(user_id: str, message: str):
         db.collection("user_blockers").add(log_data)
         return BLOCKER_RESPONSES.get(blocker_type, "I see you're facing a challenge. Tell me more.")
     except Exception as e:
-        log_error(f"[S14] detect_blocker error: {e}")
+        log_error("S14", "detect_blocker", e, user_id=user_id)
         return None
 
 class Handler(BaseHTTPRequestHandler):
