@@ -3674,13 +3674,19 @@ class Handler(BaseHTTPRequestHandler):
                 if blocker_msg:
                     self._json({"reply": blocker_msg})
                     return
-                # ── Step 1: Conversation Manager (casual chat) ──
+                 # ── Step 1: HUMAN FIRST RESPONSE LAYER ──
+                # This must come BEFORE any intent detection or routing.
+                human_response = handle_human_first(message, u)
+                if human_response["handled"]:
+                    self._json({"reply": human_response["response"]})
+                    return
+                # ── Step 2: Conversation Manager (casual chat) ──
                 casual_response = handle_casual_conversation(message, u)
                 if casual_response["handled"]:
                     self._json({"reply": casual_response["response"]})
                     return
 
-                # ── Step 2: Intent Discovery ──
+                # ── Step 3: Intent Discovery ──
                 intent = discover_intent(message)
                 if intent.get("clarification"):
                     self._json({"reply": intent["clarification"]})
