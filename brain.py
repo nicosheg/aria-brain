@@ -1805,6 +1805,7 @@ def compress_message(m, max_len=800):
     result = " ".join(important[:5]) if important else " ".join(sentences[:3])
     return result[:max_len] + "..." if len(result) > max_len else result
 
+            
 def detect_topic(message):
     """Auto-detect topic category"""
     m = message.lower()
@@ -2071,6 +2072,96 @@ def extract_pdf_text(pdf_bytes):
     except Exception as e:
         print(f"PDF extraction error: {e}")
         return None
+
+# ════════════════════════════════════════════════════════════════════
+# HUMAN FIRST RESPONSE LAYER – Direct answers before any routing
+# ════════════════════════════════════════════════════════════════════
+import re
+from datetime import datetime
+
+def is_simple_or_identity_query(message: str) -> bool:
+    """
+    Detect if the message is a simple greeting, identity question,
+    casual talk, or factual query that should be answered directly.
+    """
+    m_lower = message.lower().strip()
+    
+    # Greetings
+    if re.search(r'\b(hi|hello|hey|howdy|sup|wassup|good morning|good afternoon|good evening)\b', m_lower, re.IGNORECASE):
+        return True
+    
+    # Identity questions
+    if re.search(r'\b(where are you from|who are you|what are you|what is your name|who built you|who created you|tell me about yourself|what do you do)\b', m_lower, re.IGNORECASE):
+        return True
+    
+    # Time/date questions
+    if re.search(r'\b(what time|what day|what date|time is it|day is it)\b', m_lower, re.IGNORECASE):
+        return True
+    
+    # Simple factual queries
+    if re.search(r'\b(how are you|how dey|how far|what\'s up|whats up)\b', m_lower, re.IGNORECASE):
+        return True
+    
+    # Thanks and goodbyes
+    if re.search(r'\b(thanks|thank you|bye|goodbye|see you|later)\b', m_lower, re.IGNORECASE):
+        return True
+    
+    return False
+
+def generate_direct_response(message: str, user_id: str = None) -> str:
+    """
+    Generate a direct, human-first response for simple queries.
+    No routing. No questions. Just natural answers.
+    """
+    m_lower = message.lower().strip()
+    
+    # Identity questions
+    if re.search(r'\b(where are you from|who are you|what are you|what is your name|who built you|who created you|tell me about yourself)\b', m_lower, re.IGNORECASE):
+        return "I'm ARIA. Born in Lagos, Nigeria. Built by Egwame Nicholas. I'm here to help you earn income, learn, and grow."
+    
+    # Time questions
+    if re.search(r'\b(what time|time is it)\b', m_lower, re.IGNORECASE):
+        now = datetime.now()
+        return f"It's {now.strftime('%I:%M %p')} in Lagos."
+    
+    # Greetings
+    if re.search(r'\b(hi|hello|hey|howdy|sup|wassup|good morning|good afternoon|good evening)\b', m_lower, re.IGNORECASE):
+        user_name = ""
+        if user_id:
+            try:
+                profile = get_or_create_income_profile(user_id)
+                if profile and profile.get('name'):
+                    user_name = profile.get('name')
+            except:
+                pass
+        if user_name:
+            return f"Hey {user_name}! How's your day going?"
+        return "Hey! How can I help you today?"
+    
+    # How are you
+    if re.search(r'\b(how are you|how dey|how far|what\'s up|whats up)\b', m_lower, re.IGNORECASE):
+        return "I'm doing great, thanks for asking! What's on your mind?"
+    
+    # Thanks
+    if re.search(r'\b(thanks|thank you)\b', m_lower, re.IGNORECASE):
+        return "You're welcome! Anything else I can help with?"
+    
+    # Goodbye
+    if re.search(r'\b(bye|goodbye|see you|later)\b', m_lower, re.IGNORECASE):
+        return "Goodbye! Take care and come back anytime."
+    
+    return None
+
+def handle_human_first(message: str, user_id: str = None) -> dict:
+    """
+    Main entry point for Human First Response Layer.
+    Returns: { "handled": bool, "response": str }
+    """
+    if is_simple_or_identity_query(message):
+        response = generate_direct_response(message, user_id)
+        if response:
+            return {"handled": True, "response": response}
+    return {"handled": False, "response": ""}
 
 def get_memory_breakdown():
     """Full memory usage report for /memory-debug endpoint"""
