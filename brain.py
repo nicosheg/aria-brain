@@ -582,6 +582,104 @@ def handle_casual_conversation(message: str, user_id: str = None) -> dict:
         }
 
     return {"handled": False, "response": "", "type": "meaningful"}
+
+# ════════════════════════════════════════════════════════════════════
+# [S3.4] INTENT DISCOVERY – Classifies user intent before routing
+# ════════════════════════════════════════════════════════════════════
+"""
+Intent Discovery classifies what the user wants before any specialized flow.
+It returns an intent with confidence score, and asks clarification if uncertain.
+"""
+
+import re
+
+class IntentDiscovery:
+    """Detects user intent and confidence score."""
+
+    def __init__(self):
+        self.intents = {
+            "personal_income": {
+                "keywords": ["earn", "income", "money", "salary", "wages", "hustle", "side", "business", "startup", "capital", "investment", "job", "freelance", "gig", "make money", "chop money"],
+                "personal_indicators": ["my", "i need", "i want", "myself", "me", "i am", "help me", "for me"],
+                "weight": 1.0
+            },
+            "research": {
+                "keywords": ["issue", "problem", "solution", "trend", "research", "study", "analysis", "thinking about", "consider", "explore"],
+                "personal_indicators": [],
+                "weight": 0.8
+            },
+            "casual": {
+                "keywords": ["hi", "hello", "hey", "thanks", "bye", "lol", "ok", "how are you"],
+                "personal_indicators": [],
+                "weight": 0.5
+            },
+            "education": {
+                "keywords": ["exam", "jamb", "waec", "study", "school", "university", "lecture", "class", "course", "test", "quiz", "assignment", "degree", "certificate", "skill", "learn", "tutorial"],
+                "personal_indicators": [],
+                "weight": 0.9
+            }
+        }
+
+    def classify_intent(self, message: str) -> dict:
+        """
+        Classify the primary intent with confidence score.
+        Returns: { "intent": str, "confidence": float, "clarification": str or None }
+        """
+        m_lower = message.lower().strip()
+        scores = {}
+
+        for intent_name, config in self.intents.items():
+            score = 0
+            # Check keywords
+            for kw in config["keywords"]:
+                if kw in m_lower:
+                    score += config["weight"] * 0.3
+            # Check personal indicators
+            if config.get("personal_indicators"):
+                for p in config["personal_indicators"]:
+                    if p in m_lower:
+                        score += 0.2
+            scores[intent_name] = min(score, 1.0)
+
+        # Find the highest scoring intent
+        top_intent = max(scores, key=scores.get)
+        top_confidence = scores[top_intent]
+
+        # If confidence is low or multiple intents are close, return clarification
+        if top_confidence < 0.6:
+            return {
+                "intent": "uncertain",
+                "confidence": top_confidence,
+                "clarification": "I want to make sure I understand correctly. Are you looking for personal income advice, doing research, or something else?"
+            }
+
+        # If it's casual, we already handled it in S3.3, but still classify
+        if top_intent == "casual":
+            return {"intent": "casual", "confidence": top_confidence, "clarification": None}
+
+        # If personal_income is the highest and has personal indicators, it's clear
+        if top_intent == "personal_income" and "personal_indicators" in self.intents["personal_income"]:
+            for p in self.intents["personal_income"]["personal_indicators"]:
+                if p in m_lower:
+                    return {"intent": "personal_income", "confidence": top_confidence, "clarification": None}
+
+        # If any other intent is above 0.7, proceed
+        if top_confidence >= 0.7:
+            return {"intent": top_intent, "confidence": top_confidence, "clarification": None}
+
+        # Otherwise, ask clarification
+        return {
+            "intent": top_intent,
+            "confidence": top_confidence,
+            "clarification": "Just to clarify, are you looking for ways to earn income yourself, or are you thinking about solutions for Nigerian youths in general?"
+        }
+
+# ── Initialize Intent Discovery ──
+intent_discovery = IntentDiscovery()
+
+def discover_intent(message: str) -> dict:
+    """Main entry point for Intent Discovery."""
+    return intent_discovery.classify_intent(message)
 # ════════════════════════════════════════════════════════════════════
 # [S4] SYSTEM PROMPT
 #  Edit ARIA's personality, rules, and knowledge here.
@@ -3473,6 +3571,12 @@ class Handler(BaseHTTPRequestHandler):
                 casual_response = handle_casual_conversation(message, u)
                 if casual_response["handled"]:
                     self._json({"reply": casual_response["response"]})
+                    return
+
+                # ── Step 2: Intent Discovery ──
+                intent = discover_intent(message)
+                if intent.get("clarification"):
+                    self._json({"reply": intent["clarification"]})
                     return
 
                 # ── S13: Income Module (isolated) ──
