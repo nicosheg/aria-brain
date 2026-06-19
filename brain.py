@@ -453,6 +453,135 @@ class CircuitBreaker:
 
 # Instantiate circuit breakers
 firebase_breaker = CircuitBreaker(failure_threshold=3, recovery_time=30)
+
+# ════════════════════════════════════════════════════════════════════
+# [S3.3] CONVERSATION MANAGER – Handles casual chat naturally
+# ════════════════════════════════════════════════════════════════════
+# Handles casual, non-specialized conversations.
+# Detects when a user is just chatting and responds naturally.
+
+import re
+import random
+
+class ConversationManager:
+    """Manages casual conversations with natural, human-like responses."""
+
+    def __init__(self):
+        self.conversation_state = {}
+        self.greeting_patterns = [
+            r'\b(hi|hello|hey|howdy|sup|wassup|good morning|good afternoon|good evening)\b',
+            r'\b(how are you|how\'s it going|what\'s up|how dey|how far)\b'
+        ]
+        self.casual_patterns = [
+            r'\b(thanks|thank you|appreciate|gracias)\b',
+            r'\b(lol|lmao|haha|funny|joke)\b',
+            r'\b(okay|ok|alright|got it|understood)\b',
+            r'\b(bye|goodbye|see you|later|catch you)\b'
+        ]
+
+    def is_casual_conversation(self, message: str) -> dict:
+        """Detect if the message is casual conversation."""
+        m_lower = message.lower().strip()
+
+        # Check for greetings
+        for pattern in self.greeting_patterns:
+            if re.search(pattern, m_lower, re.IGNORECASE):
+                if len(m_lower.split()) <= 5:
+                    return {"is_casual": True, "type": "greeting", "confidence": 0.95}
+
+        # Check for casual patterns
+        for pattern in self.casual_patterns:
+            if re.search(pattern, m_lower, re.IGNORECASE):
+                if len(m_lower.split()) <= 8:
+                    return {"is_casual": True, "type": "casual_response", "confidence": 0.85}
+
+        # Very short messages (likely casual)
+        if len(m_lower.split()) <= 3:
+            return {"is_casual": True, "type": "short_response", "confidence": 0.70}
+
+        return {"is_casual": False, "type": "meaningful", "confidence": 0.0}
+
+    def generate_casual_response(self, message: str, user_id: str = None) -> str:
+        """Generate a natural, human-like response for casual conversations."""
+        user_name = ""
+        if user_id:
+            try:
+                profile = get_or_create_income_profile(user_id)
+                if profile and profile.get('name'):
+                    user_name = profile.get('name')
+            except:
+                pass
+
+        m_lower = message.lower().strip()
+
+        # Greetings
+        if re.search(r'\b(hi|hello|hey)\b', m_lower, re.IGNORECASE):
+            if user_name:
+                return f"Hey {user_name}! How's your day going?"
+            return random.choice([
+                "Hey! What's on your mind today?",
+                "Hello there! How can I help?",
+                "Hey, good to see you! What's up?",
+            ])
+
+        if re.search(r'\b(how are you|how\'s it going|how far|how dey)\b', m_lower, re.IGNORECASE):
+            return random.choice([
+                "I'm doing great, thanks for asking! How about you?",
+                "I'm here and ready to help! What's new with you?",
+                "All good on my side! What's happening with you?",
+            ])
+
+        # Thanks
+        if re.search(r'\b(thanks|thank you|appreciate)\b', m_lower, re.IGNORECASE):
+            return random.choice([
+                "You're welcome! Anything else I can help with?",
+                "Anytime! That's what I'm here for.",
+                "My pleasure! Got anything else on your mind?",
+            ])
+
+        # Goodbye
+        if re.search(r'\b(bye|goodbye|see you|later|catch you)\b', m_lower, re.IGNORECASE):
+            return random.choice([
+                "Goodbye! Take care and come back anytime.",
+                "Catch you later! Wishing you a great day.",
+                "See you soon! I'll be here when you need me.",
+            ])
+
+        # Short responses (one or two words)
+        if len(m_lower.split()) <= 2:
+            return random.choice([
+                "Hmm, tell me more. What's on your mind?",
+                "Interesting. What makes you say that?",
+                "I see. Want to elaborate?",
+                "Got it. What else is going on?",
+            ])
+
+        # Default: ask open-ended question
+        return random.choice([
+            "That's interesting. Tell me more about that.",
+            "I see. What's driving that thought?",
+            "Ah, say more. I'm listening.",
+            "Interesting perspective. Where does that come from?",
+        ])
+
+
+# ── Initialize Conversation Manager ──
+conversation_manager = ConversationManager()
+
+def handle_casual_conversation(message: str, user_id: str = None) -> dict:
+    """Main entry point for the Conversation Manager."""
+    detection = conversation_manager.is_casual_conversation(message)
+
+    if detection["is_casual"]:
+        response = conversation_manager.generate_casual_response(message, user_id)
+        return {
+            "handled": True,
+            "response": response,
+            "type": detection["type"],
+            "confidence": detection["confidence"]
+        }
+
+    return {"handled": False, "response": "", "type": "meaningful"}
 # ════════════════════════════════════════════════════════════════════
 # [S4] SYSTEM PROMPT
 #  Edit ARIA's personality, rules, and knowledge here.
