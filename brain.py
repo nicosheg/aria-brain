@@ -3469,6 +3469,11 @@ class Handler(BaseHTTPRequestHandler):
                 if blocker_msg:
                     self._json({"reply": blocker_msg})
                     return
+                # ── Step 1: Conversation Manager (casual chat) ──
+                casual_response = handle_casual_conversation(message, u)
+                if casual_response["handled"]:
+                    self._json({"reply": casual_response["response"]})
+                    return
 
                 # ── S13: Income Module (isolated) ──
                 income_handled = False
