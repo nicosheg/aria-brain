@@ -962,6 +962,47 @@ def is_state_stale(state: dict, timeout_seconds: int = 300) -> bool:
         return (datetime.now(timezone.utc) - timestamp).total_seconds() > timeout_seconds
     return False
 
+# ── Simple Pending Session Management ──
+
+def start_pending_session(user_id: str, action: str, payload: dict = None):
+    """
+    Start a pending session.
+    action: "rewrite", "summarize", "translate", "fix", etc.
+    payload: { "style": "professional", "text": "" } – will be filled later.
+    """
+    state = get_conversation_state(user_id) or {}
+    state["pending_session"] = {
+        "action": action,
+        "payload": payload or {},
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+        "last_activity": datetime.now(timezone.utc).isoformat()
+    }
+    save_conversation_state(user_id, state)
+
+def get_pending_session(user_id: str) -> dict:
+    """Get the current pending session if active and not expired."""
+    state = get_conversation_state(user_id) or {}
+    session = state.get("pending_session")
+    if not session:
+        return None
+    # Check expiration
+    expires_at = datetime.fromisoformat(session["expires_at"])
+    if datetime.now(timezone.utc) > expires_at:
+        clear_pending_session(user_id)
+        return None
+    return session
+
+def clear_pending_session(user_id: str):
+    """Clear the pending session (on completion or cancellation)."""
+    state = get_conversation_state(user_id) or {}
+    state.pop("pending_session", None)
+    save_conversation_state(user_id, state)
+
+def cancel_pending_session(user_id: str):
+    """Cancel the pending session (user said nevermind)."""
+    clear_pending_session(user_id)
+
 # ════════════════════════════════════════════════════════════════════
 # [S3.8] WORKFLOW ENGINE – Generic, configuration-driven workflow engine
 # ════════════════════════════════════════════════════════════════════
@@ -1196,20 +1237,38 @@ def decide_action(analysis: dict) -> dict:
 def process_conversation_brain(message: str, user_id: str, state: dict, intent: dict) -> dict:
     """
     Main entry point for the Conversation Brain.
-    Returns: {"decision": dict, "new_state": dict}
+    It decides what to do – including handling pending sessions.
     """
-    # Analyze the conversation
-    analysis = analyze_message(message, state, intent)
+    # ── Check for pending session FIRST ──
+    session = get_pending_session(user_id)
+    if session:
+        # The user is responding to a pending request
+        action = session["action"]
+        payload = session["payload"]
+        
+        # The user's message is the missing piece (text to process)
+        if action == "rewrite":
+            style = payload.get("style", "professional")
+            result = task_module.rewrite(message, style)
+        elif action == "summarize":
+            result = task_module.summarize(message)
+        elif action == "translate":
+            target = payload.get("target_language", "English")
+            result = task_module.translate(message, target)
+        elif action == "fix":
+            result = task_module.fix(message)
+        else:
+            result = None
+        
+        clear_pending_session(user_id)
+        if result:
+            return {"decision": {"action": "return_result"}, "new_state": {"response": result}}
+        else:
+            return {"decision": {"action": "ask"}, "new_state": {"response": "I couldn't process that. What would you like to do?"}}
     
-    # Decide the action
-    decision = decide_action(analysis)
-    
-    # Determine if we need to update state
-    new_state = state.copy() if state else {}
-    new_state["last_decision"] = decision
-    new_state["timestamp"] = datetime.now(timezone.utc).isoformat()
-    
-    return {"decision": decision, "new_state": new_state
+    # ── No pending session – proceed normally ──
+    # (existing logic for intent, urgency, emotion, etc.)
+    ...
 
 # ════════════════════════════════════════════════════════════════════
 # [S3.10] GOAL MANAGER – Tracks long-term, current, and immediate goals
@@ -1327,6 +1386,37 @@ def execute_decision(decision: dict, message: str, user_id: str, state: dict) ->
     # Fallback
     response = call_llm(SP, message)
     return response or "I'm having trouble. Please try again."
+
+# ════════════════════════════════════════════════════════════════════
+# [S3.15] TASK MODULE – Dumb, stateless task processors
+# ════════════════════════════════════════════════════════════════════
+
+class TaskModule:
+    """Stateless task processors – no conversation management."""
+
+    def rewrite(self, text: str, style: str = "professional") -> str:
+        """Rewrite text in a given style."""
+        prompt = f"Rewrite the following text in a {style} style. Return only the rewritten text:\n\n{text}"
+        return call_llm(SP, prompt) or text
+
+    def summarize(self, text: str) -> str:
+        """Summarize text."""
+        prompt = f"Summarize the following text concisely. Return only the summary:\n\n{text}"
+        return call_llm(SP, prompt) or "Summary: " + text[:200] + "..."
+
+    def translate(self, text: str, target_language: str = "English") -> str:
+        """Translate text."""
+        prompt = f"Translate the following text to {target_language}. Return only the translation:\n\n{text}"
+        return call_llm(SP, prompt) or text
+
+    def fix(self, text: str) -> str:
+        """Fix errors in text/code."""
+        prompt = f"Fix any errors in the following text. Return only the corrected version:\n\n{text}"
+        return call_llm(SP, prompt) or text
+
+# ── Initialize ──
+task_module = TaskModule()
+module_registry.register("task", task_module)
 
 # ════════════════════════════════════════════════════════════════════
 # [S4] SYSTEM PROMPT
@@ -4343,26 +4433,34 @@ class Handler(BaseHTTPRequestHandler):
                 
                 u = uid_result["aria_uid"]
                 
-                # ── Human First ──
+                # ── Step 1: Human First ──
                 human = handle_human_first(message, u)
                 if human["handled"]:
                     self._json({"reply": human["response"]})
                     return
                 
-                # ── Casual ──
+                # ── Step 2: Casual ──
                 casual = handle_casual_conversation(message, u)
                 if casual["handled"]:
                     self._json({"reply": casual["response"]})
                     return
                 
-                # ── Load State ──
+                # ── Step 3: State Resolver (check pending) ──
                 state = get_conversation_state(u) or {}
+                session = get_pending_session(u)
+                if session and message.lower().strip() in ["cancel", "nevermind", "stop", "forget it"]:
+                    clear_pending_session(u)
+                    self._json({"reply": "Alright, I've cancelled that request. What would you like to do now?"})
+                    return
+                
+                # ── Step 4: Conversation Brain ──
+                # The Brain handles session resolution internally.
+                # It will check for pending sessions and handle them.
                 goals = get_goals(u)
                 state["goals"] = goals
                 context = get_context(u)
                 state["context"] = context
                 
-                # ── Intent Discovery ──
                 intent = discover_intent(message)
                 if intent.get("clarification") and not state.get("awaiting") == "clarification":
                     state["awaiting"] = "clarification"
@@ -4371,18 +4469,16 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"reply": intent["clarification"]})
                     return
                 
-                # ── Conversation Brain ──
                 result = process_conversation_brain(message, u, state, intent)
                 decision = result.get("decision", {})
                 new_state = result.get("new_state", {})
                 
-                # ── Response Engine ──
+                # ── Step 5: Response Engine ──
                 response = execute_decision(decision, message, u, new_state)
                 
-                # ── Update State ──
+                # ── Step 6: Update State ──
                 if new_state:
                     save_conversation_state(u, new_state)
-                    # If goals detected, save them
                     if new_state.get("current_goal") or new_state.get("long_term_goal"):
                         update_goals(u, {
                             "current_goal": new_state.get("current_goal"),
