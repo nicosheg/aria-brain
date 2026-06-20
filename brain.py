@@ -963,8 +963,19 @@ def is_state_stale(state: dict, timeout_seconds: int = 300) -> bool:
         return (datetime.now(timezone.utc) - timestamp).total_seconds() > timeout_seconds
     return False
 
-# ── Simple Pending Session Management ──
+def is_active_conversation(state: dict) -> bool:
+    """
+    Check if the conversation has been active in the last 5 minutes.
+    """
+    if not state or not state.get("last_activity"):
+        return False
+    try:
+        last = datetime.fromisoformat(state["last_activity"])
+        return (datetime.now(timezone.utc) - last).total_seconds() < 300  # 5 minutes
+    except:
+        return False
 
+# ── Simple Pending Session Management ──
 def start_pending_session(user_id: str, action: str, payload: dict = None):
     """
     Start a pending session.
@@ -4493,28 +4504,47 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"reply": human["response"]})
                     return
                 
-                # ── Step 2: Casual ──
+                # ── Step 2: Check Pending Session (with safety) ──
+                session = None
+                try:
+                    session = get_pending_session(u)
+                except Exception as e:
+                    log_error("pending_session", "fetch_failed", e, user_id=u)
+                    session = None
+                
+                if session:
+                    if message.lower().strip() in ["cancel", "nevermind", "stop", "forget it"]:
+                        clear_pending_session(u)
+                        self._json({"reply": "Alright, I've cancelled that request. What would you like to do now?"})
+                        return
+                    
+                    # Handle pending session – let the Brain process it
+                    # Load state and intent
+                    state = get_conversation_state(u) or {}
+                    intent = discover_intent(message)
+                    result = process_conversation_brain(message, u, state, intent)
+                    decision = result.get("decision", {})
+                    new_state = result.get("new_state", {})
+                    response = execute_decision(decision, message, u, new_state)
+                    if new_state:
+                        save_conversation_state(u, new_state)
+                    self._json({"reply": response})
+                    return
+                
+                # ── Step 3: Casual Manager (checks active conversation) ──
                 casual = handle_casual_conversation(message, u)
                 if casual["handled"]:
                     self._json({"reply": casual["response"]})
                     return
                 
-                # ── Step 3: State Resolver (check pending) ──
+                # ── Step 4: Load State ──
                 state = get_conversation_state(u) or {}
-                session = get_pending_session(u)
-                if session and message.lower().strip() in ["cancel", "nevermind", "stop", "forget it"]:
-                    clear_pending_session(u)
-                    self._json({"reply": "Alright, I've cancelled that request. What would you like to do now?"})
-                    return
-                
-                # ── Step 4: Conversation Brain ──
-                # The Brain handles session resolution internally.
-                # It will check for pending sessions and handle them.
                 goals = get_goals(u)
                 state["goals"] = goals
                 context = get_context(u)
                 state["context"] = context
                 
+                # ── Step 5: Intent Discovery ──
                 intent = discover_intent(message)
                 if intent.get("clarification") and not state.get("awaiting") == "clarification":
                     state["awaiting"] = "clarification"
@@ -4523,14 +4553,15 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"reply": intent["clarification"]})
                     return
                 
+                # ── Step 6: Conversation Brain ──
                 result = process_conversation_brain(message, u, state, intent)
                 decision = result.get("decision", {})
                 new_state = result.get("new_state", {})
                 
-                # ── Step 5: Response Engine ──
+                # ── Step 7: Response Engine ──
                 response = execute_decision(decision, message, u, new_state)
                 
-                # ── Step 6: Update State ──
+                # ── Step 8: Update State ──
                 if new_state:
                     save_conversation_state(u, new_state)
                     if new_state.get("current_goal") or new_state.get("long_term_goal"):
