@@ -935,6 +935,7 @@ def save_conversation_state(user_id: str, state: dict):
     if db is None:
         return False
     try:
+        state["last_activity"] = datetime.now(timezone.utc).isoformat()
         state["updated_at"] = firestore.SERVER_TIMESTAMP
         doc_ref = db.collection("users").document(user_id).collection("conversation_state").document("current")
         doc_ref.set(state, merge=True)
@@ -2933,6 +2934,24 @@ def handle_human_first(message: str, user_id: str = None) -> dict:
             return {"handled": True, "response": response}
     return {"handled": False, "response": ""}
 
+def handle_casual_conversation(message: str, user_id: str = None) -> dict:
+    """
+    Handle casual conversation, but only if it's a fresh conversation.
+    """
+    detection = conversation_manager.is_casual_conversation(message)
+    if not detection["is_casual"]:
+        return {"handled": False, "response": ""}
+    
+    # ── Check if conversation is active ──
+    if user_id:
+        state = get_conversation_state(user_id) or {}
+        if is_active_conversation(state):
+            # Don't respond with greetings in active conversations
+            return {"handled": False, "response": ""}
+    
+    response = conversation_manager.generate_casual_response(message, user_id)
+    return {"handled": True, "response": response, "type": detection["type"], "confidence": detection["confidence"]}
+
 # ── Emotion Analyzer ──
 def detect_emotion(message: str) -> str:
     m_lower = message.lower()
@@ -2968,6 +2987,18 @@ def detect_ambiguity(message: str, state: dict) -> float:
     if intent.get("intent") == "uncertain":
         return 0.8
     return 0.2
+
+def is_active_conversation(state: dict) -> bool:
+    """
+    Check if the conversation has been active in the last 5 minutes.
+    """
+    if not state or not state.get("last_activity"):
+        return False
+    try:
+        last = datetime.fromisoformat(state["last_activity"])
+        return (datetime.now(timezone.utc) - last).total_seconds() < 300  # 5 minutes
+    except:
+        return False
 
 def get_memory_breakdown():
     """Full memory usage report for /memory-debug endpoint"""
@@ -4441,8 +4472,9 @@ class Handler(BaseHTTPRequestHandler):
                 message = data.get("message", "").strip()
                 email = data.get("email", "").strip().lower()
                 
+                # ── Input sanitization ──
                 if not message:
-                    self._json({"reply": "Say something!"})
+                    self._json({"reply": "I didn't catch that. Can you repeat?"})
                     return
                 if not email:
                     self._json({"error": "Missing email"}, 400)
