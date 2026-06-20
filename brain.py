@@ -1129,6 +1129,127 @@ def start_workflow(user_id: str, intent: str) -> str:
     return first_step["question"]
 
 # ════════════════════════════════════════════════════════════════════
+# [S3.9] ADAPTIVE CONDUCTOR – Natural, fluid conversation management
+# ════════════════════════════════════════════════════════════════════
+"""
+The Adaptive Conductor reads the conversation and decides what's needed.
+It doesn't force scripts – it flows with the user.
+"""
+
+class AdaptiveConductor:
+    def __init__(self):
+        # Define user states – these are fluid, not rigid
+        self.states = {
+            "exploring": {"signal": "open-ended questions, curiosity", "response": "guide gently"},
+            "confused": {"signal": "short answers, hesitation, 'I don't know'", "response": "simplify, ask one clear question"},
+            "urgent": {"signal": "direct request, time pressure", "response": "act immediately, give next step"},
+            "direct": {"signal": "command, explicit task", "response": "execute immediately, then ask if adjustments needed"},
+            "reflective": {"signal": "thinking, considering, weighing options", "response": "listen, offer perspective, don't push"},
+            "casual": {"signal": "greetings, small talk", "response": "warm, brief, open-ended follow-up"}
+        }
+    
+    def assess_state(self, message: str, conversation_history: list) -> str:
+        """Determine the user's current state based on the message and history."""
+        m_lower = message.lower().strip()
+        
+        # Direct commands
+        if re.search(r'\b(rewrite|summarize|fix|correct|translate|write|edit|modify|change|update)\b', m_lower, re.IGNORECASE):
+            if len(m_lower.split()) <= 10:
+                return "direct"
+        
+        # Urgency signals
+        if re.search(r'\b(urgent|now|quick|fast|immediately|asap)\b', m_lower, re.IGNORECASE):
+            return "urgent"
+        
+        # Confusion signals
+        if re.search(r'\b(confused|don\'t know|not sure|lost|stuck|no idea)\b', m_lower, re.IGNORECASE):
+            return "confused"
+        
+        # Reflective signals
+        if re.search(r'\b(thinking|consider|weighing|maybe|perhaps|wondering)\b', m_lower, re.IGNORECASE):
+            return "reflective"
+        
+        # Exploring signals
+        if "?" in message and len(m_lower.split()) > 5:
+            return "exploring"
+        
+        # Casual – handled by Conversation Manager, but keep fallback
+        return "casual"
+    
+    def decide_response_strategy(self, state: str, intent: str, collected_data: dict) -> dict:
+        """
+        Decide what to do based on user state and intent.
+        Returns: {"action": "answer", "ask", "guide", "listen", "execute", "switch"}
+        """
+        # Urgent or direct → execute/answer immediately
+        if state in ["urgent", "direct"]:
+            return {"action": "execute", "style": "direct"}
+        
+        # Confused → simplify, ask one clear question
+        if state == "confused":
+            return {"action": "guide", "style": "simplify"}
+        
+        # Reflective → listen, offer perspective
+        if state == "reflective":
+            return {"action": "answer", "style": "perspective"}
+        
+        # Exploring → guide step by step
+        if state == "exploring":
+            return {"action": "guide", "style": "step_by_step"}
+        
+        # Default → natural conversation
+        return {"action": "answer", "style": "natural"}
+
+# ── Initialize ──
+conductor = AdaptiveConductor()
+
+def adaptive_response(message: str, user_id: str, state: dict, intent: dict) -> dict:
+    """
+    Main entry point for the Adaptive Conductor.
+    Returns: {"response": str, "new_state": dict}
+    """
+    # Assess the user's state
+    user_state = conductor.assess_state(message, state.get("history", []))
+    
+    # Decide what to do
+    strategy = conductor.decide_response_strategy(user_state, intent.get("intent"), state.get("collected_data", {}))
+    
+    # Build the response based on strategy
+    if strategy["action"] == "execute":
+        # Direct task or urgent – just do it
+        response = call_llm(SP, message)
+        return {"response": response, "new_state": state}
+    
+    elif strategy["action"] == "guide":
+        # For exploring or confused users – guide step by step
+        # But only if we have a clear intent and the user wants guidance
+        if intent.get("intent") in WORKFLOWS and state.get("awaiting") != "workflow_question":
+            # Start or continue a gentle workflow
+            if not state.get("workflow_step"):
+                # First time – start the workflow
+                from workflow_engine import start_workflow
+                response = start_workflow(user_id, intent["intent"])
+                return {"response": response, "new_state": state}
+            else:
+                # Continue the workflow
+                from workflow_engine import process_workflow_step
+                result = process_workflow_step(user_id, message, state)
+                return {"response": result["response"], "new_state": state}
+        else:
+            # No clear workflow – just answer naturally
+            response = call_llm(SP, message)
+            return {"response": response, "new_state": state}
+    
+    elif strategy["action"] == "answer":
+        # Answer directly, with appropriate style
+        response = call_llm(SP, message)
+        return {"response": response, "new_state": state}
+    
+    # Fallback
+    response = call_llm(SP, message)
+    return {"response": response, "new_state": state}
+
+# ════════════════════════════════════════════════════════════════════
 # [S4] SYSTEM PROMPT
 #  Edit ARIA's personality, rules, and knowledge here.
 #  This is what makes ARIA who she is.
@@ -4108,71 +4229,39 @@ class Handler(BaseHTTPRequestHandler):
                 
                 u = uid_result["aria_uid"]
                 
-                # ── STEP 1: Human First Response ──
+                # ── STEP 1: Human First (always) ──
                 human = handle_human_first(message, u)
                 if human["handled"]:
                     self._json({"reply": human["response"]})
                     return
                 
-                # ── STEP 2: Conversation Manager ──
+                # ── STEP 2: Casual Manager ──
                 casual = handle_casual_conversation(message, u)
                 if casual["handled"]:
                     self._json({"reply": casual["response"]})
                     return
                 
-                # ── STEP 3: Load Conversation State ──
-                state = get_conversation_state(u)
+                # ── STEP 3: Load conversation state ──
+                state = get_conversation_state(u) or {}
                 
-                # ── STEP 4: If state has pending clarification, handle it ──
-                if state.get("awaiting") == "clarification":
-                    clarified_intent = handle_clarification_response(message, u, state)
-                    if clarified_intent:
-                        # Start the workflow for the clarified intent
-                        response = start_workflow(u, clarified_intent)
-                        self._json({"reply": response})
-                        return
-                    else:
-                        # Still unclear – ask again or fallback
-                        self._json({"reply": "I didn't catch that. Could you clarify?"})
-                        return
-                
-                # ── STEP 5: If state has active workflow, process it ──
-                if state.get("awaiting") == "workflow_question":
-                    result = process_workflow_step(u, message, state)
-                    if result["response"]:
-                        self._json({"reply": result["response"]})
-                        return
-                
-                # ── STEP 6: Check if state is stale ──
-                if state and is_state_stale(state):
-                    clear_conversation_state(u)
-                    state = {}
-                
-                # ── STEP 7: Intent Discovery (new conversation) ──
+                # ── STEP 4: Intent Discovery ──
                 intent = discover_intent(message)
-                if intent.get("clarification"):
+                if intent.get("clarification") and not state.get("awaiting") == "clarification":
                     # Store clarification state
-                    state = {
-                        "awaiting": "clarification",
-                        "question": intent["clarification"],
-                        "intent": "unknown",
-                        "timestamp": datetime.now(timezone.utc).isoformat()
-                    }
+                    state["awaiting"] = "clarification"
+                    state["question"] = intent["clarification"]
                     save_conversation_state(u, state)
                     self._json({"reply": intent["clarification"]})
                     return
                 
-                # ── STEP 8: Start appropriate workflow ──
-                if intent["intent"] in WORKFLOWS:
-                    response = start_workflow(u, intent["intent"])
-                    self._json({"reply": response})
-                    return
+                # ── STEP 5: Adaptive Conductor ──
+                result = adaptive_response(message, u, state, intent)
                 
-                # ── STEP 9: Generic fallback ──
-                response = call_llm(SP, message)
-                if not response:
-                    response = ask(message, u, 'groq')
-                self._json({"reply": response or "I'm having trouble. Please try again."})
+                # Update state if needed
+                if result.get("new_state"):
+                    save_conversation_state(u, result["new_state"])
+                
+                self._json({"reply": result["response"]})
                 
             except Exception as e:
                 import traceback
