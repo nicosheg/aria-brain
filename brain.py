@@ -1249,7 +1249,7 @@ def decide_action(analysis: dict) -> dict:
 def process_conversation_brain(message: str, user_id: str, state: dict, intent: dict) -> dict:
     """
     Main entry point for the Conversation Brain.
-    It decides what to do – including handling pending sessions.
+    Returns: {"decision": dict, "new_state": dict}
     """
     # ── Check for pending session FIRST ──
     session = get_pending_session(user_id)
@@ -1272,15 +1272,27 @@ def process_conversation_brain(message: str, user_id: str, state: dict, intent: 
         else:
             result = None
         
+        # ── CLEAR THE PENDING SESSION ──
         clear_pending_session(user_id)
+        
         if result:
-            return {"decision": {"action": "return_result"}, "new_state": {"response": "result"}}
+            return {"decision": {"action": "return_result", "result": result}, "new_state": state}
         else:
             return {"decision": {"action": "ask"}, "new_state": {"response": "I couldn't process that. What would you like to do?"}}
     
     # ── No pending session – proceed normally ──
-    # (existing logic for intent, urgency, emotion, etc.)
-    ...
+    # Analyze the conversation
+    analysis = analyze_message(message, state, intent)
+    
+    # Decide the action
+    decision = decide_action(analysis)
+    
+    # Determine if we need to update state
+    new_state = state.copy() if state else {}
+    new_state["last_decision"] = decision
+    new_state["timestamp"] = datetime.now(timezone.utc).isoformat()
+    
+    return {"decision": decision, "new_state": new_state}
 
 # ════════════════════════════════════════════════════════════════════
 # [S3.10] GOAL MANAGER – Tracks long-term, current, and immediate goals
