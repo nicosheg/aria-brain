@@ -807,6 +807,65 @@ def call_llm(system_prompt: str, user_prompt: str, timeout: int = 20) -> str:
     return llm_adapter.call(system_prompt, user_prompt, timeout)
 
 # ════════════════════════════════════════════════════════════════════
+# [S3.6] CONTEXT BUILDER – Gather only what's needed
+# ════════════════════════════════════════════════════════════════════
+"""
+Context Builder constructs a minimal, clean context for the response.
+It checks memory first to avoid asking duplicate questions.
+"""
+
+def build_context(user_id: str, message: str, intent: dict) -> dict:
+    """
+    Build a clean, incremental context for the response.
+    Only includes fields that are relevant to the current intent.
+    """
+    # Start with basic fields
+    context = {
+        "user_id": user_id,
+        "message": message,
+        "intent": intent.get("intent", "unknown"),
+        "intent_confidence": intent.get("confidence", 0.0),
+        "timestamp": datetime.now().isoformat()
+    }
+
+    # Load user profile if it exists (from S12)
+    profile = get_or_create_income_profile(user_id) or {}
+
+    # Add only relevant fields based on intent
+    if intent.get("intent") == "income":
+        context["skills"] = profile.get("skills", [])
+        context["current_income"] = profile.get("current_monthly_income", "N/A")
+        context["target_income"] = profile.get("target_monthly_income", "N/A")
+        context["available_hours"] = profile.get("available_hours_per_week", "N/A")
+        context["stage"] = profile.get("current_stage", "onboarding")
+        context["stage_status"] = profile.get("stage_status", "active")
+        context["last_action"] = profile.get("last_action_given", "none")
+    elif intent.get("intent") == "education":
+        # For education, we could add subjects, exam type, etc.
+        # Placeholder – expand later.
+        context["subjects"] = []
+        context["exam_type"] = profile.get("exam_type", "unknown")
+    elif intent.get("intent") == "business":
+        context["business_type"] = profile.get("business_type", "unknown")
+        context["business_stage"] = profile.get("business_stage", "ideation")
+
+    # Check if we already have necessary info in memory
+    memory = load_user_memory(user_id, limit=3)
+    if memory:
+        context["recent_conversation"] = memory
+
+    # Detect emotion from message (simple keyword)
+    emotional_keywords = ['frustrated', 'sad', 'scared', 'stuck', 'excited', 'happy', 'worried', 'hopeful']
+    detected_emotion = None
+    for word in emotional_keywords:
+        if word in message.lower():
+            detected_emotion = word
+            break
+    context["detected_emotion"] = detected_emotion
+
+    return context
+
+# ════════════════════════════════════════════════════════════════════
 # [S4] SYSTEM PROMPT
 #  Edit ARIA's personality, rules, and knowledge here.
 #  This is what makes ARIA who she is.
