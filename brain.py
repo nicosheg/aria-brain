@@ -975,6 +975,12 @@ def is_active_conversation(state: dict) -> bool:
     except:
         return False
 
+def is_topic_change(message: str) -> bool:
+    """Detect if the user is explicitly changing the topic."""
+    m_lower = message.lower().strip()
+    signals = ["actually", "nevermind", "on second thought", "forget that", "new topic", "change of topic"]
+    return any(signal in m_lower for signal in signals)
+
 # ── Simple Pending Session Management ──
 def start_pending_session(user_id: str, action: str, payload: dict = None):
     """
@@ -1014,6 +1020,54 @@ def clear_pending_session(user_id: str):
 def cancel_pending_session(user_id: str):
     """Cancel the pending session (user said nevermind)."""
     clear_pending_session(user_id)
+
+# ════════════════════════════════════════════════════════════════════
+# CONVERSATION UNDERSTANDING STATE – Cumulative understanding of the current conversation
+# ════════════════════════════════════════════════════════════════════
+
+def get_understanding(user_id: str) -> dict:
+    """Retrieve the current conversation understanding."""
+    state = get_conversation_state(user_id) or {}
+    return state.get("understanding", {})
+
+def update_understanding(user_id: str, updates: dict):
+    """Update the understanding with new resolved information."""
+    state = get_conversation_state(user_id) or {}
+    if "understanding" not in state:
+        state["understanding"] = {}
+    # Merge updates
+    for key, value in updates.items():
+        if key == "resolved_intents":
+            # Append to list if not already present
+            existing = state["understanding"].get("resolved_intents", [])
+            if value not in existing:
+                existing.append(value)
+            state["understanding"]["resolved_intents"] = existing
+        elif key == "answered_questions":
+            # Store as dict of question -> answer
+            if "answered_questions" not in state["understanding"]:
+                state["understanding"]["answered_questions"] = {}
+            state["understanding"]["answered_questions"].update(value)
+        else:
+            state["understanding"][key] = value
+    save_conversation_state(user_id, state)
+
+def has_answered_question(user_id: str, question_key: str) -> bool:
+    """Check if a specific question has already been answered."""
+    understanding = get_understanding(user_id)
+    answered = understanding.get("answered_questions", {})
+    return question_key in answered
+
+def get_resolved_intents(user_id: str) -> list:
+    """Get all intents that have been resolved in this conversation."""
+    understanding = get_understanding(user_id)
+    return understanding.get("resolved_intents", [])
+
+def clear_understanding(user_id: str):
+    """Reset the understanding (e.g., when user explicitly changes topic)."""
+    state = get_conversation_state(user_id) or {}
+    state["understanding"] = {}
+    save_conversation_state(user_id, state)
 
 # ════════════════════════════════════════════════════════════════════
 # [S3.8] WORKFLOW ENGINE – Generic, configuration-driven workflow engine
@@ -4555,15 +4609,47 @@ class Handler(BaseHTTPRequestHandler):
                 state["goals"] = goals
                 context = get_context(u)
                 state["context"] = context
+
+                # ── Check if we already know the intent from understanding ──
+                resolved_intents = get_resolved_intents(u)
+                if resolved_intents:
+                    # If we already have a resolved intent, use it and skip clarification
+                    # But only if the current message doesn't contradict it
+                    # For simplicity, we can assume the most recent resolved intent is still active
+                    # unless the user explicitly changes topic
+                    # For now, we'll just pass it to the Brain
+                    intent = {"intent": resolved_intents[-1], "confidence": 0.9}
+                    # Skip the clarification check
+                    # (We'll handle this more robustly later)
                 
                 # ── Step 5: Intent Discovery ──
                 intent = discover_intent(message)
                 if intent.get("clarification") and not state.get("awaiting") == "clarification":
+                    # Store the pending clarification
                     state["awaiting"] = "clarification"
                     state["question"] = intent["clarification"]
                     save_conversation_state(u, state)
                     self._json({"reply": intent["clarification"]})
                     return
+                elif state.get("awaiting") == "clarification":
+                    # User is responding to a clarification – resolve it
+                    resolved_intent = check_clarification_response(message, u)  # from S3.4
+                    if resolved_intent:
+                        # Store the resolved intent in understanding
+                        update_understanding(u, {
+                            "resolved_intents": resolved_intent,
+                            "active_goal": resolved_intent
+                        })
+                        # Clear the awaiting flag
+                        state.pop("awaiting", None)
+                        state.pop("question", None)
+                        save_conversation_state(u, state)
+                        # Now continue to Brain with the resolved intent
+                        intent = {"intent": resolved_intent, "confidence": 0.9}
+                    else:
+                        # Still unclear – ask again or fallback
+                        self._json({"reply": "I didn't catch that. Could you clarify?"})
+                        return
                 
                 # ── Step 6: Conversation Brain ──
                 result = process_conversation_brain(message, u, state, intent)
