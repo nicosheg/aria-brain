@@ -904,6 +904,231 @@ def build_context(user_id: str, message: str, intent: dict) -> dict:
     return context
 
 # ════════════════════════════════════════════════════════════════════
+# [S3.7] CONVERSATION STATE MANAGER – Persistent conversational state
+# ════════════════════════════════════════════════════════════════════
+"""
+Manages all temporary conversational state:
+- Current workflow and step
+- Collected information
+- Pending clarifications
+- Current topic/goal
+- Last module used
+- Active session
+"""
+
+def get_conversation_state(user_id: str) -> dict:
+    """Load the current conversation state from Firestore."""
+    if db is None:
+        return {}
+    try:
+        doc_ref = db.collection("users").document(user_id).collection("conversation_state").document("current")
+        doc = doc_ref.get()
+        if doc.exists:
+            return doc.to_dict()
+        return {}
+    except Exception as e:
+        log_error("S3.7", "get_conversation_state", e, user_id=user_id)
+        return {}
+
+def save_conversation_state(user_id: str, state: dict):
+    """Save the current conversation state to Firestore."""
+    if db is None:
+        return False
+    try:
+        state["updated_at"] = firestore.SERVER_TIMESTAMP
+        doc_ref = db.collection("users").document(user_id).collection("conversation_state").document("current")
+        doc_ref.set(state, merge=True)
+        return True
+    except Exception as e:
+        log_error("S3.7", "save_conversation_state", e, user_id=user_id)
+        return False
+
+def clear_conversation_state(user_id: str):
+    """Clear the conversation state (after completion or timeout)."""
+    if db is None:
+        return
+    try:
+        doc_ref = db.collection("users").document(user_id).collection("conversation_state").document("current")
+        doc_ref.delete()
+    except Exception as e:
+        log_error("S3.7", "clear_conversation_state", e, user_id=user_id)
+
+def is_state_stale(state: dict, timeout_seconds: int = 300) -> bool:
+    """Check if the conversation state is stale (>5 minutes old)."""
+    timestamp = state.get("updated_at")
+    if not timestamp:
+        return True
+    if isinstance(timestamp, datetime):
+        return (datetime.now(timezone.utc) - timestamp).total_seconds() > timeout_seconds
+    return False
+
+# ════════════════════════════════════════════════════════════════════
+# [S3.8] WORKFLOW ENGINE – Generic, configuration-driven workflow engine
+# ════════════════════════════════════════════════════════════════════
+"""
+Generic workflow engine that drives step-by-step progression for any domain.
+Workflows are defined as configurations, not code.
+"""
+
+# ── Workflow Definitions (configurations) ──
+WORKFLOWS = {
+    "education": {
+        "name": "Education",
+        "steps": [
+            {"step": 1, "question": "What exam are you preparing for? (WAEC, JAMB, University, or Other)", "field": "exam_type", "type": "string"},
+            {"step": 2, "question": "Which course or subject is it?", "field": "course", "type": "string"},
+            {"step": 3, "question": "How many days do you have before the exam?", "field": "days_available", "type": "number"},
+            {"step": 4, "action": "generate_study_plan"}
+        ],
+        "completion_message": "Study plan ready!"
+    },
+    "personal_income": {
+        "name": "Personal Income",
+        "steps": [
+            {"step": 1, "question": "What's your income goal? (e.g., ₦200k/month)", "field": "income_goal", "type": "string"},
+            {"step": 2, "question": "What skills or experience do you have?", "field": "skills", "type": "string"},
+            {"step": 3, "question": "How many hours per day can you commit?", "field": "hours_available", "type": "number"},
+            {"step": 4, "question": "Do you have any capital to start?", "field": "capital", "type": "number"},
+            {"step": 5, "action": "recommend_path"}
+        ],
+        "completion_message": "Income path recommendation ready!"
+    },
+    "research": {
+        "name": "Research",
+        "steps": [
+            {"step": 1, "question": "What topic are you researching?", "field": "topic", "type": "string"},
+            {"step": 2, "question": "What specific question do you want answered?", "field": "question", "type": "string"},
+            {"step": 3, "action": "generate_research_summary"}
+        ],
+        "completion_message": "Research summary ready!"
+    }
+}
+
+def get_workflow(intent: str) -> dict:
+    """Return the workflow configuration for a given intent."""
+    return WORKFLOWS.get(intent, None)
+
+def process_workflow_step(user_id: str, message: str, state: dict) -> dict:
+    """
+    Process the current workflow step and return the next question or action.
+    Returns: {"response": str, "completed": bool, "collected_data": dict}
+    """
+    intent = state.get("intent", "")
+    workflow = get_workflow(intent)
+    if not workflow:
+        return {"response": None, "completed": False, "collected_data": {}}
+    
+    steps = workflow.get("steps", [])
+    current_step = state.get("workflow_step", 0)
+    collected_data = state.get("collected_data", {})
+    awaiting = state.get("awaiting", "")
+    
+    # If no step is active, start at step 0
+    if awaiting != "workflow_question" and current_step == 0:
+        # First step – ask the question
+        step = steps[0]
+        state["awaiting"] = "workflow_question"
+        state["workflow_step"] = 0
+        state["collected_data"] = {}
+        save_conversation_state(user_id, state)
+        return {"response": step["question"], "completed": False, "collected_data": {}}
+    
+    # If awaiting a response, process the answer
+    if awaiting == "workflow_question":
+        # Validate and store the answer
+        step = steps[current_step]
+        field = step.get("field")
+        if field:
+            # Simple validation based on type
+            value = message.strip()
+            if step.get("type") == "number":
+                try:
+                    value = int(value)
+                except ValueError:
+                    return {"response": "Please enter a valid number.", "completed": False, "collected_data": {}}
+            collected_data[field] = value
+        
+        # Move to next step
+        next_step_index = current_step + 1
+        state["collected_data"] = collected_data
+        state["workflow_step"] = next_step_index
+        state["awaiting"] = ""
+        
+        # Check if we've reached the end
+        if next_step_index >= len(steps):
+            # Workflow complete – execute the completion action
+            return execute_workflow_completion(user_id, state)
+        
+        # Ask the next question
+        next_step = steps[next_step_index]
+        state["awaiting"] = "workflow_question"
+        save_conversation_state(user_id, state)
+        return {"response": next_step["question"], "completed": False, "collected_data": collected_data}
+    
+    # If no pending state, start the workflow
+    if current_step == 0:
+        step = steps[0]
+        state["awaiting"] = "workflow_question"
+        state["workflow_step"] = 0
+        save_conversation_state(user_id, state)
+        return {"response": step["question"], "completed": False, "collected_data": {}}
+    
+    return {"response": None, "completed": False, "collected_data": {}}
+
+def execute_workflow_completion(user_id: str, state: dict) -> dict:
+    """Execute the completion action for a workflow."""
+    intent = state.get("intent")
+    collected = state.get("collected_data", {})
+    workflow = get_workflow(intent)
+    
+    if not workflow:
+        clear_conversation_state(user_id)
+        return {"response": "Workflow complete. What would you like to do next?", "completed": True, "collected_data": {}}
+    
+    # Build a completion prompt based on the intent
+    completion_prompts = {
+        "education": f"Generate a study plan for {collected.get('course', 'the course')} with {collected.get('days_available', 'unknown')} days remaining. The student is preparing for {collected.get('exam_type', 'an exam')}.",
+        "personal_income": f"Recommend an income path for someone with skills: {collected.get('skills', 'unknown')}, goal: {collected.get('income_goal', 'unknown')}, hours available: {collected.get('hours_available', 'unknown')}, capital: {collected.get('capital', 'unknown')}.",
+        "research": f"Research summary for topic: {collected.get('topic', 'unknown')}, question: {collected.get('question', 'unknown')}."
+    }
+    
+    prompt = completion_prompts.get(intent, "Workflow complete. What's next?")
+    
+    # Use the LLM adapter to generate the final response
+    response = call_llm(SP, prompt)
+    
+    # Clear state and return
+    clear_conversation_state(user_id)
+    return {
+        "response": response or workflow.get("completion_message", "Workflow complete!"),
+        "completed": True,
+        "collected_data": collected
+    }
+
+def start_workflow(user_id: str, intent: str) -> str:
+    """Start a new workflow for the given intent."""
+    workflow = get_workflow(intent)
+    if not workflow:
+        return "I don't have a workflow for that yet. What would you like to do?"
+    
+    # Clear any existing state
+    clear_conversation_state(user_id)
+    
+    # Initialize new state
+    state = {
+        "intent": intent,
+        "workflow_step": 0,
+        "awaiting": "workflow_question",
+        "collected_data": {},
+        "started_at": datetime.now(timezone.utc).isoformat()
+    }
+    save_conversation_state(user_id, state)
+    
+    # Return the first question
+    first_step = workflow["steps"][0]
+    return first_step["question"]
+
+# ════════════════════════════════════════════════════════════════════
 # [S4] SYSTEM PROMPT
 #  Edit ARIA's personality, rules, and knowledge here.
 #  This is what makes ARIA who she is.
@@ -3882,125 +4107,72 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 
                 u = uid_result["aria_uid"]
-                flags = get_feature_flags()
                 
                 # ── STEP 1: Human First Response ──
-                human_response = handle_human_first(message, u)
-                if human_response["handled"]:
-                    self._json({"reply": human_response["response"]})
+                human = handle_human_first(message, u)
+                if human["handled"]:
+                    self._json({"reply": human["response"]})
                     return
                 
                 # ── STEP 2: Conversation Manager ──
-                casual_response = handle_casual_conversation(message, u)
-                if casual_response["handled"]:
-                    self._json({"reply": casual_response["response"]})
+                casual = handle_casual_conversation(message, u)
+                if casual["handled"]:
+                    self._json({"reply": casual["response"]})
                     return
                 
-                # ── STEP 3: Check if responding to clarification ──
-                clarified_intent = check_clarification_response(message, u)
-                if clarified_intent:
-                    intent = {"intent": clarified_intent, "confidence": 0.9}
-                else:
-                    # ── STEP 4: Intent Discovery ──
-                    intent = discover_intent(message)
-                    if intent.get("clarification"):
-                        store_pending_clarification(u, intent.get("clarification"))
-                        self._json({"reply": intent["clarification"]})
+                # ── STEP 3: Load Conversation State ──
+                state = get_conversation_state(u)
+                
+                # ── STEP 4: If state has pending clarification, handle it ──
+                if state.get("awaiting") == "clarification":
+                    clarified_intent = handle_clarification_response(message, u, state)
+                    if clarified_intent:
+                        # Start the workflow for the clarified intent
+                        response = start_workflow(u, clarified_intent)
+                        self._json({"reply": response})
+                        return
+                    else:
+                        # Still unclear – ask again or fallback
+                        self._json({"reply": "I didn't catch that. Could you clarify?"})
                         return
                 
-                # ── STEP 5: Context Builder ──
-                context = build_context(u, message, intent)
-                
-                # ── STEP 6: Check-in & Blocker (only for income intent) ──
-                if intent["intent"] == "personal_income":
-                    checkin_msg = None
-                    if flags.get("s15_checkin", True):
-                        try:
-                            checkin_msg = check_in_on_open(u)
-                        except Exception as e:
-                            log_error("S15", "check_in_on_open", e, user_id=u)
-                    if checkin_msg:
-                        self._json({"reply": checkin_msg})
-                        return
-                    
-                    blocker_msg = None
-                    if flags.get("s15_checkin", True):
-                        try:
-                            blocker_msg = detect_blocker(u, message)
-                        except Exception as e:
-                            log_error("S15", "detect_blocker", e, user_id=u)
-                    if blocker_msg:
-                        self._json({"reply": blocker_msg})
+                # ── STEP 5: If state has active workflow, process it ──
+                if state.get("awaiting") == "workflow_question":
+                    result = process_workflow_step(u, message, state)
+                    if result["response"]:
+                        self._json({"reply": result["response"]})
                         return
                 
-                # ── STEP 7: Route based on intent ──
-                if intent["intent"] == "personal_income" and flags.get("s13_income", True):
-                    # Income Module
-                    try:
-                        profile_for_wave = get_or_create_income_profile(u)
-                        if profile_for_wave and not profile_for_wave.get('onboarding_complete'):
-                            wave = profile_for_wave.get('onboarding_wave', 1)
-                        elif not profile_for_wave:
-                            wave = 1
-                        else:
-                            wave = None
-                        
-                        if wave:
-                            result = start_income_onboarding(u, message, wave)
-                            if result.get('next_wave') or not profile_for_wave:
-                                self._json(result)
-                                return
-                            income_profile = get_or_create_income_profile(u)
-                        else:
-                            income_profile = profile_for_wave
-                        
-                        if income_profile:
-                            current_path = None
-                            active = income_profile.get('active_paths', [])
-                            if active:
-                                current_path = active[0]
-                            else:
-                                current_path = income_profile.get('assigned_income_path')
-                            
-                            guard_msg = check_diversification_guard(u)
-                            if guard_msg:
-                                self._json({"reply": guard_msg})
-                                return
-                            
-                            detect_and_record_outcome(u, message)
-                            
-                            knowledge = get_relevant_income_knowledge(message)
-                            system_prompt = build_income_system_prompt(income_profile, knowledge, current_path)
-                            response = call_llm(system_prompt, message)
-                            if response:
-                                self._json({"reply": response})
-                            else:
-                                response = ask(message, u, 'groq')
-                                self._json({"reply": response or "I'm having trouble. Please try again."})
-                            return
-                    except Exception as e:
-                        log_error("S13", "income_module", e, user_id=u)
-                        # fall through
+                # ── STEP 6: Check if state is stale ──
+                if state and is_state_stale(state):
+                    clear_conversation_state(u)
+                    state = {}
                 
-                elif intent["intent"] == "education":
-                    # Education Module (fallback to LLM with system prompt for now)
-                    response = call_llm(SP, message)
-                    self._json({"reply": response or "I'll help you learn. What subject?"})
+                # ── STEP 7: Intent Discovery (new conversation) ──
+                intent = discover_intent(message)
+                if intent.get("clarification"):
+                    # Store clarification state
+                    state = {
+                        "awaiting": "clarification",
+                        "question": intent["clarification"],
+                        "intent": "unknown",
+                        "timestamp": datetime.now(timezone.utc).isoformat()
+                    }
+                    save_conversation_state(u, state)
+                    self._json({"reply": intent["clarification"]})
                     return
                 
-                elif intent["intent"] == "research":
-                    # Research mode (generic LLM)
-                    response = call_llm(SP, message)
-                    self._json({"reply": response or "Let's explore that together."})
+                # ── STEP 8: Start appropriate workflow ──
+                if intent["intent"] in WORKFLOWS:
+                    response = start_workflow(u, intent["intent"])
+                    self._json({"reply": response})
                     return
                 
-                # ── STEP 8: Generic Fallback ──
+                # ── STEP 9: Generic fallback ──
                 response = call_llm(SP, message)
                 if not response:
                     response = ask(message, u, 'groq')
-                if not response:
-                    response = "I'm having trouble. Please try again."
-                self._json({"reply": response})
+                self._json({"reply": response or "I'm having trouble. Please try again."})
                 
             except Exception as e:
                 import traceback
