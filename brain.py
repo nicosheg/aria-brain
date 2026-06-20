@@ -1262,7 +1262,7 @@ def process_conversation_brain(message: str, user_id: str, state: dict, intent: 
         
         clear_pending_session(user_id)
         if result:
-            return {"decision": {"action": "return_result"}, "new_state": {"response": result}}
+            return {"decision": {"action": "return_result"}, "new_state": {"response": "result"}}
         else:
             return {"decision": {"action": "ask"}, "new_state": {"response": "I couldn't process that. What would you like to do?"}}
     
