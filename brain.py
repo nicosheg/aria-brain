@@ -3834,11 +3834,41 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 
                 u = uid_result["aria_uid"]
+                flags = get_feature_flags()
                 
-                # ── Income module routing (with dynamic feature flags) ──
-                flags = get_feature_flags()  # <-- dynamic feature flags
-
-                # ── S15: Check‑in (isolated) ──
+                # ════════════════════════════════════════════════════════
+                # STEP 1: Human First Response Layer
+                # ════════════════════════════════════════════════════════
+                human_response = handle_human_first(message, u)
+                if human_response["handled"]:
+                    self._json({"reply": human_response["response"]})
+                    return
+                
+                # ════════════════════════════════════════════════════════
+                # STEP 2: Conversation Manager (casual chat)
+                # ════════════════════════════════════════════════════════
+                casual_response = handle_casual_conversation(message, u)
+                if casual_response["handled"]:
+                    self._json({"reply": casual_response["response"]})
+                    return
+                
+                # ════════════════════════════════════════════════════════
+                # STEP 3: Intent Discovery
+                # ════════════════════════════════════════════════════════
+                intent = discover_intent(message)
+                if intent.get("clarification"):
+                    self._json({"reply": intent["clarification"]})
+                    return
+                
+                # ════════════════════════════════════════════════════════
+                # STEP 4: Context Builder
+                # ════════════════════════════════════════════════════════
+                context = build_context(u, message, intent)
+                
+                # ════════════════════════════════════════════════════════
+                # STEP 5: Check-in & Blocker Detection (system-driven)
+                # Only run these if the conversation is not casual.
+                # ════════════════════════════════════════════════════════
                 checkin_msg = None
                 if flags.get("s15_checkin", True):
                     try:
@@ -3848,8 +3878,7 @@ class Handler(BaseHTTPRequestHandler):
                 if checkin_msg:
                     self._json({"reply": checkin_msg})
                     return
-
-                # ── S15: Blocker Detection (isolated) ──
+                
                 blocker_msg = None
                 if flags.get("s15_checkin", True):
                     try:
@@ -3859,29 +3888,13 @@ class Handler(BaseHTTPRequestHandler):
                 if blocker_msg:
                     self._json({"reply": blocker_msg})
                     return
-                 # ── Step 1: HUMAN FIRST RESPONSE LAYER ──
-                # This must come BEFORE any intent detection or routing.
-                human_response = handle_human_first(message, u)
-                if human_response["handled"]:
-                    self._json({"reply": human_response["response"]})
-                    return
-                # ── Step 2: Conversation Manager (casual chat) ──
-                casual_response = handle_casual_conversation(message, u)
-                if casual_response["handled"]:
-                    self._json({"reply": casual_response["response"]})
-                    return
-
-                # ── Step 3: Intent Discovery ──
-                intent = discover_intent(message)
-                if intent.get("clarification"):
-                    self._json({"reply": intent["clarification"]})
-                    return
-
-                # ── S13: Income Module (isolated) ──
+                
+                # ════════════════════════════════════════════════════════
+                # STEP 6: Income Module (only if intent is income)
+                # ════════════════════════════════════════════════════════
                 income_handled = False
-                if flags.get("s13_income", True) and is_income_query(message):
+                if flags.get("s13_income", True) and intent["intent"] == "income":
                     try:
-                        # ── Corrected Onboarding Wave Handling ──
                         profile_for_wave = get_or_create_income_profile(u)
                         if profile_for_wave and not profile_for_wave.get('onboarding_complete'):
                             wave = profile_for_wave.get('onboarding_wave', 1)
@@ -3889,19 +3902,17 @@ class Handler(BaseHTTPRequestHandler):
                             wave = 1
                         else:
                             wave = None
-
+                        
                         if wave:
                             result = start_income_onboarding(u, message, wave)
                             if result.get('next_wave') or not profile_for_wave:
                                 self._json(result)
                                 return
-                            # Onboarding just completed – fetch fresh profile
                             income_profile = get_or_create_income_profile(u)
                         else:
                             income_profile = profile_for_wave
-
+                        
                         if income_profile:
-                            # Determine current path
                             current_path = None
                             active = income_profile.get('active_paths', [])
                             if active:
@@ -3909,19 +3920,18 @@ class Handler(BaseHTTPRequestHandler):
                             else:
                                 current_path = income_profile.get('assigned_income_path')
                             
-                            # Anti-diversification guard
                             guard_msg = check_diversification_guard(u)
                             if guard_msg:
                                 self._json({"reply": guard_msg})
                                 return
-
-                            # Record earnings
+                            
                             detect_and_record_outcome(u, message)
-
-                            # Build system prompt and get response
+                            
                             knowledge = get_relevant_income_knowledge(message)
                             system_prompt = build_income_system_prompt(income_profile, knowledge, current_path)
-                            response = ask(message, u, 'groq', system_prompt_override=system_prompt)
+                            
+                            # Use the new LLM Adapter
+                            response = call_llm(system_prompt, message)
                             if response:
                                 self._json({"reply": response})
                                 income_handled = True
@@ -3932,19 +3942,31 @@ class Handler(BaseHTTPRequestHandler):
                     except Exception as e:
                         log_error("S13", "income_module", e, user_id=u)
                         income_handled = False
-
+                
+                # ════════════════════════════════════════════════════════
+                # STEP 7: Education / Other Modules (future)
+                # For now, fall through to generic LLM.
+                # ════════════════════════════════════════════════════════
+                
+                # ════════════════════════════════════════════════════════
+                # STEP 8: Generic LLM Fallback (use adapter)
+                # ════════════════════════════════════════════════════════
                 if not income_handled:
-                    # Fallback to normal ask()
-                    reply = ask(message, u, 'groq')
-                    if not reply:
-                        reply = "I'm having trouble. Please try again."
-                    self._json({"reply": reply})
-
+                    # Use the LLM adapter with the core system prompt
+                    # The system prompt is already defined in SP
+                    response = call_llm(SP, message)
+                    if not response:
+                        # Ultimate fallback (if adapter fails)
+                        response = ask(message, u, 'groq')
+                    if not response:
+                        response = "I'm having trouble. Please try again."
+                    self._json({"reply": response})
+                
             except Exception as e:
                 import traceback
                 log_error("chat_endpoint", "unknown", "none", str(e), stack_trace=traceback.format_exc())
                 self._json({"error": f"Server error: {str(e)}"}, 500)
-            return
+            retur
             
         if self.path == "/test":
             self.send_response(200)
