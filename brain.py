@@ -4610,18 +4610,59 @@ class Handler(BaseHTTPRequestHandler):
                 context = get_context(u)
                 state["context"] = context
 
-                # ── Check if we already know the intent from understanding ──
-                resolved_intents = get_resolved_intents(u)
-                if resolved_intents:
-                    # If we already have a resolved intent, use it and skip clarification
-                    # But only if the current message doesn't contradict it
-                    # For simplicity, we can assume the most recent resolved intent is still active
-                    # unless the user explicitly changes topic
-                    # For now, we'll just pass it to the Brain
-                    intent = {"intent": resolved_intents[-1], "confidence": 0.9}
-                    # Skip the clarification check
-                    # (We'll handle this more robustly later)
+                # ── Load Understanding ──
+                understanding = get_understanding(u)
+                resolved_intents = understanding.get("resolved_intents", [])
+                active_goal = understanding.get("active_goal")
                 
+                # ── Check if user is changing topic ──
+                if is_topic_change(message):
+                    clear_understanding(u)
+                    # Reset pending state
+                    state.pop("awaiting", None)
+                    state.pop("question", None)
+                    save_conversation_state(u, state)
+                    # Re-run intent discovery normally
+                    intent = discover_intent(message)
+                    if intent.get("clarification"):
+                        state["awaiting"] = "clarification"
+                        state["question"] = intent["clarification"]
+                        save_conversation_state(u, state)
+                        self._json({"reply": intent["clarification"]})
+                        return
+                else:
+                    # If we already have a resolved intent, use it
+                    if resolved_intents and not state.get("awaiting"):
+                        # Use the most recent resolved intent
+                        intent = {"intent": resolved_intents[-1], "confidence": 0.9}
+                        # But we need to verify if the current message is still related
+                        # For now, we'll trust the understanding and move on
+                        # (This will be refined in Phase 2)
+                    else:
+                        # Normal intent discovery
+                        intent = discover_intent(message)
+                        if intent.get("clarification") and not state.get("awaiting") == "clarification":
+                            state["awaiting"] = "clarification"
+                            state["question"] = intent["clarification"]
+                            save_conversation_state(u, state)
+                            self._json({"reply": intent["clarification"]})
+                            return
+                        elif state.get("awaiting") == "clarification":
+                            # User is responding to a clarification
+                            resolved_intent = check_clarification_response(message, u)
+                            if resolved_intent:
+                                update_understanding(u, {
+                                    "resolved_intents": resolved_intent,
+                                    "active_goal": resolved_intent
+                                })
+                                state.pop("awaiting", None)
+                                state.pop("question", None)
+                                save_conversation_state(u, state)
+                                intent = {"intent": resolved_intent, "confidence": 0.9}
+                            else:
+                                self._json({"reply": "I didn't catch that. Could you clarify?"})
+                                return
+
                 # ── Step 5: Intent Discovery ──
                 intent = discover_intent(message)
                 if intent.get("clarification") and not state.get("awaiting") == "clarification":
