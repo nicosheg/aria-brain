@@ -680,6 +680,132 @@ intent_discovery = IntentDiscovery()
 def discover_intent(message: str) -> dict:
     """Main entry point for Intent Discovery."""
     return intent_discovery.classify_intent(message)
+
+# ════════════════════════════════════════════════════════════════════
+# [S3.5] LLM ADAPTER – Abstract all providers behind one interface
+# ════════════════════════════════════════════════════════════════════
+"""
+This module abstracts Groq, Gemini, DeepSeek (and future providers)
+behind a single call_llm() function.
+Changing providers requires only changing this layer.
+"""
+
+import requests
+import time
+
+class LLMAdapter:
+    """Unified interface for all AI providers."""
+
+    def __init__(self):
+        self.providers = {
+            'groq': {
+                'keys': KEYS.get('groq', []),
+                'model': 'llama-3.3-70b-versatile',
+                'endpoint': 'https://api.groq.com/openai/v1/chat/completions',
+                'headers_template': lambda k: {"Authorization": f"Bearer {k}"}
+            },
+            'gemini': {
+                'keys': KEYS.get('gemini', []),
+                'model': 'gemini-2.0-flash',
+                'endpoint': 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+                'headers_template': lambda k: {}
+            },
+            'deepseek': {
+                'keys': KEYS.get('deepseek', []),
+                'model': 'deepseek-chat',
+                'endpoint': 'https://api.deepseek.com/v1/chat/completions',
+                'headers_template': lambda k: {"Authorization": f"Bearer {k}"}
+            }
+        }
+        # Order of preference
+        self.preference = ['groq', 'gemini', 'deepseek']
+
+    def _build_payload(self, provider: str, system_prompt: str, user_prompt: str) -> dict:
+        """Build the request payload specific to the provider."""
+        if provider == 'groq':
+            return {
+                "model": self.providers[provider]['model'],
+                "temperature": 0.7,
+                "max_tokens": 300,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ]
+            }
+        elif provider == 'gemini':
+            return {
+                "contents": [
+                    {"role": "user", "parts": [{"text": f"{system_prompt}\n\nUser: {user_prompt}"}]}
+                ]
+            }
+        elif provider == 'deepseek':
+            return {
+                "model": self.providers[provider]['model'],
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                "max_tokens": 300,
+                "temperature": 0.7
+            }
+        return {}
+
+    def _parse_response(self, provider: str, response_json: dict) -> str:
+        """Extract the text from provider-specific response."""
+        if provider == 'groq':
+            return response_json['choices'][0]['message']['content']
+        elif provider == 'gemini':
+            return response_json['candidates'][0]['content']['parts'][0]['text']
+        elif provider == 'deepseek':
+            return response_json['choices'][0]['message']['content']
+        return ""
+
+    def call(self, system_prompt: str, user_prompt: str, timeout: int = 20) -> str:
+        """
+        Call the preferred provider; fallback to next if fails.
+        Returns response text or None if all providers fail.
+        """
+        for provider in self.preference:
+            provider_info = self.providers.get(provider)
+            if not provider_info:
+                continue
+            keys = provider_info['keys']
+            for key in keys:
+                if not key:
+                    continue
+                try:
+                    endpoint = provider_info['endpoint']
+                    headers = provider_info['headers_template'](key)
+                    headers['Content-Type'] = 'application/json'
+                    payload = self._build_payload(provider, system_prompt, user_prompt)
+
+                    # Gemini needs key in URL
+                    if provider == 'gemini':
+                        endpoint = f"{endpoint}?key={key}"
+                        headers = {'Content-Type': 'application/json'}
+
+                    response = requests.post(endpoint, json=payload, headers=headers, timeout=timeout)
+                    if response.status_code == 200:
+                        result = response.json()
+                        text = self._parse_response(provider, result)
+                        if text:
+                            log_api_call(provider, self.providers[provider]['model'], len(text.split()))
+                            return text
+                    else:
+                        print(f"[LLM Adapter] {provider} returned {response.status_code}")
+                except Exception as e:
+                    log_error("LLMAdapter", provider, e, severity="WARNING")
+                    time.sleep(0.5)
+                    continue
+        return None
+
+# ── Singleton instance ──
+llm_adapter = LLMAdapter()
+
+def call_llm(system_prompt: str, user_prompt: str, timeout: int = 20) -> str:
+    """Convenience function to call the LLM via adapter."""
+    return llm_adapter.call(system_prompt, user_prompt, timeout)
+
 # ════════════════════════════════════════════════════════════════════
 # [S4] SYSTEM PROMPT
 #  Edit ARIA's personality, rules, and knowledge here.
