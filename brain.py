@@ -604,7 +604,7 @@ class IntentDiscovery:
                 "weight": 1.0
             },
             "research": {
-                "keywords": ["issue", "problem", "solution", "trend", "research", "study", "analysis", "thinking about", "consider", "explore"],
+                "keywords": ["issue", "problem", "solution", "trend", "research", "study", "analysis", "thinking about", "consider", "explore", "tell me about"],
                 "personal_indicators": [],
                 "weight": 0.8
             },
@@ -614,12 +614,11 @@ class IntentDiscovery:
                 "weight": 0.5
             },
             "education": {
-                "keywords": ["exam", "jamb", "waec", "study", "school", "university", "lecture", "class", "course", "test", "quiz", "assignment", "degree", "certificate", "skill", "learn", "tutorial"],
-                "personal_indicators": [],
+                "keywords": ["exam", "jamb", "waec", "study", "school", "university", "lecture", "class", "course", "test", "quiz", "assignment", "degree", "certificate", "skill", "learn", "tutorial", "teach", "explain", "understand"],
+                "personal_indicators": ["my", "i need", "i want", "help me", "for me"],
                 "weight": 0.9
             }
-        }
-
+}
     def classify_intent(self, message: str) -> dict:
         """
         Classify the primary intent with confidence score.
@@ -680,6 +679,45 @@ intent_discovery = IntentDiscovery()
 def discover_intent(message: str) -> dict:
     """Main entry point for Intent Discovery."""
     return intent_discovery.classify_intent(message)
+
+# ── Pending Clarification Tracking ──
+_pending_clarifications = {}
+
+def store_pending_clarification(user_id: str, clarification: str):
+    """Store the clarification question asked to this user."""
+    _pending_clarifications[user_id] = {
+        "question": clarification,
+        "timestamp": datetime.now().isoformat()
+    }
+
+def check_clarification_response(message: str, user_id: str) -> str:
+    """
+    Check if the user is responding to a clarification question.
+    Returns the clarified intent or None.
+    """
+    if user_id not in _pending_clarifications:
+        return None
+    
+    pending = _pending_clarifications[user_id]
+    pending_time = datetime.fromisoformat(pending["timestamp"])
+    if (datetime.now() - pending_time).seconds > 300:
+        del _pending_clarifications[user_id]
+        return None
+    
+    m_lower = message.lower().strip()
+    
+    # Check for keywords that clarify intent
+    if any(word in m_lower for word in ["myself", "me", "my", "i want", "for me", "personal", "to earn", "for myself"]):
+        del _pending_clarifications[user_id]
+        return "personal_income"
+    elif any(word in m_lower for word in ["youths", "everyone", "people", "nigerians", "general", "research", "study", "analysis"]):
+        del _pending_clarifications[user_id]
+        return "research"
+    elif any(word in m_lower for word in ["exam", "jamb", "waec", "study", "school", "learn", "teach"]):
+        del _pending_clarifications[user_id]
+        return "education"
+    else:
+        return None
 
 # ════════════════════════════════════════════════════════════════════
 # [S3.5] LLM ADAPTER – Abstract all providers behind one interface
@@ -2267,7 +2305,7 @@ from datetime import datetime
 def is_simple_or_identity_query(message: str) -> bool:
     """
     Detect if the message is a simple greeting, identity question,
-    casual talk, or factual query that should be answered directly.
+    casual talk, factual query, or direct task command.
     """
     m_lower = message.lower().strip()
     
@@ -2290,6 +2328,12 @@ def is_simple_or_identity_query(message: str) -> bool:
     # Thanks and goodbyes
     if re.search(r'\b(thanks|thank you|bye|goodbye|see you|later)\b', m_lower, re.IGNORECASE):
         return True
+    
+    # Direct task commands (NEW)
+    if re.search(r'\b(rewrite|summarize|fix|correct|translate|write|edit|modify|change|update)\b', m_lower, re.IGNORECASE):
+        # Only trigger if the message is short and lacks other content
+        if len(m_lower.split()) <= 10:
+            return True
     
     return False
 
@@ -2334,6 +2378,10 @@ def generate_direct_response(message: str, user_id: str = None) -> str:
     # Goodbye
     if re.search(r'\b(bye|goodbye|see you|later)\b', m_lower, re.IGNORECASE):
         return "Goodbye! Take care and come back anytime."
+    
+    # Direct task commands (NEW)
+    if re.search(r'\b(rewrite|summarize|fix|correct|translate|write|edit|modify|change|update)\b', m_lower, re.IGNORECASE):
+        return "What specific text would you like me to rewrite? Please paste it and I'll help."
     
     return None
 
@@ -3836,64 +3884,58 @@ class Handler(BaseHTTPRequestHandler):
                 u = uid_result["aria_uid"]
                 flags = get_feature_flags()
                 
-                # ════════════════════════════════════════════════════════
-                # STEP 1: Human First Response Layer
-                # ════════════════════════════════════════════════════════
+                # ── STEP 1: Human First Response ──
                 human_response = handle_human_first(message, u)
                 if human_response["handled"]:
                     self._json({"reply": human_response["response"]})
                     return
                 
-                # ════════════════════════════════════════════════════════
-                # STEP 2: Conversation Manager (casual chat)
-                # ════════════════════════════════════════════════════════
+                # ── STEP 2: Conversation Manager ──
                 casual_response = handle_casual_conversation(message, u)
                 if casual_response["handled"]:
                     self._json({"reply": casual_response["response"]})
                     return
                 
-                # ════════════════════════════════════════════════════════
-                # STEP 3: Intent Discovery
-                # ════════════════════════════════════════════════════════
-                intent = discover_intent(message)
-                if intent.get("clarification"):
-                    self._json({"reply": intent["clarification"]})
-                    return
+                # ── STEP 3: Check if responding to clarification ──
+                clarified_intent = check_clarification_response(message, u)
+                if clarified_intent:
+                    intent = {"intent": clarified_intent, "confidence": 0.9}
+                else:
+                    # ── STEP 4: Intent Discovery ──
+                    intent = discover_intent(message)
+                    if intent.get("clarification"):
+                        store_pending_clarification(u, intent.get("clarification"))
+                        self._json({"reply": intent["clarification"]})
+                        return
                 
-                # ════════════════════════════════════════════════════════
-                # STEP 4: Context Builder
-                # ════════════════════════════════════════════════════════
+                # ── STEP 5: Context Builder ──
                 context = build_context(u, message, intent)
                 
-                # ════════════════════════════════════════════════════════
-                # STEP 5: Check-in & Blocker Detection (system-driven)
-                # Only run these if the conversation is not casual.
-                # ════════════════════════════════════════════════════════
-                checkin_msg = None
-                if flags.get("s15_checkin", True):
-                    try:
-                        checkin_msg = check_in_on_open(u)
-                    except Exception as e:
-                        log_error("S15", "check_in_on_open", e, user_id=u)
-                if checkin_msg:
-                    self._json({"reply": checkin_msg})
-                    return
+                # ── STEP 6: Check-in & Blocker (only for income intent) ──
+                if intent["intent"] == "personal_income":
+                    checkin_msg = None
+                    if flags.get("s15_checkin", True):
+                        try:
+                            checkin_msg = check_in_on_open(u)
+                        except Exception as e:
+                            log_error("S15", "check_in_on_open", e, user_id=u)
+                    if checkin_msg:
+                        self._json({"reply": checkin_msg})
+                        return
+                    
+                    blocker_msg = None
+                    if flags.get("s15_checkin", True):
+                        try:
+                            blocker_msg = detect_blocker(u, message)
+                        except Exception as e:
+                            log_error("S15", "detect_blocker", e, user_id=u)
+                    if blocker_msg:
+                        self._json({"reply": blocker_msg})
+                        return
                 
-                blocker_msg = None
-                if flags.get("s15_checkin", True):
-                    try:
-                        blocker_msg = detect_blocker(u, message)
-                    except Exception as e:
-                        log_error("S15", "detect_blocker", e, user_id=u)
-                if blocker_msg:
-                    self._json({"reply": blocker_msg})
-                    return
-                
-                # ════════════════════════════════════════════════════════
-                # STEP 6: Income Module (only if intent is income)
-                # ════════════════════════════════════════════════════════
-                income_handled = False
-                if flags.get("s13_income", True) and intent["intent"] == "income":
+                # ── STEP 7: Route based on intent ──
+                if intent["intent"] == "personal_income" and flags.get("s13_income", True):
+                    # Income Module
                     try:
                         profile_for_wave = get_or_create_income_profile(u)
                         if profile_for_wave and not profile_for_wave.get('onboarding_complete'):
@@ -3929,44 +3971,42 @@ class Handler(BaseHTTPRequestHandler):
                             
                             knowledge = get_relevant_income_knowledge(message)
                             system_prompt = build_income_system_prompt(income_profile, knowledge, current_path)
-                            
-                            # Use the new LLM Adapter
                             response = call_llm(system_prompt, message)
                             if response:
                                 self._json({"reply": response})
-                                income_handled = True
                             else:
-                                income_handled = False
-                        else:
-                            income_handled = False
+                                response = ask(message, u, 'groq')
+                                self._json({"reply": response or "I'm having trouble. Please try again."})
+                            return
                     except Exception as e:
                         log_error("S13", "income_module", e, user_id=u)
-                        income_handled = False
+                        # fall through
                 
-                # ════════════════════════════════════════════════════════
-                # STEP 7: Education / Other Modules (future)
-                # For now, fall through to generic LLM.
-                # ════════════════════════════════════════════════════════
-                
-                # ════════════════════════════════════════════════════════
-                # STEP 8: Generic LLM Fallback (use adapter)
-                # ════════════════════════════════════════════════════════
-                if not income_handled:
-                    # Use the LLM adapter with the core system prompt
-                    # The system prompt is already defined in SP
+                elif intent["intent"] == "education":
+                    # Education Module (fallback to LLM with system prompt for now)
                     response = call_llm(SP, message)
-                    if not response:
-                        # Ultimate fallback (if adapter fails)
-                        response = ask(message, u, 'groq')
-                    if not response:
-                        response = "I'm having trouble. Please try again."
-                    self._json({"reply": response})
+                    self._json({"reply": response or "I'll help you learn. What subject?"})
+                    return
+                
+                elif intent["intent"] == "research":
+                    # Research mode (generic LLM)
+                    response = call_llm(SP, message)
+                    self._json({"reply": response or "Let's explore that together."})
+                    return
+                
+                # ── STEP 8: Generic Fallback ──
+                response = call_llm(SP, message)
+                if not response:
+                    response = ask(message, u, 'groq')
+                if not response:
+                    response = "I'm having trouble. Please try again."
+                self._json({"reply": response})
                 
             except Exception as e:
                 import traceback
                 log_error("chat_endpoint", "unknown", "none", str(e), stack_trace=traceback.format_exc())
                 self._json({"error": f"Server error: {str(e)}"}, 500)
-            retur
+            return
             
         if self.path == "/test":
             self.send_response(200)
