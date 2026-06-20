@@ -1129,125 +1129,204 @@ def start_workflow(user_id: str, intent: str) -> str:
     return first_step["question"]
 
 # ════════════════════════════════════════════════════════════════════
-# [S3.9] ADAPTIVE CONDUCTOR – Natural, fluid conversation management
+# [S3.9] CONVERSATION BRAIN – Core intelligence layer
 # ════════════════════════════════════════════════════════════════════
 """
-The Adaptive Conductor reads the conversation and decides what's needed.
-It doesn't force scripts – it flows with the user.
+The Conversation Brain is ARIA's central intelligence layer.
+It analyzes the conversation state and decides what to do next.
 """
 
-class AdaptiveConductor:
-    def __init__(self):
-        # Define user states – these are fluid, not rigid
-        self.states = {
-            "exploring": {"signal": "open-ended questions, curiosity", "response": "guide gently"},
-            "confused": {"signal": "short answers, hesitation, 'I don't know'", "response": "simplify, ask one clear question"},
-            "urgent": {"signal": "direct request, time pressure", "response": "act immediately, give next step"},
-            "direct": {"signal": "command, explicit task", "response": "execute immediately, then ask if adjustments needed"},
-            "reflective": {"signal": "thinking, considering, weighing options", "response": "listen, offer perspective, don't push"},
-            "casual": {"signal": "greetings, small talk", "response": "warm, brief, open-ended follow-up"}
-        }
-    
-    def assess_state(self, message: str, conversation_history: list) -> str:
-        """Determine the user's current state based on the message and history."""
-        m_lower = message.lower().strip()
-        
-        # Direct commands
-        if re.search(r'\b(rewrite|summarize|fix|correct|translate|write|edit|modify|change|update)\b', m_lower, re.IGNORECASE):
-            if len(m_lower.split()) <= 10:
-                return "direct"
-        
-        # Urgency signals
-        if re.search(r'\b(urgent|now|quick|fast|immediately|asap)\b', m_lower, re.IGNORECASE):
-            return "urgent"
-        
-        # Confusion signals
-        if re.search(r'\b(confused|don\'t know|not sure|lost|stuck|no idea)\b', m_lower, re.IGNORECASE):
-            return "confused"
-        
-        # Reflective signals
-        if re.search(r'\b(thinking|consider|weighing|maybe|perhaps|wondering)\b', m_lower, re.IGNORECASE):
-            return "reflective"
-        
-        # Exploring signals
-        if "?" in message and len(m_lower.split()) > 5:
-            return "exploring"
-        
-        # Casual – handled by Conversation Manager, but keep fallback
-        return "casual"
-    
-    def decide_response_strategy(self, state: str, intent: str, collected_data: dict) -> dict:
-        """
-        Decide what to do based on user state and intent.
-        Returns: {"action": "answer", "ask", "guide", "listen", "execute", "switch"}
-        """
-        # Urgent or direct → execute/answer immediately
-        if state in ["urgent", "direct"]:
-            return {"action": "execute", "style": "direct"}
-        
-        # Confused → simplify, ask one clear question
-        if state == "confused":
-            return {"action": "guide", "style": "simplify"}
-        
-        # Reflective → listen, offer perspective
-        if state == "reflective":
-            return {"action": "answer", "style": "perspective"}
-        
-        # Exploring → guide step by step
-        if state == "exploring":
-            return {"action": "guide", "style": "step_by_step"}
-        
-        # Default → natural conversation
-        return {"action": "answer", "style": "natural"}
-
-# ── Initialize ──
-conductor = AdaptiveConductor()
-
-def adaptive_response(message: str, user_id: str, state: dict, intent: dict) -> dict:
+def analyze_message(message: str, state: dict, intent: dict) -> dict:
     """
-    Main entry point for the Adaptive Conductor.
-    Returns: {"response": str, "new_state": dict}
+    Analyze the current message and produce a structured analysis.
     """
-    # Assess the user's state
-    user_state = conductor.assess_state(message, state.get("history", []))
+    analysis = {
+        "message": message,
+        "intent": intent.get("intent", "unknown"),
+        "intent_confidence": intent.get("confidence", 0.0),
+        "emotion": detect_emotion(message),
+        "urgency": detect_urgency(message),
+        "ambiguity": detect_ambiguity(message, state),
+        "goal": state.get("current_goal", "unknown"),
+        "has_clarification_pending": state.get("awaiting") == "clarification",
+        "has_workflow_active": state.get("awaiting") == "workflow_question"
+    }
+    return analysis
+
+def decide_action(analysis: dict) -> dict:
+    """
+    Decide what to do based on the analysis.
+    Returns a structured Decision object.
+    """
+    # If there's a pending clarification, we need to handle it
+    if analysis["has_clarification_pending"]:
+        return {"action": "handle_clarification", "style": "direct", "module": None, "confidence": 0.9}
     
-    # Decide what to do
-    strategy = conductor.decide_response_strategy(user_state, intent.get("intent"), state.get("collected_data", {}))
+    # If there's an active workflow, continue it
+    if analysis["has_workflow_active"]:
+        return {"action": "continue_workflow", "style": "guided", "module": None, "confidence": 0.9}
     
-    # Build the response based on strategy
-    if strategy["action"] == "execute":
-        # Direct task or urgent – just do it
+    # High urgency → execute immediately
+    if analysis["urgency"] > 0.7:
+        return {"action": "execute", "style": "direct", "module": None, "confidence": 0.8}
+    
+    # Direct command (from Human First – already handled, but fallback)
+    if analysis["intent"] == "direct_command":
+        return {"action": "execute", "style": "direct", "module": None, "confidence": 0.8}
+    
+    # High ambiguity → ask clarification
+    if analysis["ambiguity"] > 0.6:
+        return {"action": "ask", "style": "clarify", "module": None, "confidence": 0.7}
+    
+    # Education intent → guide
+    if analysis["intent"] == "education":
+        return {"action": "guide", "style": "step_by_step", "module": "education", "confidence": 0.9}
+    
+    # Income intent → answer with action
+    if analysis["intent"] == "personal_income":
+        return {"action": "answer", "style": "actionable", "module": "income", "confidence": 0.9}
+    
+    # Research intent → answer
+    if analysis["intent"] == "research":
+        return {"action": "answer", "style": "informative", "module": None, "confidence": 0.8}
+    
+    # Default → natural conversation
+    return {"action": "answer", "style": "natural", "module": None, "confidence": 0.6}
+
+def process_conversation_brain(message: str, user_id: str, state: dict, intent: dict) -> dict:
+    """
+    Main entry point for the Conversation Brain.
+    Returns: {"decision": dict, "new_state": dict}
+    """
+    # Analyze the conversation
+    analysis = analyze_message(message, state, intent)
+    
+    # Decide the action
+    decision = decide_action(analysis)
+    
+    # Determine if we need to update state
+    new_state = state.copy() if state else {}
+    new_state["last_decision"] = decision
+    new_state["timestamp"] = datetime.now(timezone.utc).isoformat()
+    
+    return {"decision": decision, "new_state": new_state
+
+# ════════════════════════════════════════════════════════════════════
+# [S3.10] GOAL MANAGER – Tracks long-term, current, and immediate goals
+# ════════════════════════════════════════════════════════════════════
+
+def update_goals(user_id: str, goals: dict):
+    """Store goals in Firestore."""
+    if db is None:
+        return False
+    try:
+        goals["updated_at"] = firestore.SERVER_TIMESTAMP
+        doc_ref = db.collection("users").document(user_id).collection("goals").document("current")
+        doc_ref.set(goals, merge=True)
+        return True
+    except Exception as e:
+        log_error("S3.10", "update_goals", e, user_id=user_id)
+        return False
+
+def get_goals(user_id: str) -> dict:
+    """Retrieve goals from Firestore."""
+    if db is None:
+        return {}
+    try:
+        doc_ref = db.collection("users").document(user_id).collection("goals").document("current")
+        doc = doc_ref.get()
+        if doc.exists:
+            return doc.to_dict()
+        return {}
+    except Exception as e:
+        log_error("S3.10", "get_goals", e, user_id=user_id)
+        return {}
+
+# ════════════════════════════════════════════════════════════════════
+# [S3.11] CONTEXT MANAGER – Accumulates conversational knowledge
+# ════════════════════════════════════════════════════════════════════
+
+def update_context(user_id: str, key: str, value: str):
+    """Store a piece of context for the current conversation."""
+    if db is None:
+        return False
+    try:
+        context = get_context(user_id) or {}
+        context[key] = value
+        context["updated_at"] = firestore.SERVER_TIMESTAMP
+        doc_ref = db.collection("users").document(user_id).collection("conversation_context").document("current")
+        doc_ref.set(context, merge=True)
+        return True
+    except Exception as e:
+        log_error("S3.11", "update_context", e, user_id=user_id)
+        return False
+
+def get_context(user_id: str) -> dict:
+    """Retrieve current conversation context."""
+    if db is None:
+        return {}
+    try:
+        doc_ref = db.collection("users").document(user_id).collection("conversation_context").document("current")
+        doc = doc_ref.get()
+        if doc.exists:
+            return doc.to_dict()
+        return {}
+    except Exception as e:
+        log_error("S3.11", "get_context", e, user_id=user_id)
+        return {}
+
+
+# ════════════════════════════════════════════════════════════════════
+# [S3.13] RESPONSE ENGINE – Executes decisions and generates responses
+# ════════════════════════════════════════════════════════════════════
+
+def execute_decision(decision: dict, message: str, user_id: str, state: dict) -> str:
+    """
+    Execute the decision and generate the final response.
+    """
+    action = decision.get("action")
+    style = decision.get("style", "natural")
+    module_name = decision.get("module")
+    
+    # If there's a pending clarification, handle it
+    if action == "handle_clarification":
+        # This should be handled earlier – just return a placeholder
+        return "I'm waiting for your clarification. Could you respond to my previous question?"
+    
+    # If there's an active workflow, continue it
+    if action == "continue_workflow":
+        # Process the workflow step
+        result = process_workflow_step(user_id, message, state)
+        return result.get("response", "Let's continue. What would you like to do?")
+    
+    # If action is "execute" or "answer" or "guide"
+    if action in ["execute", "answer", "guide"]:
+        # For income module, we might want to call the income module explicitly
+        if module_name == "income" and not state.get("onboarding_complete"):
+            # Start income onboarding
+            result = start_income_onboarding(user_id, message, 1)
+            return result.get("reply", "Tell me about your income goal.")
+        
+        # For education, we could call a specific education handler
+        if module_name == "education":
+            # Use a specific prompt for education
+            prompt = f"You are a helpful tutor. The user asked: {message}. Provide a clear, helpful response."
+            response = call_llm(SP, prompt)
+            return response or "I'd be happy to help you learn. What subject are you studying?"
+        
+        # For general, use the LLM adapter with the core system prompt
         response = call_llm(SP, message)
-        return {"response": response, "new_state": state}
+        return response or "I'm thinking. Please give me a moment."
     
-    elif strategy["action"] == "guide":
-        # For exploring or confused users – guide step by step
-        # But only if we have a clear intent and the user wants guidance
-        if intent.get("intent") in WORKFLOWS and state.get("awaiting") != "workflow_question":
-            # Start or continue a gentle workflow
-            if not state.get("workflow_step"):
-                # First time – start the workflow
-                from workflow_engine import start_workflow
-                response = start_workflow(user_id, intent["intent"])
-                return {"response": response, "new_state": state}
-            else:
-                # Continue the workflow
-                from workflow_engine import process_workflow_step
-                result = process_workflow_step(user_id, message, state)
-                return {"response": result["response"], "new_state": state}
-        else:
-            # No clear workflow – just answer naturally
-            response = call_llm(SP, message)
-            return {"response": response, "new_state": state}
-    
-    elif strategy["action"] == "answer":
-        # Answer directly, with appropriate style
-        response = call_llm(SP, message)
-        return {"response": response, "new_state": state}
+    # If action is "ask" → ask a clarification question
+    if action == "ask":
+        if style == "clarify":
+            return "Could you give me more details so I can understand better?"
+        return "What would you like to know?"
     
     # Fallback
     response = call_llm(SP, message)
-    return {"response": response, "new_state": state}
+    return response or "I'm having trouble. Please try again."
 
 # ════════════════════════════════════════════════════════════════════
 # [S4] SYSTEM PROMPT
@@ -2742,6 +2821,42 @@ def handle_human_first(message: str, user_id: str = None) -> dict:
             return {"handled": True, "response": response}
     return {"handled": False, "response": ""}
 
+# ── Emotion Analyzer ──
+def detect_emotion(message: str) -> str:
+    m_lower = message.lower()
+    if any(w in m_lower for w in ["frustrated", "stuck", "tired", "exhausted", "sad", "annoyed"]):
+        return "frustrated"
+    if any(w in m_lower for w in ["excited", "happy", "great", "awesome", "glad"]):
+        return "excited"
+    if any(w in m_lower for w in ["confused", "don't know", "not sure", "lost", "unsure"]):
+        return "confused"
+    if any(w in m_lower for w in ["scared", "afraid", "worried", "anxious", "nervous"]):
+        return "anxious"
+    return "neutral"
+
+# ── Urgency Analyzer ──
+def detect_urgency(message: str) -> float:
+    m_lower = message.lower()
+    if any(w in m_lower for w in ["urgent", "now", "quick", "fast", "immediately", "asap"]):
+        return 0.9
+    if any(w in m_lower for w in ["soon", "today", "tonight", "soonest"]):
+        return 0.6
+    if "?" in message and len(message.split()) > 3:
+        return 0.4  # questions often imply some urgency
+    return 0.1
+
+# ── Ambiguity Analyzer ──
+def detect_ambiguity(message: str, state: dict) -> float:
+    if len(message.split()) <= 3:
+        return 0.7
+    if state.get("awaiting") == "clarification":
+        return 0.8
+    # Check if message has clear intent (via Intent Discovery)
+    intent = discover_intent(message)
+    if intent.get("intent") == "uncertain":
+        return 0.8
+    return 0.2
+
 def get_memory_breakdown():
     """Full memory usage report for /memory-debug endpoint"""
     import sys
@@ -4210,7 +4325,6 @@ class Handler(BaseHTTPRequestHandler):
         # ── /chat ──────────────────────────────────
         if self.path == "/chat":
             try:
-                start_time = time.time()
                 data = self._body()
                 message = data.get("message", "").strip()
                 email = data.get("email", "").strip().lower()
@@ -4229,39 +4343,54 @@ class Handler(BaseHTTPRequestHandler):
                 
                 u = uid_result["aria_uid"]
                 
-                # ── STEP 1: Human First (always) ──
+                # ── Human First ──
                 human = handle_human_first(message, u)
                 if human["handled"]:
                     self._json({"reply": human["response"]})
                     return
                 
-                # ── STEP 2: Casual Manager ──
+                # ── Casual ──
                 casual = handle_casual_conversation(message, u)
                 if casual["handled"]:
                     self._json({"reply": casual["response"]})
                     return
                 
-                # ── STEP 3: Load conversation state ──
+                # ── Load State ──
                 state = get_conversation_state(u) or {}
+                goals = get_goals(u)
+                state["goals"] = goals
+                context = get_context(u)
+                state["context"] = context
                 
-                # ── STEP 4: Intent Discovery ──
+                # ── Intent Discovery ──
                 intent = discover_intent(message)
                 if intent.get("clarification") and not state.get("awaiting") == "clarification":
-                    # Store clarification state
                     state["awaiting"] = "clarification"
                     state["question"] = intent["clarification"]
                     save_conversation_state(u, state)
                     self._json({"reply": intent["clarification"]})
                     return
                 
-                # ── STEP 5: Adaptive Conductor ──
-                result = adaptive_response(message, u, state, intent)
+                # ── Conversation Brain ──
+                result = process_conversation_brain(message, u, state, intent)
+                decision = result.get("decision", {})
+                new_state = result.get("new_state", {})
                 
-                # Update state if needed
-                if result.get("new_state"):
-                    save_conversation_state(u, result["new_state"])
+                # ── Response Engine ──
+                response = execute_decision(decision, message, u, new_state)
                 
-                self._json({"reply": result["response"]})
+                # ── Update State ──
+                if new_state:
+                    save_conversation_state(u, new_state)
+                    # If goals detected, save them
+                    if new_state.get("current_goal") or new_state.get("long_term_goal"):
+                        update_goals(u, {
+                            "current_goal": new_state.get("current_goal"),
+                            "long_term_goal": new_state.get("long_term_goal"),
+                            "current_task": new_state.get("current_task")
+                        })
+                
+                self._json({"reply": response})
                 
             except Exception as e:
                 import traceback
