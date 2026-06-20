@@ -1334,6 +1334,28 @@ def get_context(user_id: str) -> dict:
         log_error("S3.11", "get_context", e, user_id=user_id)
         return {}
 
+# ════════════════════════════════════════════════════════════════════
+# [S3.12] MODULE REGISTRY – Dynamic module registration
+# ════════════════════════════════════════════════════════════════════
+
+class ModuleRegistry:
+    """Registry for all modules. Modules can be plugged in or removed."""
+    
+    def __init__(self):
+        self.modules = {}
+    
+    def register(self, name: str, module):
+        self.modules[name] = module
+    
+    def get(self, name: str):
+        return self.modules.get(name)
+    
+    def list(self):
+        return list(self.modules.keys())
+
+# ── Initialize ──
+module_registry = ModuleRegistry()
+
 
 # ════════════════════════════════════════════════════════════════════
 # [S3.13] RESPONSE ENGINE – Executes decisions and generates responses
