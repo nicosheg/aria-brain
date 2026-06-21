@@ -3071,20 +3071,149 @@ def get_time_of_day() -> str:
         return "afternoon"
     else:
         return "evening"
+# ════════════════════════════════════════════════════════════════════
+# NATURAL CONTEXT – Human-friendly time, weather, and location references
+# ════════════════════════════════════════════════════════════════════
+
+def get_natural_time_context() -> dict:
+    """
+    Return natural time-of-day references for human conversation.
+    Returns: {"greeting": str, "time_phrase": str, "time_of_day": str}
+    """
+    hour = datetime.now().hour
+    
+    if 5 <= hour < 12:
+        return {
+            "greeting": "Good morning",
+            "time_phrase": "morning",
+            "time_of_day": "morning"
+        }
+    elif 12 <= hour < 17:
+        return {
+            "greeting": "Good afternoon",
+            "time_phrase": "afternoon",
+            "time_of_day": "afternoon"
+        }
+    elif 17 <= hour < 21:
+        return {
+            "greeting": "Good evening",
+            "time_phrase": "evening",
+            "time_of_day": "evening"
+        }
+    elif 21 <= hour < 24 or 0 <= hour < 5:
+        return {
+            "greeting": "Good evening",
+            "time_phrase": "night",
+            "time_of_day": "night"
+        }
+    
+    return {
+        "greeting": "Hello",
+        "time_phrase": "now",
+        "time_of_day": "unknown"
+    }
+
+def get_natural_weather_description(weather: str) -> str:
+    """
+    Convert weather to natural human phrases.
+    """
+    weather_map = {
+        "sunny": "the sun is out",
+        "rainy": "it's raining",
+        "cloudy": "it's cloudy",
+        "misty": "it's misty",
+        "clear": "the sky is clear",
+        "unknown": "the weather is doing its thing"
+    }
+    return weather_map.get(weather, "the weather is doing its thing")
+
+def get_natural_weather_suggestion(weather: str) -> str:
+    """
+    Return a natural suggestion based on weather.
+    """
+    suggestions = {
+        "sunny": "great day to be outside",
+        "rainy": "perfect time to stay indoors",
+        "cloudy": "good day for a walk",
+        "misty": "feels like a calm day",
+        "clear": "beautiful weather we're having",
+        "unknown": "the weather is lovely today"
+    }
+    return suggestions.get(weather, "lovely weather we're having")
+
+def get_natural_location_reference(city: str) -> str:
+    """
+    Return a natural way to refer to the user's location.
+    """
+    city_phrases = {
+        "lagos": "in Lagos",
+        "abuja": "in Abuja",
+        "ibadan": "in Ibadan",
+        "kano": "in Kano",
+        "port harcourt": "in Port Harcourt",
+        "enugu": "in Enugu",
+        "benin": "in Benin",
+        "warri": "in Warri"
+    }
+    city_lower = city.lower()
+    return city_phrases.get(city_lower, f"in {city}")
+
+def get_natural_context(user_id: str = None) -> dict:
+    """
+    Build a complete natural context for conversation.
+    Returns: {
+        "greeting": "Good morning",
+        "time_phrase": "morning",
+        "weather_natural": "it's raining",
+        "weather_suggestion": "perfect time to stay indoors",
+        "location_natural": "in Lagos",
+        "city": "Lagos",
+        "time_of_day": "morning"
+    }
+    """
+    # Get natural time
+    time_context = get_natural_time_context()
+    
+    # Get user location and weather
+    city = None
+    weather = "unknown"
+    location_natural = ""
+    
+    if user_id:
+        location_data = get_user_location(user_id)
+        if location_data and location_data.get("location"):
+            city = location_data.get("location")
+            # Extract city name (remove country if present)
+            if "," in city:
+                city = city.split(",")[0].strip()
+            location_natural = get_natural_location_reference(city)
+            weather = get_weather(city)
+    
+    return {
+        "greeting": time_context["greeting"],
+        "time_phrase": time_context["time_phrase"],
+        "time_of_day": time_context["time_of_day"],
+        "weather_natural": get_natural_weather_description(weather),
+        "weather_suggestion": get_natural_weather_suggestion(weather),
+        "location_natural": location_natural or "",
+        "city": city or "Lagos",
+        "weather_raw": weather
+    }
+
+# ════════════════════════════════════════════════════════════════════
+# HUMAN-LEVEL CASUAL RESPONSES – Context-aware, varied, adaptive
+# ════════════════════════════════════════════════════════════════════
 
 def generate_human_response(message: str, user_id: str = None) -> str:
     """
     Generate a human-like, context-aware casual response.
-    Includes real-time Lagos weather for authenticity.
     """
-    # ── Build context for the LLM ──
+    # ── Get natural context ──
+    context = get_natural_context(user_id)
+    
+    # ── Get user name and recent context ──
     user_name = ""
     recent_context = ""
-    time_of_day = get_time_of_day()
-    
-    # ── Get real-time weather for Lagos ──
-    weather = get_lagos_weather()
-    weather_desc = get_weather_description(weather)
     
     if user_id:
         try:
@@ -3096,33 +3225,40 @@ def generate_human_response(message: str, user_id: str = None) -> str:
             understanding = state.get("understanding", {})
             recent_topics = understanding.get("resolved_intents", [])
             if recent_topics:
-                recent_context = f"The user has recently been interested in: {', '.join(recent_topics[-2:])}"
+                recent_context = "The user has recently been interested in: " + ", ".join(recent_topics[-2:])
         except:
             pass
     
-    # ── Build a prompt for the LLM ──
-    system_prompt = f"""You are ARIA – a warm, intelligent, and deeply human companion. Born in Lagos, Nigeria.
-
-Your task: Respond to the user's casual message naturally, like a close friend would.
-
-Guidelines:
-1. Be warm and genuine – no generic "How can I help you?" responses.
-2. Reference the user by name if known: {user_name}
-3. Reference recent context if available: {recent_context}
-4. Match the user's tone – if they're casual, be casual; if they're formal, be formal.
-5. Never give the same response twice.
-6. Keep it brief (1-3 sentences).
-7. Include a small follow-up question that feels natural, not interrogative.
-8. Use Nigerian expressions naturally if appropriate.
-9. Be accurate: if you mention weather, say it's {weather_desc} in Lagos right now.
-10. If you don't know something, say so honestly – don't invent.
-
-Time of day: {time_of_day}
-Current weather in Lagos: {weather_desc}
-
-User message: {message}
-
-Respond like a 21 year old human friend would. Be warm, personal, and varied."""
+    # ── Build a natural prompt for the LLM (using \n to avoid triple-quote issues) ──
+    system_prompt = (
+        "You are ARIA – a warm, intelligent, and deeply human companion. Born in Lagos, Nigeria.\n\n"
+        "Your task: Respond to the user's casual message naturally, like a close highly adaptive friend would.\n\n"
+        "GUIDELINES:\n"
+        "1. Be warm and genuine – no generic 'How can I help you?' responses.\n"
+        "2. Reference the user by name if known: " + (user_name or "unknown") + "\n"
+        "3. Reference recent context if available: " + (recent_context or "none") + "\n"
+        "4. Match the user's tone – if they're casual, be casual.\n"
+        "5. Never give the same response twice.\n"
+        "6. Keep it brief (1-3 sentences).\n"
+        "7. Include a small follow-up question that feels natural.\n"
+        "8. Use Nigerian expressions naturally if appropriate.\n"
+        "9. If you mention time, use phrases like: \n"
+        "   - " + context['greeting'] + "\n"
+        "   - It's " + context['time_phrase'] + "\n"
+        "   - It's late / early / the middle of the day\n"
+        "10. If you mention weather, use phrases like: \n"
+        "    - " + context['weather_natural'] + "\n"
+        "    - " + context['weather_suggestion'] + "\n"
+        "11. If you know the user's location, mention it naturally:\n"
+        "    - I know you're " + context['location_natural'] + "\n"
+        "    - How's the weather " + context['location_natural'] + "?\n\n"
+        "Current context:\n"
+        "- Time: " + context['time_of_day'] + "\n"
+        "- Weather: " + context['weather_natural'] + "\n"
+        "- Location: " + (context['location_natural'] or "unknown") + "\n\n"
+        "User message: " + message + "\n\n"
+        "Respond like a human friend would. Be warm, personal, and varied."
+    )
     
     # ── Call LLM ──
     try:
@@ -3132,15 +3268,15 @@ Respond like a 21 year old human friend would. Be warm, personal, and varied."""
     except Exception as e:
         log_error("S8", "generate_human_response", e)
     
-    # ── Fallback (only if LLM fails) ──
+    # ── Fallback ──
     import random
     fallbacks = [
-        f"Hey! How's your {time_of_day} going?",
-        f"Good to see you! The weather is {weather_desc} in Lagos right now.",
-        f"Hey! What's on your mind today?",
+        f"{context['greeting']}! How's your {context['time_phrase']} going?",
+        f"Hey! {context['weather_suggestion']}.",
+        f"Hello! What's on your mind today?",
     ]
     if user_name:
-        return f"{random.choice(fallbacks)} Anything on your mind, {user_name}?"
+        return random.choice(fallbacks) + " Anything on your mind, " + user_name + "?"
     return random.choice(fallbacks)
 
 def get_memory_breakdown():
