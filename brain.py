@@ -3201,6 +3201,43 @@ def get_natural_context(user_id: str = None) -> dict:
     }
 
 # ════════════════════════════════════════════════════════════════════
+# USER LOCATION – Store and retrieve user's city
+# ════════════════════════════════════════════════════════════════════
+
+def save_user_location(user_id: str, city: str, country: str = "Nigeria"):
+    """Save user's location to Firestore."""
+    if db is None:
+        return False
+    try:
+        doc_ref = db.collection("users").document(user_id).collection("user_location").document("current")
+        doc_ref.set({
+            "city": city,
+            "country": country,
+            "updated_at": firestore.SERVER_TIMESTAMP
+        }, merge=True)
+        return True
+    except Exception as e:
+        log_error("S8", "save_user_location", e, user_id=user_id)
+        return False
+
+def get_user_location(user_id: str) -> dict:
+    """Get user's location from Firestore."""
+    if db is None:
+        return {"city": None, "country": None}
+    try:
+        doc_ref = db.collection("users").document(user_id).collection("user_location").document("current")
+        doc = doc_ref.get()
+        if doc.exists:
+            data = doc.to_dict()
+            return {
+                "city": data.get("city"),
+                "country": data.get("country", "Nigeria")
+            }
+        return {"city": None, "country": None}
+    except Exception as e:
+        log_error("S8", "get_user_location", e, user_id=user_id)
+        return {"city": None, "country": None}
+# ════════════════════════════════════════════════════════════════════
 # HUMAN-LEVEL CASUAL RESPONSES – Context-aware, varied, adaptive
 # ════════════════════════════════════════════════════════════════════
 
