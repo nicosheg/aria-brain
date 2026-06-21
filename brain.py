@@ -4678,17 +4678,24 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"reply": response})
                     return
                 
-                # ── Step 3: Casual Manager (with clarification reset) ──
+                # ── Step 3: Casual Manager (with human-level responses) ──
                 casual_detection = conversation_manager.is_casual_conversation(message)
                 if casual_detection["is_casual"]:
+                    # Clear any stuck clarification state
                     state = get_conversation_state(u) or {}
                     if state.get("awaiting") == "clarification":
                         state.pop("awaiting", None)
                         state.pop("question", None)
                         save_conversation_state(u, state)
-                    # ── NEW: Use human-level response ──
+                    # Generate human-like response
                     casual_response = generate_human_response(message, u)
                     self._json({"reply": casual_response})
+                    return
+                
+                # If not casual, use the regular casual manager (which checks active conversation)
+                casual = handle_casual_conversation(message, u)
+                if casual["handled"]:
+                    self._json({"reply": casual["response"]})
                     return
                 
                 # ── Step 4: Load State and Understanding ──
