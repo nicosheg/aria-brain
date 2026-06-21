@@ -2919,14 +2919,10 @@ from datetime import datetime
 
 def is_simple_or_identity_query(message: str) -> bool:
     """
-    Detect if the message is a simple greeting, identity question,
-    casual talk, factual query, or direct task command.
+    Detect if the message is an identity question, factual query, thanks, goodbye, or direct task.
+    (Greetings are now handled by the Casual Manager.)
     """
     m_lower = message.lower().strip()
-    
-    # Greetings
-    if re.search(r'\b(hi|hello|hey|howdy|sup|wassup|good morning|good afternoon|good evening)\b', m_lower, re.IGNORECASE):
-        return True
     
     # Identity questions
     if re.search(r'\b(where are you from|who are you|what are you|what is your name|who built you|who created you|tell me about yourself|what do you do)\b', m_lower, re.IGNORECASE):
@@ -2944,9 +2940,8 @@ def is_simple_or_identity_query(message: str) -> bool:
     if re.search(r'\b(thanks|thank you|bye|goodbye|see you|later)\b', m_lower, re.IGNORECASE):
         return True
     
-    # Direct task commands (NEW)
+    # Direct task commands
     if re.search(r'\b(rewrite|summarize|fix|correct|translate|write|edit|modify|change|update)\b', m_lower, re.IGNORECASE):
-        # Only trigger if the message is short and lacks other content
         if len(m_lower.split()) <= 10:
             return True
     
@@ -2954,8 +2949,7 @@ def is_simple_or_identity_query(message: str) -> bool:
 
 def generate_direct_response(message: str, user_id: str = None) -> str:
     """
-    Generate a direct, human-first response for simple queries.
-    No routing. No questions. Just natural answers.
+    Generate a direct, human-first response for non-greeting queries.
     """
     m_lower = message.lower().strip()
     
@@ -2968,23 +2962,10 @@ def generate_direct_response(message: str, user_id: str = None) -> str:
         now = datetime.now()
         return f"It's {now.strftime('%I:%M %p')} in Lagos."
     
-    # Greetings
-    if re.search(r'\b(hi|hello|hey|howdy|sup|wassup|good morning|good afternoon|good evening)\b', m_lower, re.IGNORECASE):
-        user_name = ""
-        if user_id:
-            try:
-                profile = get_or_create_income_profile(user_id)
-                if profile and profile.get('name'):
-                    user_name = profile.get('name')
-            except:
-                pass
-        if user_name:
-            return f"Hey {user_name}! How's your day going?"
-        return "Hey! How can I help you today?"
-    
-    # How are you
+    # How are you (now goes to casual manager, but keep if you want)
     if re.search(r'\b(how are you|how dey|how far|what\'s up|whats up)\b', m_lower, re.IGNORECASE):
-        return "I'm doing great, thanks for asking! What's on your mind?"
+        # Let casual manager handle this; return None to fall through
+        return None
     
     # Thanks
     if re.search(r'\b(thanks|thank you)\b', m_lower, re.IGNORECASE):
@@ -2994,7 +2975,7 @@ def generate_direct_response(message: str, user_id: str = None) -> str:
     if re.search(r'\b(bye|goodbye|see you|later)\b', m_lower, re.IGNORECASE):
         return "Goodbye! Take care and come back anytime."
     
-    # Direct task commands (NEW)
+    # Direct task commands
     if re.search(r'\b(rewrite|summarize|fix|correct|translate|write|edit|modify|change|update)\b', m_lower, re.IGNORECASE):
         return "What specific text would you like me to rewrite? Please paste it and I'll help."
     
