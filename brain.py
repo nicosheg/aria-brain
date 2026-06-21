@@ -3077,6 +3077,88 @@ def is_active_conversation(state: dict) -> bool:
     except:
         return False
 
+# ════════════════════════════════════════════════════════════════════
+# HUMAN-LEVEL CASUAL RESPONSES – Context-aware, varied, adaptive
+# ════════════════════════════════════════════════════════════════════
+
+def get_time_of_day() -> str:
+    """Return the time of day for contextual responses."""
+    hour = datetime.now().hour
+    if hour < 12:
+        return "morning"
+    elif hour < 17:
+        return "afternoon"
+    else:
+        return "evening"
+
+def generate_human_response(message: str, user_id: str = None) -> str:
+    """
+    Generate a human-like, context-aware casual response.
+    Never returns the same thing twice.
+    """
+    # ── Build context for the LLM ──
+    user_name = ""
+    recent_context = ""
+    time_of_day = get_time_of_day()
+    
+    if user_id:
+        try:
+            # Get user name if available
+            profile = get_or_create_income_profile(user_id)
+            if profile and profile.get('name'):
+                user_name = profile.get('name')
+            
+            # Get recent conversation context
+            state = get_conversation_state(user_id) or {}
+            understanding = state.get("understanding", {})
+            recent_topics = understanding.get("resolved_intents", [])
+            if recent_topics:
+                recent_context = f"The user has recently been interested in: {', '.join(recent_topics[-2:])}"
+        except:
+            pass
+    
+    # ── Build a prompt for the LLM ──
+    system_prompt = f"""You are ARIA – a warm, intelligent, and deeply human companion. Born in Lagos, Nigeria.
+
+Your task: Respond to the user's casual message naturally, like a close friend would.
+
+Guidelines:
+1. Be warm and genuine – no generic "How can I help you?" responses.
+2. Reference the user by name if known, just their first name except if told: {user_name}
+3. Reference recent context if available: {recent_context}
+4. Match the user's tone – if they're casual, be casual; if they're formal, be formal.
+5. Never give the same response twice.
+6. Keep it brief (1-3 sentences).
+7. Include a small follow-up question that feels natural, not interrogative.
+8. Use Nigerian expressions naturally if appropriate.
+
+Time of day: {time_of_day}
+
+User message: {message}
+
+Respond like a 21 years old human friend would. Be warm, personal, and varied."""
+    
+    # ── Call LLM ──
+    try:
+        response = call_llm(system_prompt, message)
+        if response and len(response) > 10:
+            return response
+    except Exception as e:
+        log_error("S8", "generate_human_response", e)
+    
+    # ── Fallback (only if LLM fails) ──
+    import random
+    fallbacks = [
+        "Hey! Good to see you.",
+        "What's on your mind today?",
+        "How are things going?",
+        "It's good to hear from you.",
+        "Hope you're having a good day!"
+    ]
+    if user_name:
+        return f"{random.choice(fallbacks)} Anything on your mind, {user_name}?"
+    return random.choice(fallbacks)
+
 def get_memory_breakdown():
     """Full memory usage report for /memory-debug endpoint"""
     import sys
