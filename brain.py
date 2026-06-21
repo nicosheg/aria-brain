@@ -3206,78 +3206,57 @@ def get_natural_context(user_id: str = None) -> dict:
 
 def generate_human_response(message: str, user_id: str = None) -> str:
     """
-    Generate a human-like, context-aware casual response.
+    Generate a human-like casual response.
+    If anything fails, returns the error message in the chat.
     """
-    # ── Get natural context ──
-    context = get_natural_context(user_id)
-    
-    # ── Get user name and recent context ──
-    user_name = ""
-    recent_context = ""
-    
-    if user_id:
-        try:
-            profile = get_or_create_income_profile(user_id)
-            if profile and profile.get('name'):
-                user_name = profile.get('name')
-            
-            state = get_conversation_state(user_id) or {}
-            understanding = state.get("understanding", {})
-            recent_topics = understanding.get("resolved_intents", [])
-            if recent_topics:
-                recent_context = "The user has recently been interested in: " + ", ".join(recent_topics[-2:])
-        except:
-            pass
-    
-    # ── Build a natural prompt for the LLM (using \n to avoid triple-quote issues) ──
-    system_prompt = (
-        "You are ARIA – a warm, intelligent, and deeply human companion. Born in Lagos, Nigeria.\n\n"
-        "Your task: Respond to the user's casual message naturally, like a close highly adaptive friend would.\n\n"
-        "GUIDELINES:\n"
-        "1. Be warm and genuine – no generic 'How can I help you?' responses.\n"
-        "2. Reference the user by name if known: " + (user_name or "unknown") + "\n"
-        "3. Reference recent context if available: " + (recent_context or "none") + "\n"
-        "4. Match the user's tone – if they're casual, be casual.\n"
-        "5. Never give the same response twice.\n"
-        "6. Keep it brief (1-3 sentences).\n"
-        "7. Include a small follow-up question that feels natural.\n"
-        "8. Use Nigerian expressions naturally if appropriate.\n"
-        "9. If you mention time, use phrases like: \n"
-        "   - " + context['greeting'] + "\n"
-        "   - It's " + context['time_phrase'] + "\n"
-        "   - It's late / early / the middle of the day\n"
-        "10. If you mention weather, use phrases like: \n"
-        "    - " + context['weather_natural'] + "\n"
-        "    - " + context['weather_suggestion'] + "\n"
-        "11. If you know the user's location, mention it naturally:\n"
-        "    - I know you're " + context['location_natural'] + "\n"
-        "    - How's the weather " + context['location_natural'] + "?\n\n"
-        "Current context:\n"
-        "- Time: " + context['time_of_day'] + "\n"
-        "- Weather: " + context['weather_natural'] + "\n"
-        "- Location: " + (context['location_natural'] or "unknown") + "\n\n"
-        "User message: " + message + "\n\n"
-        "Respond like a human friend would. Be warm, personal, and varied."
-    )
-    
-    # ── Call LLM ──
     try:
-        response = call_llm(system_prompt, message)
-        if response and len(response) > 10:
-            return response
-    except Exception as e:
-        log_error("S8", "generate_human_response", e)
+        # ── Get natural context ──
+        context = get_natural_context(user_id)
+        
+        # ── Get user name ──
+        user_name = ""
+        if user_id:
+            try:
+                profile = get_or_create_income_profile(user_id)
+                if profile and profile.get('name'):
+                    user_name = profile.get('name')
+            except:
+                pass
+        
+        # ── Build a simple prompt ──
+        prompt = (
+            f"Respond naturally to: '{message}'. Be warm, brief (1-2 sentences). "
+            f"Reference the time ({context['time_of_day']}) and weather ({context['weather_natural']}) if natural. "
+            f"If user has a name ({user_name}), use it."
+        )
+        
+        # ── Try LLM ──
+        try:
+            response = call_llm("You are a warm human friend.", prompt)
+            if response and len(response) > 10:
+                return response
+        except Exception as llm_err:
+            # If LLM fails, we'll use a template but log the error
+            log_error("generate_human_response", "llm_call", llm_err)
+        
+        # ── Fallback to template ──
+        import random
+        templates = [
+            f"{context['greeting']}! How's your {context['time_phrase']} going?",
+            f"{context['greeting']}! {context['weather_natural']} – {context['weather_suggestion']}.",
+            f"Hey! {context['weather_suggestion']}.",
+            f"Hello! What's on your mind today?",
+            f"Hey! How are things with you?",
+        ]
+        if user_name:
+            return random.choice(templates) + f" Anything on your mind, {user_name}?"
+        return random.choice(templates)
     
-    # ── Fallback ──
-    import random
-    fallbacks = [
-        f"{context['greeting']}! How's your {context['time_phrase']} going?",
-        f"Hey! {context['weather_suggestion']}.",
-        f"Hello! What's on your mind today?",
-    ]
-    if user_name:
-        return random.choice(fallbacks) + " Anything on your mind, " + user_name + "?"
-    return random.choice(fallbacks)
+    except Exception as e:
+        # ── Return the error directly in the chat ──
+        import traceback
+        error_details = traceback.format_exc()
+        return f"[DEBUG ERROR] {str(e)}\n\n{error_details[:500]}"
 
 def get_memory_breakdown():
     """Full memory usage report for /memory-debug endpoint"""
