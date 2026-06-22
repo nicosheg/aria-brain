@@ -2,3 +2,4 @@ firebase-admin>=6.0.0
 requests>=2.31.0
 psutil>=5.9.0
 psycopg2-binary
+gunicorn==21.2.0
