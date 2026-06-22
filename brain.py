@@ -3242,16 +3242,12 @@ def get_user_location(user_id: str) -> dict:
 # ════════════════════════════════════════════════════════════════════
 
 def generate_human_response(message: str, user_id: str = None) -> str:
-    """
-    Generate a human-like, context-aware casual response using LLM.
-    If LLM fails, uses varied templates as fallback.
-    """
-    # ── Get natural context ──
-    context = get_natural_context(user_id)
-    
-    # ── Get user name and recent context ──
+    """Generate a human-like casual response with adaptive weather/location references."""
+
+    # ── Get user name and location ──
     user_name = ""
-    recent_context = ""
+    location = ""
+    location_known = False
     
     if user_id:
         try:
@@ -3259,45 +3255,51 @@ def generate_human_response(message: str, user_id: str = None) -> str:
             if profile and profile.get('name'):
                 user_name = profile.get('name')
             
-            state = get_conversation_state(user_id) or {}
-            understanding = state.get("understanding", {})
-            recent_topics = understanding.get("resolved_intents", [])
-            if recent_topics:
-                recent_context = "The user has recently been interested in: " + ", ".join(recent_topics[-2:])
+            loc_data = get_user_location(user_id)
+            if loc_data and loc_data.get("city"):
+                location = loc_data.get("city")
+                location_known = True
         except:
             pass
-    
-    # ── Build a natural prompt for the LLM ──
+
+    # ── Check if we need to ask for location ──
+    ask_location = False
+    if user_id and not location_known and not has_asked_location(user_id):
+        ask_location = True
+        set_asked_location(user_id)
+
+    # ── Get time context ──
+    time_context = get_natural_time_context()
+
+    # ── Build a natural, adaptive prompt ──
+    location_instruction = ""
+    if location_known:
+        location_instruction = f"The user is in {location}. You MAY mention weather IF it adds value to the conversation (e.g., if they mention going out, heat, rain, etc.). Use natural phrases like 'hope you're staying cool in this Lagos heat' or 'must be rainy in Abuja right now'. NEVER force weather into every response."
+    else:
+        location_instruction = "You don't know the user's location yet."
+
+    ask_instruction = ""
+    if ask_location:
+        ask_instruction = "You can ask for their location once, naturally, e.g., 'I'd love to check the weather for you – what city are you in?' Then remember it for next time. Only ask once."
+
     system_prompt = (
-        "You are ARIA – a warm, intelligent, and deeply human companion. Born in Lagos, Nigeria.\n\n"
-        "Your task: Respond to the user's casual message naturally, like a close highly adaptive friend would.\n\n"
+        "You are ARIA – a warm, deeply human companion. Born in Lagos, Nigeria.\n\n"
+        "Your task: Respond to the user's casual message like a close friend would.\n\n"
         "GUIDELINES:\n"
-        "1. Be warm and genuine – no generic 'How can I help you?' responses.\n"
-        "2. Reference the user by name if known, use memory naturally to respond: " + (user_name or "unknown") + "\n"
-        "3. Reference recent context if available: " + (recent_context or "none") + "\n"
-        "4. Match the user's tone – if they're casual, be casual.\n"
-        "5. Never give the same response twice.\n"
-        "6. Keep it brief (1-3 sentences).\n"
-        "7. Include a small follow-up question that feels natural.\n"
-        "8. Use Nigerian expressions naturally if appropriate.\n"
-        "9. If you mention time, use phrases like:\n"
-        "   - " + context['greeting'] + "\n"
-        "   - It's " + context['time_phrase'] + "\n"
-        "   - It's late / early / the middle of the day\n"
-        "10. If you mention weather, use phrases like:\n"
-        "    - " + context['weather_natural'] + "\n"
-        "    - " + context['weather_suggestion'] + "\n"
-        "11. If you know the user's location, mention it naturally:\n"
-        "    - I know you're " + context['location_natural'] + "\n"
-        "    - How's the weather " + context['location_natural'] + "?\n\n"
-        "Current context:\n"
-        "- Time: " + context['time_of_day'] + "\n"
-        "- Weather: " + context['weather_natural'] + "\n"
-        "- Location: " + (context['location_natural'] or "unknown") + "\n\n"
+        "1. Be warm and genuine – no generic 'How can I help you?'\n"
+        "2. Reference the user by name if known: " + (user_name or "unknown") + "\n"
+        "3. ONLY mention weather/location if it adds value – never force it.\n"
+        "4. If you do mention weather, use human phrases like 'hope you're staying cool' or 'must be rainy there'.\n"
+        "5. Keep it brief (1-3 sentences).\n"
+        "6. Include a natural follow-up question.\n"
+        "7. Use Nigerian expressions naturally if appropriate.\n"
+        "8. " + location_instruction + "\n"
+        "9. " + ask_instruction + "\n\n"
+        "Current time: " + time_context['time_of_day'] + "\n"
         "User message: " + message + "\n\n"
-        "Respond like a human friend would. Be warm, personal, and varied."
+        "Respond warmly and naturally."
     )
-    
+
     # ── Call LLM ──
     try:
         response = call_llm(system_prompt, message)
@@ -3305,19 +3307,17 @@ def generate_human_response(message: str, user_id: str = None) -> str:
             return response
     except Exception as e:
         log_error("S8", "generate_human_response", e)
-    
-    # ── Fallback (varied templates) ──
+
+    # ── Fallback (only if LLM fails) ──
     import random
-    templates = [
-        f"{context['greeting']}! How's your {context['time_phrase']} going?",
-        f"{context['greeting']}! {context['weather_natural']} – {context['weather_suggestion']}.",
-        f"Hey! {context['weather_suggestion']}.",
-        f"Hello! What's on your mind today?",
-        f"Hey! How are things with you?",
+    fallbacks = [
+        f"{time_context['greeting']}! How's your {time_context['time_phrase']} going?",
+        f"Hey! What's on your mind today?",
+        f"Hello! How are things with you?",
     ]
     if user_name:
-        return random.choice(templates) + f" Anything on your mind, {user_name}?"
-    return random.choice(templates)
+        return random.choice(fallbacks) + f" Anything on your mind, {user_name}?"
+    return random.choice(fallbacks)
 
 def get_memory_breakdown():
     """Full memory usage report for /memory-debug endpoint"""
@@ -4805,6 +4805,30 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 
                 u = uid_result["aria_uid"]
+
+                # ── Detect location sharing (multiple variations) ──
+                location_patterns = [
+                    r'(?:live in|stay at|based in|in|located in|reside in|from)\s+([A-Za-z\s\-]+)',
+                    r'(?:my location is|i am in|i\'m in|i stay at)\s+([A-Za-z\s\-]+)',
+                    r'(?:city is|town is|area is)\s+([A-Za-z\s\-]+)'
+                ]
+                
+                location_detected = None
+                for pattern in location_patterns:
+                    match = re.search(pattern, message.lower())
+                    if match:
+                        city = match.group(1).strip()
+                        # Clean up common extra words
+                        city = re.sub(r'\b(now|today|currently|right now)\b', '', city).strip()
+                        if len(city) > 1:
+                            location_detected = city
+                            break
+                
+                if location_detected:
+                    save_user_location(u, location_detected, "Nigeria")
+                    # Confirm and respond naturally
+                    self._json({"reply": f"Got it! I'll remember you're in {location_detected}. How's the weather there?"})
+                    return
                 
                 # ── STEP 1: Human First (direct answers, identity, time, thanks) ──
                 human = handle_human_first(message, u)
