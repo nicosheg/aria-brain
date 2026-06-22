@@ -3996,90 +3996,108 @@ def get_stage_completion_criteria(stage: str, path_name: str) -> str:
     # Default fallback
     return criteria_map.get(stage, "Stage complete when user reports progress.")
 
-def start_income_onboarding(user_id: str, message: str, wave: int = 1) -> dict:
+def start_income_onboarding(user_id: str, message: str) -> dict:
     """
-    Progressive onboarding in 3 waves.
-    Each wave asks a small set of questions.
-    Returns dict with 'reply' and 'next_wave'.
+    Adaptive onboarding system.
+    Uses profile memory instead of fixed waves.
     """
     try:
         profile = get_or_create_income_profile(user_id) or {}
 
-        # ── Determine current wave ──
-        current_wave = profile.get('onboarding_wave', 0)
-        onboarding_complete = profile.get('onboarding_complete', False)
+        # ── Save raw user message into memory ──
+        save_income_profile(user_id, {
+            "last_message": message
+        })
 
-        # ── If onboarding already active, save response and advance wave ──
-        if current_wave > 0 and not onboarding_complete:
-            save_income_profile(user_id, {
-                f"wave_{current_wave}_response": message,
-                "onboarding_wave": current_wave + 1
-            })
-            wave = current_wave + 1
-        else:
-            wave = wave or 1
+        # ── Capture what user has already provided ──
+        def missing(field):
+            return not profile.get(field)
 
-        # ── Wave 1 ──
-        if wave == 1:
-            reply = (
-                "Let's start with a few quick questions.\n\n"
-                "1. What do you want to achieve? (e.g., earn extra ₦50k/month, replace my salary)\n"
-                "2. What skills or experience do you have? (e.g., writing, design, teaching)\n"
-                "3. How urgently do you need income? (within 1 month / 3 months / flexible)"
-            )
+        # ── Update profile if message contains obvious info (simple heuristic layer) ──
+        lower_msg = message.lower()
 
-            save_income_profile(user_id, {
-                "onboarding_wave": 1
-            })
+        if "earn" in lower_msg or "goal" in lower_msg or "₦" in lower_msg:
+            profile["goal"] = profile.get("goal") or message
 
-            return {"reply": reply, "next_wave": 1}
+        if "hour" in lower_msg:
+            profile["available_hours_per_week"] = profile.get("available_hours_per_week") or message
 
-        # ── Wave 2 ──
-        elif wave == 2:
-            reply = (
-                "Great. A few more details to tailor your path:\n\n"
-                "1. How many hours per day can you work on this?\n"
-                "2. Do you have a phone only, or a laptop too?\n"
-                "3. Do you have any budget to start (₦0 is fine)?"
-            )
+        if "phone" in lower_msg or "laptop" in lower_msg:
+            profile["device"] = profile.get("device") or message
 
-            save_income_profile(user_id, {
-                "onboarding_wave": 2
-            })
+        if "₦" in lower_msg and "target" in lower_msg:
+            profile["income_target"] = profile.get("income_target") or message
 
-            return {"reply": reply, "next_wave": 2}
+        save_income_profile(user_id, profile)
 
-        # ── Wave 3 ──
-        elif wave == 3:
-            reply = (
-                "Almost done – final questions:\n\n"
-                "1. What's your current monthly income (roughly)?\n"
-                "2. What's your income target?\n"
-                "3. On a scale of 1–10, how confident are you about earning online?\n"
-                "4. What's your internet quality? (good / okay / poor)"
-            )
-
-            save_income_profile(user_id, {
-                "onboarding_wave": 3
-            })
-
-            return {"reply": reply, "next_wave": 3}
-
-        # ── Completion ──
-        else:
-            save_income_profile(user_id, {
-                "onboarding_complete": True,
-                "onboarding_wave": 0
-            })
-
+        # ── Adaptive question engine ──
+        if missing("goal"):
             return {
-                "reply": "Thanks! Onboarding complete. I'll now recommend your best income path.",
-                "next_wave": None
+                "reply": "What do you want to achieve? (income goal or outcome)",
+                "next": "goal"
             }
 
+        if missing("skills"):
+            return {
+                "reply": "What skills do you already have or enjoy doing?",
+                "next": "skills"
+            }
+
+        if missing("available_hours_per_week"):
+            return {
+                "reply": "How many hours per week can you realistically work on this?",
+                "next": "time"
+            }
+
+        if missing("device"):
+            return {
+                "reply": "Do you have a phone only, or also a laptop?",
+                "next": "device"
+            }
+
+        if missing("budget"):
+            return {
+                "reply": "Do you have any starting budget? (₦0 is okay)",
+                "next": "budget"
+            }
+
+        if missing("current_income"):
+            return {
+                "reply": "What is your current monthly income (approx)?",
+                "next": "current_income"
+            }
+
+        if missing("income_target"):
+            return {
+                "reply": "What is your income target per month?",
+                "next": "income_target"
+            }
+
+        if missing("confidence"):
+            return {
+                "reply": "On a scale of 1–10, how confident are you about earning online?",
+                "next": "confidence"
+            }
+
+        if missing("internet_quality"):
+            return {
+                "reply": "How is your internet quality? (good / okay / poor)",
+                "next": "internet_quality"
+            }
+
+        # ── COMPLETION ──
+        save_income_profile(user_id, {
+            "onboarding_complete": True
+        })
+
+        return {
+            "reply": "Perfect. I understand you now. I’ll build your personalized income path.",
+            "next": None
+        }
+
     except Exception as e:
-        log_error("S12", "start_income_onboarding", e, user_id=user_id)
-        return {"reply": "Let's start fresh. Tell me your skills."}
+        log_error("S13", "adaptive_onboarding", e, user_id=user_id)
+        return {"reply": "Let’s restart. What do you want to achieve?"}
 
 # =====================================================================
 # [S13] ACTION TRACKER – Task assignment & outcome recording
