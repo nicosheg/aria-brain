@@ -3998,73 +3998,85 @@ def get_stage_completion_criteria(stage: str, path_name: str) -> str:
 
 def start_income_onboarding(user_id: str, message: str, wave: int = 1) -> dict:
     """
-    Progressive onboarding in 3 waves. Each wave asks a small set of questions.
-    Returns dict with 'reply' and 'next_wave' (or None when complete).
+    Progressive onboarding in 3 waves.
+    Each wave asks a small set of questions.
+    Returns dict with 'reply' and 'next_wave'.
     """
     try:
         profile = get_or_create_income_profile(user_id) or {}
-        
-        # ── Save response to current wave (if already in progress) ──
-        if profile.get('onboarding_wave', 0) > 0 and not profile.get('onboarding_complete'):
-            current_wave = profile.get('onboarding_wave', 1)
+
+        # ── Determine current wave ──
+        current_wave = profile.get('onboarding_wave', 0)
+        onboarding_complete = profile.get('onboarding_complete', False)
+
+        # ── If onboarding already active, save response and advance wave ──
+        if current_wave > 0 and not onboarding_complete:
             save_income_profile(user_id, {
                 f"wave_{current_wave}_response": message,
                 "onboarding_wave": current_wave + 1
             })
             wave = current_wave + 1
         else:
-            # No active wave – start at wave 1
             wave = wave or 1
-        
+
         # ── Wave 1 ──
         if wave == 1:
-            if not profile.get('goal'):
-                reply = (
-                    "Let's start with a few quick questions.\n\n"
-                    "1. What do you want to achieve? (e.g., earn extra ₦50k/month, replace my salary)\n"
-                    "2. What skills or experience do you have? (e.g., writing, design, teaching)\n"
-                    "3. How urgently do you need income? (within 1 month / 3 months / flexible)"
-                )
-                save_income_profile(user_id, {"onboarding_wave": 1})
-                return {"reply": reply, "next_wave": 1}
-            else:
-                # Already completed wave 1, move to wave 2
-                return start_income_onboarding(user_id, message, wave=2)
-        
+            reply = (
+                "Let's start with a few quick questions.\n\n"
+                "1. What do you want to achieve? (e.g., earn extra ₦50k/month, replace my salary)\n"
+                "2. What skills or experience do you have? (e.g., writing, design, teaching)\n"
+                "3. How urgently do you need income? (within 1 month / 3 months / flexible)"
+            )
+
+            save_income_profile(user_id, {
+                "onboarding_wave": 1
+            })
+
+            return {"reply": reply, "next_wave": 1}
+
         # ── Wave 2 ──
         elif wave == 2:
-            if not profile.get('available_hours_per_week'):
-                reply = (
-                    "Great. A few more details to tailor your path:\n\n"
-                    "1. How many hours per day can you work on this?\n"
-                    "2. Do you have a phone only, or a laptop too?\n"
-                    "3. Do you have any budget to start (₦0 is fine)?"
-                )
-                save_income_profile(user_id, {"onboarding_wave": 2})
-                return {"reply": reply, "next_wave": 2}
-            else:
-                return start_income_onboarding(user_id, message, wave=3)
-        
+            reply = (
+                "Great. A few more details to tailor your path:\n\n"
+                "1. How many hours per day can you work on this?\n"
+                "2. Do you have a phone only, or a laptop too?\n"
+                "3. Do you have any budget to start (₦0 is fine)?"
+            )
+
+            save_income_profile(user_id, {
+                "onboarding_wave": 2
+            })
+
+            return {"reply": reply, "next_wave": 2}
+
         # ── Wave 3 ──
         elif wave == 3:
-            if not profile.get('current_monthly_income'):
-                reply = (
-                    "Almost done – final questions:\n\n"
-                    "1. What's your current monthly income (roughly)?\n"
-                    "2. What's your income target?\n"
-                    "3. On a scale of 1–10, how confident are you about earning online?\n"
-                    "4. What's your internet quality? (good / okay / poor)"
-                )
-                save_income_profile(user_id, {"onboarding_wave": 3})
-                return {"reply": reply, "next_wave": 3}
-            else:
-                # Onboarding complete
-                save_income_profile(user_id, {"onboarding_complete": True, "onboarding_wave": 0})
-                return {"reply": "Thanks! Onboarding complete. I'll now recommend your best income path."}
-        
+            reply = (
+                "Almost done – final questions:\n\n"
+                "1. What's your current monthly income (roughly)?\n"
+                "2. What's your income target?\n"
+                "3. On a scale of 1–10, how confident are you about earning online?\n"
+                "4. What's your internet quality? (good / okay / poor)"
+            )
+
+            save_income_profile(user_id, {
+                "onboarding_wave": 3
+            })
+
+            return {"reply": reply, "next_wave": 3}
+
+        # ── Completion ──
         else:
-            return {"reply": "Onboarding complete. What would you like to do?"}
-    
+            save_income_profile(user_id, {
+                "onboarding_complete": True,
+                "onboarding_wave": 0
+            })
+
+            return {
+                "reply": "Thanks! Onboarding complete. I'll now recommend your best income path.",
+                "next_wave": None
+            }
+
     except Exception as e:
         log_error("S12", "start_income_onboarding", e, user_id=user_id)
         return {"reply": "Let's start fresh. Tell me your skills."}
