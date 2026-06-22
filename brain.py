@@ -25,6 +25,12 @@
 
 
 # ════════════════════════════════════════════════════════════════════
+# [S0] FASTAPI COMPATIBILITY
+# ════════════════════════════════════════════════════════════════════
+# This ensures all functions are importable by main.py
+# No changes to your existing code needed – just expose what's needed.
+
+# ════════════════════════════════════════════════════════════════════
 # [S1] IMPORTS
 # ════════════════════════════════════════════════════════════════════
 from http.server import HTTPServer, BaseHTTPRequestHandler
