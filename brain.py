@@ -4806,13 +4806,13 @@ class Handler(BaseHTTPRequestHandler):
                 
                 u = uid_result["aria_uid"]
                 
-                # ── Step 1: Human First ──
+                # ── STEP 1: Human First (direct answers, identity, time, thanks) ──
                 human = handle_human_first(message, u)
                 if human["handled"]:
                     self._json({"reply": human["response"]})
                     return
                 
-                # ── Step 2: Check Pending Session (with safety) ──
+                # ── STEP 2: Pending Session (continue workflow) ──
                 session = None
                 try:
                     session = get_pending_session(u)
@@ -4826,9 +4826,9 @@ class Handler(BaseHTTPRequestHandler):
                         self._json({"reply": "Alright, I've cancelled that request. What would you like to do now?"})
                         return
                     
-                    # Handle pending session – let the Brain process it
+                    # Continue the pending workflow
                     state = get_conversation_state(u) or {}
-                    intent = discover_intent(message)
+                    intent = {"intent": "continue_workflow", "confidence": 1.0}
                     result = process_conversation_brain(message, u, state, intent)
                     decision = result.get("decision", {})
                     new_state = result.get("new_state", {})
@@ -4838,26 +4838,20 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"reply": response})
                     return
                 
-                # ── Step 3: Casual Manager (with human-level responses) ──
-                casual_detection = conversation_manager.is_casual_conversation(message)
-                if casual_detection["is_casual"]:
-                    try:
-                        state = get_conversation_state(u) or {}
-                        if state.get("awaiting") == "clarification":
-                            state.pop("awaiting", None)
-                            state.pop("question", None)
-                            save_conversation_state(u, state)
-                        casual_response = generate_human_response(message, u)
-                        self._json({"reply": casual_response})
-                        return
-                    except Exception as e:
-                        # If the human response fails, fallback to simple response
-                        import traceback
-                        log_error("chat", "casual_response", e, user_id=u, context=traceback.format_exc())
-                        self._json({"reply": "Hey! How's your day going?"})
-                        return
+                # ── STEP 3: Casual Manager (if casual → respond, STOP) ──
+                # This is the critical fix: if casual, we return immediately.
+                # NO intent discovery, NO clarification, NO workflow.
+                if conversation_manager.is_casual_conversation(message)["is_casual"]:
+                    state = get_conversation_state(u) or {}
+                    if state.get("awaiting") == "clarification":
+                        state.pop("awaiting", None)
+                        state.pop("question", None)
+                        save_conversation_state(u, state)
+                    casual_response = generate_human_response(message, u)
+                    self._json({"reply": casual_response})
+                    return
                 
-                # ── Step 4: Load State and Understanding ──
+                # ── STEP 4: Load State ──
                 state = get_conversation_state(u) or {}
                 goals = get_goals(u)
                 state["goals"] = goals
@@ -4867,73 +4861,43 @@ class Handler(BaseHTTPRequestHandler):
                 understanding = get_understanding(u)
                 resolved_intents = understanding.get("resolved_intents", [])
                 
-                # ── Step 5: Intent Discovery with Understanding ──
+                # ── STEP 5: Conversation Brain (decides what to do) ──
+                # The Brain handles: topic change, intent resolution, workflow routing
+                intent = None
+                
+                # Check topic change
                 if is_topic_change(message):
                     clear_understanding(u)
                     state.pop("awaiting", None)
                     state.pop("question", None)
                     save_conversation_state(u, state)
+                
+                # Use resolved intent if available and no clarification pending
+                if resolved_intents and not state.get("awaiting"):
+                    intent = {"intent": resolved_intents[-1], "confidence": 0.9}
+                else:
+                    # ── STEP 6: Intent Discovery (ONLY when needed) ──
+                    # Now that we've ruled out casual, pending session, and human-first,
+                    # we can safely call intent discovery.
                     intent = discover_intent(message)
-                    if intent.get("clarification"):
+                    
+                    # If clarification needed and no pending state, store it
+                    if intent.get("clarification") and not state.get("awaiting") == "clarification":
                         state["awaiting"] = "clarification"
                         state["question"] = intent["clarification"]
                         save_conversation_state(u, state)
                         self._json({"reply": intent["clarification"]})
                         return
-                else:
-                    if resolved_intents and not state.get("awaiting"):
-                        # Use the most recent resolved intent
-                        intent = {"intent": resolved_intents[-1], "confidence": 0.9}
-                    else:
-                        intent = discover_intent(message)
-                        if intent.get("clarification") and not state.get("awaiting") == "clarification":
-                            state["awaiting"] = "clarification"
-                            state["question"] = intent["clarification"]
-                            save_conversation_state(u, state)
-                            self._json({"reply": intent["clarification"]})
-                            return
-                        elif state.get("awaiting") == "clarification":
-                            # ── Check if user's message is a clear new intent ──
-                            m_lower = message.lower()
-                            clear_intent_keywords = ["exam", "study", "prepare", "jamb", "waec", "school", "university", "learn", "teach", "income", "earn", "money", "business", "job", "work", "gig"]
-                            
-                            if any(keyword in m_lower for keyword in clear_intent_keywords):
-                                # User has moved on to a new clear topic
-                                state.pop("awaiting", None)
-                                state.pop("question", None)
-                                clear_understanding(u)
-                                save_conversation_state(u, state)
-                                intent = discover_intent(message)
-                                if intent.get("clarification"):
-                                    state["awaiting"] = "clarification"
-                                    state["question"] = intent["clarification"]
-                                    save_conversation_state(u, state)
-                                    self._json({"reply": intent["clarification"]})
-                                    return
-                            else:
-                                resolved_intent = check_clarification_response(message, u)
-                                if resolved_intent:
-                                    update_understanding(u, {
-                                        "resolved_intents": resolved_intent,
-                                        "active_goal": resolved_intent
-                                    })
-                                    state.pop("awaiting", None)
-                                    state.pop("question", None)
-                                    save_conversation_state(u, state)
-                                    intent = {"intent": resolved_intent, "confidence": 0.9}
-                                else:
-                                    self._json({"reply": "I didn't catch that. Could you clarify?"})
-                                    return
                 
-                # ── Step 6: Conversation Brain ──
-                result = process_conversation_brain(message, u, state, intent)
+                # ── STEP 7: Conversation Brain (process) ──
+                result = process_conversation_brain(message, u, state, intent or {"intent": "general", "confidence": 0.5})
                 decision = result.get("decision", {})
                 new_state = result.get("new_state", {})
                 
-                # ── Step 7: Response Engine ──
+                # ── STEP 8: Response Engine ──
                 response = execute_decision(decision, message, u, new_state)
                 
-                # ── Step 8: Update State ──
+                # ── STEP 9: Update State ──
                 if new_state:
                     save_conversation_state(u, new_state)
                     if new_state.get("current_goal") or new_state.get("long_term_goal"):
