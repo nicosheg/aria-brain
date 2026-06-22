@@ -3158,6 +3158,33 @@ def get_natural_location_reference(city: str) -> str:
     city_lower = city.lower()
     return city_phrases.get(city_lower, f"in {city}")
 
+import urllib.parse
+
+def get_weather(city: str) -> str:
+    """Fetch real-time weather for any city from wttr.in (free, no API key)."""
+    if not city or city == "unknown" or city == "None":
+        city = "Lagos"
+    try:
+        import requests
+        encoded_city = urllib.parse.quote(city)
+        url = f"https://wttr.in/{encoded_city}?format=%C"
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            weather = response.text.strip().lower()
+            if "rain" in weather or "drizzle" in weather or "shower" in weather:
+                return "rainy"
+            elif "sun" in weather or "clear" in weather:
+                return "sunny"
+            elif "cloud" in weather or "overcast" in weather:
+                return "cloudy"
+            elif "mist" in weather or "fog" in weather:
+                return "misty"
+            return weather
+        return "unknown"
+    except Exception as e:
+        log_error("S8", "get_weather", e, severity="WARNING")
+        return "unknown"
+
 def get_natural_context(user_id: str = None) -> dict:
     """
     Build a complete natural context for conversation.
