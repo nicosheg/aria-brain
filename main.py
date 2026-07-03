@@ -4,20 +4,17 @@
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import time
 import json
 import traceback
+import os
 
 # ── Import all your existing brain.py logic ──
-# This is the key: we reuse everything you already built.
 from brain import (
-    # Core
     db, firestore, generate_aria_uid, log_error, get_feature_flags,
-    
-    # Modules
     get_or_create_income_profile, start_income_onboarding,
     get_relevant_income_knowledge, build_income_system_prompt,
     check_diversification_guard, detect_and_record_outcome,
@@ -26,19 +23,11 @@ from brain import (
     get_pending_session, clear_pending_session,
     get_goals, update_goals, get_context,
     process_conversation_brain, execute_decision,
-    
-    # Human Layer
     handle_human_first, handle_casual_conversation,
     generate_human_response,
-    
-    # Intent & Utilities
     discover_intent, check_clarification_response,
     is_topic_change, is_active_conversation,
-    
-    # Income Knowledge
     module_registry, task_module, call_llm,
-    
-    # Logging
     logger
 )
 
@@ -102,7 +91,6 @@ async def chat(request: ChatRequest):
     if not email:
         raise HTTPException(status_code=400, detail="Email is required")
     
-    # ── Convert email to aria_uid ──
     uid_result = generate_aria_uid(email)
     if "error" in uid_result:
         raise HTTPException(status_code=400, detail=uid_result["error"])
@@ -132,9 +120,9 @@ async def chat(request: ChatRequest):
             return ChatResponse(reply=response)
         
         # ── STEP 3: Casual Manager ──
-        casual_detection = handle_casual_conversation(message, user_id)
-        if casual_detection["handled"]:
-            return ChatResponse(reply=casual_detection["response"])
+        casual = handle_casual_conversation(message, user_id)
+        if casual["handled"]:
+            return ChatResponse(reply=casual["response"])
         
         # ── STEP 4: Load State ──
         state = get_conversation_state(user_id) or {}
@@ -182,7 +170,6 @@ async def chat(request: ChatRequest):
                     "current_task": new_state.get("current_task")
                 })
         
-        # ── Log Request ──
         elapsed_ms = (time.time() - start_time) * 1000
         logger.info(f"REQUEST | user:{user_id} | time:{elapsed_ms:.0f}ms | ✓ SUCCESS")
         
@@ -196,27 +183,20 @@ async def chat(request: ChatRequest):
 # ── Feedback Endpoint ──
 @app.post("/feedback")
 async def feedback(request: FeedbackRequest):
-    """Record user feedback on responses."""
-    # Your existing feedback logic
     return {"status": "Feedback recorded", "score": request.score}
 
-# ── Upload Endpoint (images/PDFs) ──
+# ── Upload Endpoints ──
 @app.post("/upload-ocr")
 async def upload_ocr(request: UploadRequest):
-    """Upload image for OCR text extraction."""
-    # Your existing OCR logic
     return {"status": "OCR completed", "text": "Extracted text here"}
 
 @app.post("/upload-pdf")
 async def upload_pdf(request: UploadRequest):
-    """Upload PDF for text extraction."""
-    # Your existing PDF logic
     return {"status": "PDF processed", "text": "Extracted text here"}
 
-# ── Debug Endpoints ──
+# ── Debug Endpoint ──
 @app.get("/debug")
 async def debug_info():
-    """System health and diagnostic information."""
     return {
         "status": "ARIA 3.5 running on FastAPI",
         "modules": {
@@ -235,17 +215,26 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"error": f"An unexpected error occurred: {str(exc)}"}
     )
 
-# ── Root ──
-@app.get("/")
-async def root():
-    return {
-        "name": "ARIA – Life Operating System",
-        "version": "3.5.0",
-        "status": "online",
-        "docs": "/docs"
-    }
+# ── Serve Frontend ──
 
-# ── Run with Uvicorn (for local testing) ──
+@app.get("/")
+async def serve_index():
+    """Serve the main ARIA chat interface."""
+    return FileResponse("public/index.html")
+
+@app.get("/{file_path:path}")
+async def serve_static(file_path: str):
+    """
+    Serve static files from the public folder.
+    This handles login.html, favicon.ico, and any other public files.
+    """
+    # Skip API and docs routes (FastAPI handles them first)
+    full_path = f"public/{file_path}"
+    if os.path.exists(full_path):
+        return FileResponse(full_path)
+    raise HTTPException(status_code=404, detail="File not found")
+
+# ── Run ──
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
