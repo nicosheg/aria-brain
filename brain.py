@@ -4894,17 +4894,41 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 
                 # ── STEP 1: Human First (direct answers, identity, time, thanks) ──
-                human = handle_human_first(message, u)
+                human = handle_human_first(message, user_id)
                 if human["handled"]:
-                    self._json({"reply": human["response"]})
-                    return
-                
+                    return ChatResponse(reply=human["response"])
+
+                # ── STEP: Memory Query ──
+                memory_phrases = ["remember me", "who am i", "what do you know about me", "do you know me", "tell me about myself"]
+                if any(phrase in message.lower() for phrase in memory_phrases):
+                    # Clear any pending clarification
+                    state = get_conversation_state(user_id) or {}
+                    state.pop("awaiting", None)
+                    state.pop("question", None)
+                    save_conversation_state(user_id, state)
+                    
+                    # Get user profile facts
+                    profile = get_or_create_income_profile(user_id)
+                    if profile:
+                        name = profile.get("name", "user")
+                        skills = profile.get("skills", [])
+                        if name and skills:
+                            reply = f"I remember you, {name}. You have skills: {', '.join(skills)}."
+                        elif name:
+                            reply = f"I remember you, {name}. You haven't shared your skills yet."
+                        else:
+                            reply = "I don't have much info about you yet. Tell me your name and skills."
+                    else:
+                        reply = "I don't have much info about you yet. Tell me your name and skills."
+                    
+                    return ChatResponse(reply=reply)
+
                 # ── STEP 2: Pending Session (continue workflow) ──
                 session = None
                 try:
-                    session = get_pending_session(u)
+                    session = get_pending_session(user_id)
                 except Exception as e:
-                    log_error("pending_session", "fetch_failed", e, user_id=u)
+                    log_error("pending_session", "fetch_failed", e, user_id=user_id)
                     session = None
                 
                 if session:
