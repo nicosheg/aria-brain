@@ -5029,16 +5029,11 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"error": uid_result["error"]}, 500)
                     return
                 
-                user_id = uid_result["aria_uid"]
-                state = get_conversation_state(user_id) or {}
-
-                # ── Human First ──
-                human = handle_human_first(message, user_id)
-                if human["handled"]:
-                    self._json({"reply": human["response"]})
-                    return
-
-                # ── Location detection ──
+                u = uid_result["aria_uid"]
+                user_id = u
+                
+                # ── 1. Location detection ──
+                location_detected = None
                 for pattern in [
                     r'(?:live in|stay at|based in|in|located in|reside in|from)\s+([A-Za-z\s\-]+)',
                     r'(?:my location is|i am in|i\'m in|i stay at)\s+([A-Za-z\s\-]+)',
@@ -5049,50 +5044,71 @@ class Handler(BaseHTTPRequestHandler):
                         city = match.group(1).strip()
                         city = re.sub(r'\b(now|today|currently|right now)\b', '', city).strip()
                         if len(city) > 1:
-                            save_user_location(user_id, city, "Nigeria")
-                            self._json({"reply": f"Got it! I'll remember you're in {city}."})
-                            return
-                        break
-
-                # ── Memory Query ──
+                            location_detected = city
+                            break
+                if location_detected:
+                    save_user_location(user_id, location_detected, "Nigeria")
+                    response = f"Got it! I'll remember you're in {location_detected}."
+                    save_memory(user_id, message, response)
+                    self._json({"reply": response})
+                    return
+                
+                # ── 2. Human First ──
+                human = handle_human_first(message, user_id)
+                if human["handled"]:
+                    save_memory(user_id, message, human["response"])
+                    self._json({"reply": human["response"]})
+                    return
+                
+                # ── 3. Memory Query (direct fact retrieval) ──
                 memory_phrases = ["remember me", "who am i", "what do you know about me", "do you know me", "tell me about myself"]
                 if any(phrase in message.lower() for phrase in memory_phrases):
+                    # Clear stale clarification
+                    state = get_conversation_state(user_id) or {}
                     state.pop("awaiting", None)
                     state.pop("question", None)
                     save_conversation_state(user_id, state)
+                    
+                    # Fetch facts directly
                     facts = []
                     try:
                         docs = db.collection("users").document(user_id).collection("facts").stream()
                         for doc in docs:
                             data = doc.to_dict()
                             facts.append(f"{data['key']}: {data['value']}")
-                    except:
-                        pass
+                    except Exception as e:
+                        print(f"Fact retrieval error: {e}")
+                    
                     if facts:
-                        reply = f"I remember: {', '.join(facts)}"
+                        response = "I remember: " + ", ".join(facts)
                     else:
                         profile = get_or_create_income_profile(user_id)
                         if profile:
                             name = profile.get("name", "user")
                             skills = profile.get("skills", [])
-                            reply = f"I remember you, {name}." + (f" You have skills: {', '.join(skills)}." if skills else "")
+                            response = f"I remember you, {name}." + (f" You have skills: {', '.join(skills)}." if skills else "")
                         else:
-                            reply = "I don't have much info about you yet. Tell me your name and skills."
-                    self._json({"reply": reply})
+                            response = "I don't have much info about you yet. Tell me your name and skills."
+                    save_memory(user_id, message, response)
+                    self._json({"reply": response})
                     return
-
-                # ── Pending Session ──
+                
+                # ── 4. Pending Session ──
                 session = None
                 try:
                     session = get_pending_session(user_id)
                 except Exception as e:
                     log_error("pending_session", "fetch_failed", e, user_id=user_id)
                     session = None
+                
                 if session:
                     if message.lower().strip() in ["cancel", "nevermind", "stop", "forget it"]:
                         clear_pending_session(user_id)
-                        self._json({"reply": "Alright, cancelled. What would you like to do now?"})
+                        response = "Alright, I've cancelled that request. What would you like to do now?"
+                        save_memory(user_id, message, response)
+                        self._json({"reply": response})
                         return
+                    
                     state = get_conversation_state(user_id) or {}
                     intent = {"intent": "continue_workflow", "confidence": 1.0}
                     result = process_conversation_brain(message, user_id, state, intent)
@@ -5101,13 +5117,52 @@ class Handler(BaseHTTPRequestHandler):
                     response = execute_decision(decision, message, user_id, new_state)
                     if new_state:
                         save_conversation_state(user_id, new_state)
+                    save_memory(user_id, message, response)
                     self._json({"reply": response})
                     return
-
-                # ── Intent Discovery (Brain decides if clarification needed) ──
-                intent = discover_intent(message)
                 
-                # ── Build state for Brain ──
+                # ── 5. Casual Manager ──
+                if conversation_manager.is_casual_conversation(message)["is_casual"]:
+                    state = get_conversation_state(user_id) or {}
+                    if state.get("awaiting") == "clarification":
+                        state.pop("awaiting", None)
+                        state.pop("question", None)
+                        save_conversation_state(user_id, state)
+                    casual_response = generate_human_response(message, user_id)
+                    save_memory(user_id, message, casual_response)
+                    self._json({"reply": casual_response})
+                    return
+                
+                # ── 6. Intent Discovery ──
+                intent = discover_intent(message)
+                if intent.get("clarification") and not state.get("awaiting"):
+                    state = get_conversation_state(user_id) or {}
+                    state["awaiting"] = "clarification"
+                    state["question"] = intent["clarification"]
+                    save_conversation_state(user_id, state)
+                    response = intent["clarification"]
+                    save_memory(user_id, message, response)
+                    self._json({"reply": response})
+                    return
+                elif state.get("awaiting") == "clarification":
+                    # Handle clarification response
+                    resolved_intent = check_clarification_response(message, user_id)
+                    if resolved_intent:
+                        update_understanding(user_id, {
+                            "resolved_intents": resolved_intent,
+                            "active_goal": resolved_intent
+                        })
+                        state.pop("awaiting", None)
+                        state.pop("question", None)
+                        save_conversation_state(user_id, state)
+                        intent = {"intent": resolved_intent, "confidence": 0.9}
+                    else:
+                        response = "I didn't catch that. Could you clarify?"
+                        save_memory(user_id, message, response)
+                        self._json({"reply": response})
+                        return
+                
+                # ── 7. Build Response ──
                 state = get_conversation_state(user_id) or {}
                 state["goals"] = get_goals(user_id)
                 state["context"] = get_context(user_id)
@@ -5115,17 +5170,41 @@ class Handler(BaseHTTPRequestHandler):
                 resolved_intents = understanding.get("resolved_intents", [])
                 if resolved_intents and not state.get("awaiting"):
                     intent = {"intent": resolved_intents[-1], "confidence": 0.9}
-
-                # ── Conversation Brain (handles everything) ──
+                
                 result = process_conversation_brain(message, user_id, state, intent or {"intent": "general", "confidence": 0.5})
                 decision = result.get("decision", {})
                 new_state = result.get("new_state", {})
                 response = execute_decision(decision, message, user_id, new_state)
-
-                # ── Update State ──
+                
                 if new_state:
                     save_conversation_state(user_id, new_state)
-
+                    if new_state.get("current_goal") or new_state.get("long_term_goal"):
+                        update_goals(user_id, {
+                            "current_goal": new_state.get("current_goal"),
+                            "long_term_goal": new_state.get("long_term_goal"),
+                            "current_task": new_state.get("current_task")
+                        })
+                
+                # ── Save memory ──
+                save_memory(user_id, message, response)
+                
+                # ── Save name if mentioned ──
+                name_match = re.search(r'(?:my name is|call me|i am|i\'m)\s+(\w+)', message.lower())
+                if name_match:
+                    try:
+                        name = name_match.group(1).capitalize()
+                        # Delete old name facts
+                        old_docs = db.collection("users").document(user_id).collection("facts").where("key", "==", "name").stream()
+                        for doc in old_docs:
+                            doc.reference.delete()
+                        db.collection("users").document(user_id).collection("facts").add({
+                            "key": "name",
+                            "value": name,
+                            "timestamp": firestore.SERVER_TIMESTAMP
+                        })
+                    except Exception as e:
+                        print(f"Could not save name: {e}")
+                
                 self._json({"reply": response})
                 
             except Exception as e:
