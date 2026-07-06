@@ -2187,6 +2187,36 @@ def search_knowledge_base(question, threshold=0.72):
     except: pass
     return None
 
+def search_knowledge_base_per_user(question, user_id, threshold=0.72):
+    if not db: return None
+    try:
+        docs = list(db.collection("aria_knowledge")
+                     .where("user_id", "==", user_id)
+                     .where("confidence", ">=", threshold)
+                     .stream())
+        best = None
+        best_score = 0
+        for doc in docs:
+            data = doc.to_dict()
+            score = msg_similarity(question, data.get("question",""))
+            if score > best_score and score >= threshold:
+                best_score = score
+                best = data
+                best["_id"] = doc.id
+        if best:
+            try:
+                db.collection("aria_knowledge").document(best["_id"]).update(
+                    {"uses": best.get("uses",0)+1}
+                )
+            except: pass
+            return {
+                "found": True,
+                "answer": best["answer"],
+                "confidence": round(best_score*100),
+                "stage": best.get("stage","BABY")
+            }
+    except: pass
+    return None
 
 def save_to_knowledge_base(question, answer, rating, topic=None):
     """
@@ -2205,6 +2235,7 @@ def save_to_knowledge_base(question, answer, rating, topic=None):
             "confirmations": 1,
             "stage":       stage,
             "uses":        0,
+            "user_id": user_id,
             "is_verified": False,
             "timestamp":   datetime.now().isoformat()
         })
@@ -3490,7 +3521,8 @@ def ask(m, u, api, system_prompt_override=None):
     if cached:
         return f"{cached}\n\n[✨ From memory]"
     
-    # ── 3. Knowledge base check ────────────────────────
+    # ── 3. Knowledge base check (per‑user first) ──
+    kb_result = search_knowledge_base_per_user(m, u) or search_knowledge_base(m_compressed)
     original_m = m
     m_compressed = compress_message(m, 800)
     kb_result = search_knowledge_base(m_compressed) if len(m_compressed) > 30 else None
