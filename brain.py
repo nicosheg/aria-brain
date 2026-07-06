@@ -4885,7 +4885,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         # ========== ENDPOINTS THAT NEED REQUEST BODY =========
-         # ── /chat ──────────────────────────────────
+        # ── /chat ──────────────────────────────────
         if self.path == "/chat":
             try:
                 data = self._body()
@@ -4908,23 +4908,74 @@ class Handler(BaseHTTPRequestHandler):
                 u = uid_result["aria_uid"]
                 user_id = u
 
-                # ── Load state ──
+                # ── Load conversation state ──
                 state = get_conversation_state(user_id) or {}
                 
-                # ── DEBUG: LOG INCOMING ──
+                # ── DEBUG: Log incoming state ──
                 print(f"\n🔍 [INCOMING] message='{message}'")
                 print(f"📌 [STATE] awaiting={state.get('awaiting')}, question={state.get('question')}")
 
-                # ── PIPELINE: Stage 1: Human First ──
-                print(f"🔧 [STAGE 1] Human First...")
+                # ── STEP 1: Location detection (if user says "I live in X") ──
+                location_detected = None
+                for pattern in [
+                    r'(?:live in|stay at|based in|in|located in|reside in|from)\s+([A-Za-z\s\-]+)',
+                    r'(?:my location is|i am in|i\'m in|i stay at)\s+([A-Za-z\s\-]+)',
+                    r'(?:city is|town is|area is)\s+([A-Za-z\s\-]+)'
+                ]:
+                    match = re.search(pattern, message.lower())
+                    if match:
+                        city = match.group(1).strip()
+                        city = re.sub(r'\b(now|today|currently|right now)\b', '', city).strip()
+                        if len(city) > 1:
+                            location_detected = city
+                            break
+                if location_detected:
+                    save_user_location(user_id, location_detected, "Nigeria")
+                    self._json({"reply": f"Got it! I'll remember you're in {location_detected}. How's the weather there?"})
+                    return
+
+                # ── STEP 2: Human First (identity, time, thanks) ──
                 human = handle_human_first(message, user_id)
                 if human["handled"]:
-                    print(f"✅ [STAGE 1] Human First handled: {human['response'][:50]}...")
                     self._json({"reply": human["response"]})
                     return
 
-                # ── PIPELINE: Stage 2: Pending Session ──
-                print(f"🔧 [STAGE 2] Pending Session...")
+                # ── STEP 3: Memory Query (explicit "remember me" type) ──
+                memory_phrases = ["remember me", "who am i", "what do you know about me", "do you know me", "tell me about myself"]
+                if any(phrase in message.lower() for phrase in memory_phrases):
+                    # Clear any stale clarification
+                    state.pop("awaiting", None)
+                    state.pop("question", None)
+                    save_conversation_state(user_id, state)
+                    
+                    # ── Fetch user facts from Firestore ──
+                    facts = []
+                    try:
+                        docs = db.collection("users").document(user_id).collection("facts").stream()
+                        for doc in docs:
+                            data = doc.to_dict()
+                            facts.append(f"{data['key']}: {data['value']}")
+                    except:
+                        pass
+                    
+                    if facts:
+                        reply = f"I remember: {', '.join(facts)}"
+                    else:
+                        # Fallback to profile
+                        profile = get_or_create_income_profile(user_id)
+                        if profile:
+                            name = profile.get("name", "user")
+                            skills = profile.get("skills", [])
+                            if skills:
+                                reply = f"I remember you, {name}. You have skills: {', '.join(skills)}."
+                            else:
+                                reply = f"I remember you, {name}. You haven't shared your skills yet."
+                        else:
+                            reply = "I don't have much info about you yet. Tell me your name and skills."
+                    self._json({"reply": reply})
+                    return
+
+                # ── STEP 4: Pending Session (continue task) ──
                 session = None
                 try:
                     session = get_pending_session(user_id)
@@ -4933,7 +4984,6 @@ class Handler(BaseHTTPRequestHandler):
                     session = None
                 
                 if session:
-                    print(f"✅ [STAGE 2] Pending Session active: {session.get('action')}")
                     if message.lower().strip() in ["cancel", "nevermind", "stop", "forget it"]:
                         clear_pending_session(user_id)
                         self._json({"reply": "Alright, I've cancelled that request. What would you like to do now?"})
@@ -4949,37 +4999,29 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"reply": response})
                     return
 
-                # ── PIPELINE: Stage 3: Casual Manager ──
-                print(f"🔧 [STAGE 3] Casual Manager...")
+                # ── STEP 5: Casual Manager (STOP if casual) ──
                 if conversation_manager.is_casual_conversation(message)["is_casual"]:
-                    print(f"✅ [STAGE 3] Casual detected! Clearing clarification state...")
                     # Clear stale clarification
                     if state.get("awaiting") == "clarification":
                         state.pop("awaiting", None)
                         state.pop("question", None)
                         save_conversation_state(user_id, state)
-                        print(f"🧹 [STAGE 3] Cleared stale clarification")
                     casual_response = generate_human_response(message, user_id)
-                    print(f"✅ [STAGE 3] Casual response: {casual_response[:50]}...")
                     self._json({"reply": casual_response})
                     return
 
-                # ── PIPELINE: Stage 4: Clarification Check ──
-                print(f"🔧 [STAGE 4] Clarification Check...")
+                # ── STEP 6: Clarification Check ──
                 if state.get("awaiting") == "clarification":
-                    print(f"⚠️ [STAGE 4] Clarification state is ACTIVE")
-                    # ── If user asks for the previous question ──
+                    # ── User asks for previous question ──
                     previous_question_phrases = r'(?:what was|what is|can you repeat|say again|what did you ask|previous question|your question|last question|what\'s the question|what\'s your question|ask again|repeat question)'
                     if re.search(previous_question_phrases, message.lower()):
                         question = state.get("question", "I asked you something earlier. Could you answer it?")
-                        print(f"✅ [STAGE 4] User asked for previous question: {question}")
                         self._json({"reply": f"I asked: {question}"})
                         return
                     
-                    # ── Otherwise, try to resolve the clarification ──
+                    # ── Try to resolve clarification ──
                     resolved_intent = check_clarification_response(message, user_id)
                     if resolved_intent:
-                        print(f"✅ [STAGE 4] Clarification resolved: {resolved_intent}")
                         update_understanding(user_id, {
                             "resolved_intents": resolved_intent,
                             "active_goal": resolved_intent
@@ -4989,45 +5031,64 @@ class Handler(BaseHTTPRequestHandler):
                         save_conversation_state(user_id, state)
                         intent = {"intent": resolved_intent, "confidence": 0.9}
                     else:
-                        print(f"❌ [STAGE 4] Clarification NOT resolved")
                         self._json({"reply": "I didn't catch that. Could you clarify?"})
                         return
                 else:
-                    print(f"✅ [STAGE 4] No clarification state")
-
-                # ── PIPELINE: Stage 5: Intent Discovery ──
-                print(f"🔧 [STAGE 5] Intent Discovery...")
-                if not intent:
+                    # ── No pending clarification → Intent Discovery ──
                     intent = discover_intent(message)
                     if intent.get("clarification"):
-                        print(f"⚠️ [STAGE 5] Intent Discovery needs clarification: {intent['clarification']}")
                         state["awaiting"] = "clarification"
                         state["question"] = intent["clarification"]
+                        # ── Store in Firestore for persistence ──
+                        try:
+                            db.collection("users").document(user_id).collection("conversation_state").document("current").set({
+                                "awaiting": "clarification",
+                                "question": intent["clarification"],
+                                "timestamp": firestore.SERVER_TIMESTAMP
+                            }, merge=True)
+                        except:
+                            pass
                         save_conversation_state(user_id, state)
                         self._json({"reply": intent["clarification"]})
                         return
-                print(f"✅ [STAGE 5] Intent: {intent.get('intent')} (conf: {intent.get('confidence')})")
 
-                # ── PIPELINE: Stage 6: Load Understanding ──
-                print(f"🔧 [STAGE 6] Load Understanding...")
-                goals = get_goals(user_id)
-                state["goals"] = goals
-                state["context"] = get_context(user_id)
+                # ── STEP 7: Load User Understanding from Firestore ──
                 understanding = get_understanding(user_id)
                 resolved_intents = understanding.get("resolved_intents", [])
                 if resolved_intents and not state.get("awaiting"):
                     intent = {"intent": resolved_intents[-1], "confidence": 0.9}
-                print(f"✅ [STAGE 6] Resolved intents: {resolved_intents}")
 
-                # ── PIPELINE: Stage 7: Conversation Brain ──
-                print(f"🔧 [STAGE 7] Conversation Brain...")
+                # ── STEP 8: Retrieve Relevant Memory for Context ──
+                memory_context = ""
+                try:
+                    # Fetch recent facts
+                    facts = []
+                    docs = db.collection("users").document(user_id).collection("facts").order_by("timestamp", direction=firestore.Query.DESCENDING).limit(5).stream()
+                    for doc in docs:
+                        data = doc.to_dict()
+                        facts.append(f"{data['key']}: {data['value']}")
+                    if facts:
+                        memory_context = "RECENT FACTS:\n" + "\n".join(facts) + "\n"
+                    
+                    # Fetch recent goals
+                    goals = get_goals(user_id)
+                    if goals:
+                        memory_context += f"CURRENT GOALS:\n- {goals.get('current_goal', 'None')}\n"
+                except:
+                    pass
+
+                # ── STEP 9: Build Prompt with Memory ──
+                # (This is where memory is injected into the system prompt)
+                # For income/education responses, we'll use a more direct injection.
+                # For general, we can just pass memory_context to the LLM.
+
+                # ── STEP 10: Conversation Brain ──
                 result = process_conversation_brain(message, user_id, state, intent or {"intent": "general", "confidence": 0.5})
                 decision = result.get("decision", {})
                 new_state = result.get("new_state", {})
                 response = execute_decision(decision, message, user_id, new_state)
-                print(f"✅ [STAGE 7] Brain response: {response[:50]}...")
 
-                # ── PIPELINE: Stage 8: Update State ──
+                # ── STEP 11: Update State and Memory ──
                 if new_state:
                     save_conversation_state(user_id, new_state)
                     if new_state.get("current_goal") or new_state.get("long_term_goal"):
@@ -5036,6 +5097,20 @@ class Handler(BaseHTTPRequestHandler):
                             "long_term_goal": new_state.get("long_term_goal"),
                             "current_task": new_state.get("current_task")
                         })
+
+                # ── STEP 12: After response, store any new facts from the conversation ──
+                # Simple example: if user says "my name is X", store it.
+                name_match = re.search(r'(?:my name is|call me|i am|i\'m)\s+(\w+)', message.lower())
+                if name_match:
+                    name = name_match.group(1)
+                    try:
+                        db.collection("users").document(user_id).collection("facts").add({
+                            "key": "name",
+                            "value": name,
+                            "timestamp": firestore.SERVER_TIMESTAMP
+                        })
+                    except:
+                        pass
 
                 self._json({"reply": response})
                 
