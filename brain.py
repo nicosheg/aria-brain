@@ -3624,6 +3624,32 @@ def ask(m, u, api, system_prompt_override=None):
         save_memory(u, original_m, resp)
         cache_response(m, u, resp)
         
+        # ── Store response for future memory (per‑user knowledge base) ──
+        try:
+            if db:
+                # Check if we already have a similar entry for this user
+                existing = list(db.collection("aria_knowledge")
+                               .where("user_id", "==", u)
+                               .where("question", "==", original_m[:200])
+                               .limit(1).stream())
+                if not existing:
+                    stage, _ = get_aria_stage()
+                    db.collection("aria_knowledge").add({
+                        "question": original_m[:200],
+                        "answer": resp[:500],
+                        "topic": detect_topic(original_m),
+                        "confidence": 0.5,          # Not yet verified
+                        "confirmations": 0,
+                        "stage": stage,
+                        "uses": 0,
+                        "user_id": u,
+                        "is_verified": False,
+                        "timestamp": datetime.now().isoformat()
+                    })
+        except Exception as e:
+            # Silent fail – don't break the response
+            print(f"[Memory] Could not store response: {e}")
+        
         # Extract and save name if mentioned
         name_match = re.search(r'(?:my name is|call me|i am)\s+(\w+)', original_m, re.IGNORECASE)
         if name_match:
