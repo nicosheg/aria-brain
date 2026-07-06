@@ -1305,43 +1305,55 @@ def analyze_message(message: str, state: dict, intent: dict) -> dict:
     return analysis
 
 def decide_action(analysis: dict) -> dict:
-    """
-    Decide what to do based on the analysis.
-    Returns a structured Decision object.
-    """
-    # If there's a pending clarification, we need to handle it
-    if analysis["has_clarification_pending"]:
-        return {"action": "handle_clarification", "style": "direct", "module": None, "confidence": 0.9}
+    user_id = analysis.get("user_id")
+    state = analysis.get("state", {})
+    message = analysis.get("message", "")
     
-    # If there's an active workflow, continue it
-    if analysis["has_workflow_active"]:
-        return {"action": "continue_workflow", "style": "guided", "module": None, "confidence": 0.9}
+    # ── Check if clarification is pending ──
+    if state.get("awaiting") == "clarification":
+        # ── User is asking for the previous question ──
+        if re.search(r'(?:what was|what is|can you repeat|say again|what did you ask|previous question|your question|last question)', message.lower()):
+            question = state.get("question", "I asked you something earlier. Could you answer it?")
+            # Return a direct answer – this bypasses the LLM
+            return {
+                "action": "direct_answer",
+                "response": f"I asked: {question}",
+                "module": None,
+                "style": "direct"
+            }
+        
+        # ── Try to resolve clarification ──
+        resolved = check_clarification_response(message, user_id)
+        if resolved:
+            update_understanding(user_id, {
+                "resolved_intents": resolved,
+                "active_goal": resolved
+            })
+            state.pop("awaiting", None)
+            state.pop("question", None)
+            save_conversation_state(user_id, state)
+            return {"action": "continue", "style": "natural", "module": None}
+        else:
+            # ── If user is being casual, clear clarification and respond casually ──
+            if conversation_manager.is_casual_conversation(message)["is_casual"]:
+                state.pop("awaiting", None)
+                state.pop("question", None)
+                save_conversation_state(user_id, state)
+                return {"action": "answer", "style": "casual", "module": None}
+            else:
+                # ── Keep the clarification state and ask again ──
+                return {"action": "ask", "style": "clarify", "module": None}
     
-    # High urgency → execute immediately
+    # ── No pending clarification ──
     if analysis["urgency"] > 0.7:
         return {"action": "execute", "style": "direct", "module": None, "confidence": 0.8}
-    
-    # Direct command (from Human First – already handled, but fallback)
-    if analysis["intent"] == "direct_command":
-        return {"action": "execute", "style": "direct", "module": None, "confidence": 0.8}
-    
-    # High ambiguity → ask clarification
-    if analysis["ambiguity"] > 0.6:
-        return {"action": "ask", "style": "clarify", "module": None, "confidence": 0.7}
-    
-    # Education intent → guide
     if analysis["intent"] == "education":
         return {"action": "guide", "style": "step_by_step", "module": "education", "confidence": 0.9}
-    
-    # Income intent → answer with action
     if analysis["intent"] == "personal_income":
         return {"action": "answer", "style": "actionable", "module": "income", "confidence": 0.9}
-    
-    # Research intent → answer
     if analysis["intent"] == "research":
         return {"action": "answer", "style": "informative", "module": None, "confidence": 0.8}
     
-    # Default → natural conversation
     return {"action": "answer", "style": "natural", "module": None, "confidence": 0.6}
 
 def process_conversation_brain(message: str, user_id: str, state: dict, intent: dict) -> dict:
@@ -1484,50 +1496,46 @@ module_registry = ModuleRegistry()
 # ════════════════════════════════════════════════════════════════════
 
 def execute_decision(decision: dict, message: str, user_id: str, state: dict) -> str:
-    """
-    Execute the decision and generate the final response.
-    """
     action = decision.get("action")
     style = decision.get("style", "natural")
     module_name = decision.get("module")
     
-    # If there's a pending clarification, handle it
+    # ── Direct answer (bypass LLM) ──
+    if action == "direct_answer" and decision.get("response"):
+        return decision.get("response")
+    
     if action == "handle_clarification":
-        # This should be handled earlier – just return a placeholder
         return "I'm waiting for your clarification. Could you respond to my previous question?"
     
-    # If there's an active workflow, continue it
+    # ── Continue workflow ──
     if action == "continue_workflow":
-        # Process the workflow step
         result = process_workflow_step(user_id, message, state)
         return result.get("response", "Let's continue. What would you like to do?")
     
-    # If action is "execute" or "answer" or "guide"
+    # ── Execute/answer/guide ──
     if action in ["execute", "answer", "guide"]:
-        # For income module, we might want to call the income module explicitly
-        if module_name == "income" and not state.get("onboarding_complete"):
-            # Start income onboarding
-            result = start_income_onboarding(user_id, message, 1)
-            return result.get("reply", "Tell me about your income goal.")
+        if module_name == "income":
+            income_profile = get_or_create_income_profile(user_id)
+            if income_profile:
+                knowledge = get_relevant_income_knowledge(message)
+                system_prompt = build_income_system_prompt(income_profile, knowledge, state.get("current_path"))
+                response = call_llm(system_prompt, message)
+                return response or "Let me help you with that."
+            else:
+                result = start_income_onboarding(user_id, message, 1)
+                return result.get("reply", "Tell me about your income goals.")
         
-        # For education, we could call a specific education handler
         if module_name == "education":
-            # Use a specific prompt for education
-            prompt = f"You are a helpful tutor. The user asked: {message}. Provide a clear, helpful response."
-            response = call_llm(SP, prompt)
-            return response or "I'd be happy to help you learn. What subject are you studying?"
+            response = call_llm(SP, message)
+            return response or "I'd be happy to help you learn. What subject?"
         
-        # For general, use the LLM adapter with the core system prompt
         response = call_llm(SP, message)
         return response or "I'm thinking. Please give me a moment."
     
-    # If action is "ask" → ask a clarification question
     if action == "ask":
-        if style == "clarify":
-            return "Could you give me more details so I can understand better?"
-        return "What would you like to know?"
+        return "Could you give me more details so I can help better?"
     
-    # Fallback
+    # ── Fallback ──
     response = call_llm(SP, message)
     return response or "I'm having trouble. Please try again."
 
@@ -4950,7 +4958,6 @@ class Handler(BaseHTTPRequestHandler):
                 message = data.get("message", "").strip()
                 email = data.get("email", "").strip().lower()
                 
-                # ── Input sanitization ──
                 if not message:
                     self._json({"reply": "I didn't catch that. Can you repeat?"})
                     return
@@ -4963,18 +4970,16 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"error": uid_result["error"]}, 500)
                     return
                 
-                u = uid_result["aria_uid"]
-                user_id = u
-
-                # ── Load conversation state ──
+                user_id = uid_result["aria_uid"]
                 state = get_conversation_state(user_id) or {}
-                
-                # ── DEBUG: Log incoming state ──
-                print(f"\n🔍 [INCOMING] message='{message}'")
-                print(f"📌 [STATE] awaiting={state.get('awaiting')}, question={state.get('question')}")
 
-                # ── STEP 1: Location detection (if user says "I live in X") ──
-                location_detected = None
+                # ── Human First ──
+                human = handle_human_first(message, user_id)
+                if human["handled"]:
+                    self._json({"reply": human["response"]})
+                    return
+
+                # ── Location detection ──
                 for pattern in [
                     r'(?:live in|stay at|based in|in|located in|reside in|from)\s+([A-Za-z\s\-]+)',
                     r'(?:my location is|i am in|i\'m in|i stay at)\s+([A-Za-z\s\-]+)',
@@ -4985,28 +4990,17 @@ class Handler(BaseHTTPRequestHandler):
                         city = match.group(1).strip()
                         city = re.sub(r'\b(now|today|currently|right now)\b', '', city).strip()
                         if len(city) > 1:
-                            location_detected = city
-                            break
-                if location_detected:
-                    save_user_location(user_id, location_detected, "Nigeria")
-                    self._json({"reply": f"Got it! I'll remember you're in {location_detected}. How's the weather there?"})
-                    return
+                            save_user_location(user_id, city, "Nigeria")
+                            self._json({"reply": f"Got it! I'll remember you're in {city}."})
+                            return
+                        break
 
-                # ── STEP 2: Human First (identity, time, thanks) ──
-                human = handle_human_first(message, user_id)
-                if human["handled"]:
-                    self._json({"reply": human["response"]})
-                    return
-
-                # ── STEP 3: Memory Query (explicit "remember me" type) ──
+                # ── Memory Query ──
                 memory_phrases = ["remember me", "who am i", "what do you know about me", "do you know me", "tell me about myself"]
                 if any(phrase in message.lower() for phrase in memory_phrases):
-                    # Clear any stale clarification
                     state.pop("awaiting", None)
                     state.pop("question", None)
                     save_conversation_state(user_id, state)
-                    
-                    # ── Fetch user facts from Firestore ──
                     facts = []
                     try:
                         docs = db.collection("users").document(user_id).collection("facts").stream()
@@ -5015,36 +5009,30 @@ class Handler(BaseHTTPRequestHandler):
                             facts.append(f"{data['key']}: {data['value']}")
                     except:
                         pass
-                    
                     if facts:
                         reply = f"I remember: {', '.join(facts)}"
                     else:
-                        # Fallback to profile
                         profile = get_or_create_income_profile(user_id)
                         if profile:
                             name = profile.get("name", "user")
                             skills = profile.get("skills", [])
-                            if skills:
-                                reply = f"I remember you, {name}. You have skills: {', '.join(skills)}."
-                            else:
-                                reply = f"I remember you, {name}. You haven't shared your skills yet."
+                            reply = f"I remember you, {name}." + (f" You have skills: {', '.join(skills)}." if skills else "")
                         else:
                             reply = "I don't have much info about you yet. Tell me your name and skills."
                     self._json({"reply": reply})
                     return
 
-                # ── STEP 4: Pending Session (continue task) ──
+                # ── Pending Session ──
                 session = None
                 try:
                     session = get_pending_session(user_id)
                 except Exception as e:
                     log_error("pending_session", "fetch_failed", e, user_id=user_id)
                     session = None
-                
                 if session:
                     if message.lower().strip() in ["cancel", "nevermind", "stop", "forget it"]:
                         clear_pending_session(user_id)
-                        self._json({"reply": "Alright, I've cancelled that request. What would you like to do now?"})
+                        self._json({"reply": "Alright, cancelled. What would you like to do now?"})
                         return
                     state = get_conversation_state(user_id) or {}
                     intent = {"intent": "continue_workflow", "confidence": 1.0}
@@ -5057,79 +5045,27 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"reply": response})
                     return
 
-                # ── STEP 5: Casual Manager (STOP if casual) ──
-                if conversation_manager.is_casual_conversation(message)["is_casual"]:
-                    # Clear stale clarification
-                    if state.get("awaiting") == "clarification":
-                        state.pop("awaiting", None)
-                        state.pop("question", None)
-                        save_conversation_state(user_id, state)
-                    casual_response = generate_human_response(message, user_id)
-                    self._json({"reply": casual_response})
-                    return
-
-                # ── STEP 6: Clarification DISABLED (let Brain/LLM handle) ──
-                pass
-
-                # ── STEP 7: Load User Understanding from Firestore ──
+                # ── Intent Discovery (Brain decides if clarification needed) ──
+                intent = discover_intent(message)
+                
+                # ── Build state for Brain ──
+                state = get_conversation_state(user_id) or {}
+                state["goals"] = get_goals(user_id)
+                state["context"] = get_context(user_id)
                 understanding = get_understanding(user_id)
                 resolved_intents = understanding.get("resolved_intents", [])
                 if resolved_intents and not state.get("awaiting"):
                     intent = {"intent": resolved_intents[-1], "confidence": 0.9}
 
-                # ── STEP 8: Retrieve Relevant Memory for Context ──
-                memory_context = ""
-                try:
-                    # Fetch recent facts
-                    facts = []
-                    docs = db.collection("users").document(user_id).collection("facts").order_by("timestamp", direction=firestore.Query.DESCENDING).limit(5).stream()
-                    for doc in docs:
-                        data = doc.to_dict()
-                        facts.append(f"{data['key']}: {data['value']}")
-                    if facts:
-                        memory_context = "RECENT FACTS:\n" + "\n".join(facts) + "\n"
-                    
-                    # Fetch recent goals
-                    goals = get_goals(user_id)
-                    if goals:
-                        memory_context += f"CURRENT GOALS:\n- {goals.get('current_goal', 'None')}\n"
-                except:
-                    pass
-
-                # ── STEP 9: Build Prompt with Memory ──
-                # (This is where memory is injected into the system prompt)
-                # For income/education responses, we'll use a more direct injection.
-                # For general, we can just pass memory_context to the LLM.
-
-                # ── STEP 10: Conversation Brain ──
+                # ── Conversation Brain (handles everything) ──
                 result = process_conversation_brain(message, user_id, state, intent or {"intent": "general", "confidence": 0.5})
                 decision = result.get("decision", {})
                 new_state = result.get("new_state", {})
                 response = execute_decision(decision, message, user_id, new_state)
 
-                # ── STEP 11: Update State and Memory ──
+                # ── Update State ──
                 if new_state:
                     save_conversation_state(user_id, new_state)
-                    if new_state.get("current_goal") or new_state.get("long_term_goal"):
-                        update_goals(user_id, {
-                            "current_goal": new_state.get("current_goal"),
-                            "long_term_goal": new_state.get("long_term_goal"),
-                            "current_task": new_state.get("current_task")
-                        })
-
-                # ── STEP 12: After response, store any new facts from the conversation ──
-                # Simple example: if user says "my name is X", store it.
-                name_match = re.search(r'(?:my name is|call me|i am|i\'m)\s+(\w+)', message.lower())
-                if name_match:
-                    name = name_match.group(1)
-                    try:
-                        db.collection("users").document(user_id).collection("facts").add({
-                            "key": "name",
-                            "value": name,
-                            "timestamp": firestore.SERVER_TIMESTAMP
-                        })
-                    except:
-                        pass
 
                 self._json({"reply": response})
                 
