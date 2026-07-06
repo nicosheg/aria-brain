@@ -3590,10 +3590,18 @@ def ask(m, u, api, system_prompt_override=None):
     if cached:
         return f"{cached}\n\n[✨ From cache]"
     
-    # ── 3. PERSONAL FACTS (name, favorites, etc.) ──
-    user_facts_string = get_user_facts_string(u)
-    if user_facts_string:
-        # Check if the question is about personal info
+    # ── 3. DIRECT FIRESTORE FACT RETRIEVAL (personal info) ──
+    personal_facts = []
+    try:
+        docs = db.collection("users").document(u).collection("facts").stream()
+        for doc in docs:
+            data = doc.to_dict()
+            personal_facts.append(f"{data['key']}: {data['value']}")
+    except Exception as e:
+        print(f"Fact retrieval error: {e}")
+    
+    if personal_facts:
+        fact_string = "I know about you: " + ", ".join(personal_facts)
         personal_keywords = [
             "my name", "what's my name", "who am i", "what do you know about me",
             "favorite", "my phone", "my location", "where do i live",
@@ -3601,14 +3609,14 @@ def ask(m, u, api, system_prompt_override=None):
             "what do you remember", "tell me about myself", "what do you know me"
         ]
         if any(keyword in m.lower() for keyword in personal_keywords):
-            return f"{user_facts_string}\n\n[💡 From your personal facts]"
+            return f"{fact_string}\n\n[💡 From your personal facts]"
     
     # ── 4. Per‑user memory (past high‑rated responses) ──
     user_memory = search_user_memory(m_compressed, u)
     if user_memory:
         return f"{user_memory}\n\n[💡 From your memory]"
     
-    # ── 5. Global knowledge base (shared across users) ──
+    # ── 5. Global knowledge base ──
     kb_result = search_knowledge_base(m_compressed) if len(m_compressed) > 30 else None
     if kb_result and kb_result["found"]:
         stage, _ = get_aria_stage()
@@ -3678,7 +3686,7 @@ def ask(m, u, api, system_prompt_override=None):
     
     prompt = f"{memory_section}TIME (Lagos): {cd}\n\n{m}{meta}"
     
-    # ── 11. LLM call (slowest) ──
+    # ── 11. LLM call ──
     resp = try_all_apis_parallel(prompt, final_sp)
     
     if resp:
@@ -3726,26 +3734,9 @@ def ask(m, u, api, system_prompt_override=None):
         except Exception as e:
             print(f"[Memory] Could not store response: {e}")
         
-        # ── Save name if mentioned (manual update) ──
-        name_match = re.search(r'(?:my name is|call me|i am|i\'m)\s+(\w+)', original_m, re.IGNORECASE)
-        if name_match:
-            try:
-                name = name_match.group(1).capitalize()
-                # Delete old name facts
-                old_docs = db.collection("users").document(u).collection("facts").where("key", "==", "name").stream()
-                for doc in old_docs:
-                    doc.reference.delete()
-                db.collection("users").document(u).collection("facts").add({
-                    "key": "name",
-                    "value": name,
-                    "timestamp": firestore.SERVER_TIMESTAMP
-                })
-            except Exception as e:
-                print(f"Could not save name: {e}")
-        
         return resp
     
-    # ── 12. Fallback to cache ──
+    # ── 12. Fallback ──
     fallback = get_cached(m, u)
     if fallback:
         return f"[From memory] {fallback}\n\n(APIs busy, serving saved knowledge)"
@@ -5052,7 +5043,6 @@ class Handler(BaseHTTPRequestHandler):
                 user_id = u
                 
                 # ── 1. Location detection ──
-                location_detected = None
                 for pattern in [
                     r'(?:live in|stay at|based in|in|located in|reside in|from)\s+([A-Za-z\s\-]+)',
                     r'(?:my location is|i am in|i\'m in|i stay at)\s+([A-Za-z\s\-]+)',
@@ -5063,14 +5053,11 @@ class Handler(BaseHTTPRequestHandler):
                         city = match.group(1).strip()
                         city = re.sub(r'\b(now|today|currently|right now)\b', '', city).strip()
                         if len(city) > 1:
-                            location_detected = city
-                            break
-                if location_detected:
-                    save_user_location(user_id, location_detected, "Nigeria")
-                    response = f"Got it! I'll remember you're in {location_detected}."
-                    save_memory(user_id, message, response)
-                    self._json({"reply": response})
-                    return
+                            save_user_location(user_id, city, "Nigeria")
+                            response = f"Got it! I'll remember you're in {city}."
+                            save_memory(user_id, message, response)
+                            self._json({"reply": response})
+                            return
                 
                 # ── 2. Human First ──
                 human = handle_human_first(message, user_id)
@@ -5079,16 +5066,14 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"reply": human["response"]})
                     return
                 
-                # ── 3. Memory Query (direct fact retrieval) ──
+                # ── 3. Memory Query (explicit facts) ──
                 memory_phrases = ["remember me", "who am i", "what do you know about me", "do you know me", "tell me about myself"]
                 if any(phrase in message.lower() for phrase in memory_phrases):
-                    # Clear stale clarification
                     state = get_conversation_state(user_id) or {}
                     state.pop("awaiting", None)
                     state.pop("question", None)
                     save_conversation_state(user_id, state)
                     
-                    # Fetch facts directly
                     facts = []
                     try:
                         docs = db.collection("users").document(user_id).collection("facts").stream()
@@ -5154,8 +5139,9 @@ class Handler(BaseHTTPRequestHandler):
                 
                 # ── 6. Intent Discovery ──
                 intent = discover_intent(message)
+                state = get_conversation_state(user_id) or {}
+                
                 if intent.get("clarification") and not state.get("awaiting"):
-                    state = get_conversation_state(user_id) or {}
                     state["awaiting"] = "clarification"
                     state["question"] = intent["clarification"]
                     save_conversation_state(user_id, state)
@@ -5164,7 +5150,6 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"reply": response})
                     return
                 elif state.get("awaiting") == "clarification":
-                    # Handle clarification response
                     resolved_intent = check_clarification_response(message, user_id)
                     if resolved_intent:
                         update_understanding(user_id, {
@@ -5176,10 +5161,18 @@ class Handler(BaseHTTPRequestHandler):
                         save_conversation_state(user_id, state)
                         intent = {"intent": resolved_intent, "confidence": 0.9}
                     else:
-                        response = "I didn't catch that. Could you clarify?"
-                        save_memory(user_id, message, response)
-                        self._json({"reply": response})
-                        return
+                        # Check if user asked for the previous question
+                        if re.search(r'(?:what was|what is|can you repeat|say again|what did you ask|previous question|your question|last question)', message.lower()):
+                            question = state.get("question", "I asked you something earlier. Could you answer it?")
+                            response = f"I asked: {question}"
+                            save_memory(user_id, message, response)
+                            self._json({"reply": response})
+                            return
+                        else:
+                            response = "I didn't catch that. Could you clarify?"
+                            save_memory(user_id, message, response)
+                            self._json({"reply": response})
+                            return
                 
                 # ── 7. Build Response ──
                 state = get_conversation_state(user_id) or {}
@@ -5207,12 +5200,12 @@ class Handler(BaseHTTPRequestHandler):
                 # ── Save memory ──
                 save_memory(user_id, message, response)
                 
-                # ── Save name if mentioned ──
+                # ── FORCE SAVE NAME IF MENTIONED ──
                 name_match = re.search(r'(?:my name is|call me|i am|i\'m)\s+(\w+)', message.lower())
                 if name_match:
                     try:
                         name = name_match.group(1).capitalize()
-                        # Delete old name facts
+                        # Delete old name fact
                         old_docs = db.collection("users").document(user_id).collection("facts").where("key", "==", "name").stream()
                         for doc in old_docs:
                             doc.reference.delete()
@@ -5221,8 +5214,9 @@ class Handler(BaseHTTPRequestHandler):
                             "value": name,
                             "timestamp": firestore.SERVER_TIMESTAMP
                         })
+                        print(f"[NAME] Saved '{name}' for user {user_id}")
                     except Exception as e:
-                        print(f"Could not save name: {e}")
+                        print(f"[NAME] Error saving name: {e}")
                 
                 self._json({"reply": response})
                 
