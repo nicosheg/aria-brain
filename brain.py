@@ -3429,6 +3429,45 @@ def generate_human_response(message: str, user_id: str = None) -> str:
         return random.choice(fallbacks) + f" Anything on your mind, {user_name}?"
     return random.choice(fallbacks)
 
+def get_user_facts_string(user_id):
+    """Fetch all user facts as a readable string."""
+    if not db:
+        return ""
+    try:
+        docs = db.collection("users").document(user_id).collection("facts").stream()
+        facts = []
+        for doc in docs:
+            data = doc.to_dict()
+            facts.append(f"{data['key']}: {data['value']}")
+        if facts:
+            return "I know about you: " + ", ".join(facts)
+        return ""
+    except Exception as e:
+        print(f"get_user_facts_string error: {e}")
+        return ""
+
+def search_user_memory(message, user_id):
+    """Search user's past high‑rated responses for similar questions."""
+    if not db:
+        return None
+    try:
+        ratings = list(db.collection("users").document(user_id).collection("ratings")
+                       .where("rating", ">=", 4)
+                       .order_by("timestamp", direction=firestore.Query.DESCENDING)
+                       .limit(10).stream())
+        best = None
+        best_score = 0
+        for doc in ratings:
+            data = doc.to_dict()
+            score = msg_similarity(message, data.get("message", ""))
+            if score > 0.7 and score > best_score:
+                best_score = score
+                best = data.get("response")
+        return best
+    except Exception as e:
+        print(f"search_user_memory error: {e}")
+        return None
+
 def get_memory_breakdown():
     """Full memory usage report for /memory-debug endpoint"""
     import sys
@@ -3527,86 +3566,77 @@ def ask(m, u, api, system_prompt_override=None):
     original_m = m
     m_compressed = compress_message(m, 800)
     
-    # ── 2. Cache check (fastest) ────────────────────
+    # ── 2. Cache check (fastest) ──────────────────
     cached = get_cached(m, u)
     if cached:
         return f"{cached}\n\n[✨ From cache]"
     
-    # ── 3. Per‑user memory check ────────────────────
+    # ── 3. PERSONAL FACTS (name, favorites, etc.) ──
+    user_facts_string = get_user_facts_string(u)
+    if user_facts_string:
+        # Check if the question is about personal info
+        personal_keywords = [
+            "my name", "what's my name", "who am i", "what do you know about me",
+            "favorite", "my phone", "my location", "where do i live",
+            "my age", "how old am i", "my email", "my job", "my school",
+            "what do you remember", "tell me about myself", "what do you know me"
+        ]
+        if any(keyword in m.lower() for keyword in personal_keywords):
+            return f"{user_facts_string}\n\n[💡 From your personal facts]"
+    
+    # ── 4. Per‑user memory (past high‑rated responses) ──
     user_memory = search_user_memory(m_compressed, u)
     if user_memory:
         return f"{user_memory}\n\n[💡 From your memory]"
     
-    # ── 4. Global knowledge base ────────────────────
+    # ── 5. Global knowledge base (shared across users) ──
     kb_result = search_knowledge_base(m_compressed) if len(m_compressed) > 30 else None
     if kb_result and kb_result["found"]:
         stage, _ = get_aria_stage()
         prefix = get_stage_prefix(stage)
         return f"{prefix}\n\n{kb_result['answer']}\n\n[🧠 {kb_result['confidence']}% confidence]"
     
-    # ── 5. Load conversation history ──
+    # ── 6. Load conversation history ──
     if is_new_session(u):
         cx = get_full_history(u)
     else:
         cx = get_context(u)
     
-    # ── 6. Load facts from PostgreSQL and Firestore ──
+    # ── 7. Load PostgreSQL facts ──
     try:
         user_memory_data = load_user_memory(u)
         if user_memory_data["facts"]:
-            user_facts = "\n".join([f"- {f['content']}" for f in user_memory_data["facts"]])
+            user_facts_pg = "\n".join([f"- {f['content']}" for f in user_memory_data["facts"]])
         else:
-            user_facts = ""
+            user_facts_pg = ""
     except Exception as e:
         print(f"Memory load error: {e}")
-        user_facts = ""
+        user_facts_pg = ""
     
-    # ── 7. Load adaptive scores ──
+    # ── 8. Adaptive scores ──
     adaptive = load_adaptive_scores(u)
     adaptive_summary = ""
     if adaptive.get("learning_style"):
-        adaptive_summary += f"User learning style (probabilities): {json.dumps(adaptive['learning_style'])}\n"
+        adaptive_summary += f"Learning style: {json.dumps(adaptive['learning_style'])}\n"
     if adaptive.get("communication_preference"):
-        adaptive_summary += f"User communication preference: {json.dumps(adaptive['communication_preference'])}\n"
+        adaptive_summary += f"Communication: {json.dumps(adaptive['communication_preference'])}\n"
     if adaptive.get("decision_pattern"):
-        adaptive_summary += f"User decision pattern: {json.dumps(adaptive['decision_pattern'])}\n"
+        adaptive_summary += f"Decision: {json.dumps(adaptive['decision_pattern'])}\n"
     
-    # ── 8. Build memory section ──
+    # ── 9. Build memory section ──
     memory_section = ""
     if cx:
         memory_section += f"## RECENT CONVERSATION\n{cx}\n\n"
-    if user_facts:
-        memory_section += f"### KNOWN FACTS:\n{user_facts}\n\n"
+    if user_facts_pg:
+        memory_section += f"### KNOWN FACTS:\n{user_facts_pg}\n\n"
     if adaptive_summary:
         memory_section += f"### ADAPTIVE PROBABILITIES\n{adaptive_summary}\n\n"
     
-    # ── 9. Get user name (Firestore → email fallback) ──
-    user_name = None
-    try:
-        # Check Firestore facts for "name" key
-        docs = db.collection("users").document(u).collection("facts").where("key", "==", "name").stream()
-        for doc in docs:
-            user_name = doc.to_dict().get("value")
-            break
-    except:
-        pass
-    
-    # If no name in Firestore, use email prefix
-    if not user_name:
-        try:
-            # email is available as a global variable? We need to pass it or fetch from Firestore.
-            # But we can get it from the user's profile or just use "friend".
-            # Since we don't have email here, we'll fetch from generate_aria_uid? Not straightforward.
-            # Best: fallback to "friend"
-            user_name = "friend"
-        except:
-            user_name = "friend"
-    
-    # ── 10. Build system prompt with name and facts ──
+    # ── 10. Build system prompt ──
     nz = timezone(timedelta(hours=1))
     cd = datetime.now(nz).strftime("%A, %B %d, %Y at %H:%M")
     is_owner = (u == OWNER_UID) if OWNER_UID else False
-    owner_note = "\n[OWNER MODE ACTIVE — Push harder]" if is_owner else ""
+    owner_note = "\n[OWNER MODE — Push harder]" if is_owner else ""
     tone = detect_tone(m, u)
     mode = detect_mode(m, u)
     topic = detect_topic(m)
@@ -3617,7 +3647,6 @@ def ask(m, u, api, system_prompt_override=None):
     lesson_injection = get_relevant_lessons(m)
     behavior_guidance = get_behavior_guidance()
     
-    # ── Build final system prompt ──
     final_sp = SP
     if lesson_injection or behavior_guidance:
         final_sp = final_sp + "\n\n## LEARNED PATTERNS\n" + lesson_injection + behavior_guidance
@@ -3625,28 +3654,12 @@ def ask(m, u, api, system_prompt_override=None):
     if adaptive_summary:
         final_sp += f"\n\nUSER ADAPTIVE PROFILE:\n{adaptive_summary}\n\n"
     
-    # ── Inject user name and facts ──
-    facts_string = ""
-    try:
-        docs = db.collection("users").document(u).collection("facts").stream()
-        facts = []
-        for doc in docs:
-            data = doc.to_dict()
-            facts.append(f"{data['key']}: {data['value']}")
-        if facts:
-            facts_string = "\n\nUSER FACTS:\n" + "\n".join(facts) + "\n"
-    except:
-        pass
-    
-    final_sp = final_sp + f"\n\nUSER NAME: {user_name}\n" + facts_string
-    
     if system_prompt_override:
         final_sp = system_prompt_override
     
-    # ── Build prompt ──
     prompt = f"{memory_section}TIME (Lagos): {cd}\n\n{m}{meta}"
     
-    # ── 11. LLM call ──
+    # ── 11. LLM call (slowest) ──
     resp = try_all_apis_parallel(prompt, final_sp)
     
     if resp:
@@ -3655,7 +3668,7 @@ def ask(m, u, api, system_prompt_override=None):
         pending = get_pending_goal(u)
         if goal and not pending:
             set_pending_goal(u, goal)
-            resp += f"\n\nShould I remember \"{goal}\" as a long-term goal?"
+            resp += f"\n\nShould I remember \"{goal}\" as a long-term goal? (Say yes or no)"
         elif pending:
             user_response = original_m.lower().strip()
             if user_response in ["yes", "yeah", "yep", "sure", "ok", "okay"]:
@@ -3670,7 +3683,7 @@ def ask(m, u, api, system_prompt_override=None):
         save_memory(u, original_m, resp)
         cache_response(m, u, resp)
         
-        # ── Store for future memory (per‑user) ──
+        # ── Store response for future per‑user memory ──
         try:
             if db:
                 existing = list(db.collection("aria_knowledge")
@@ -3694,30 +3707,30 @@ def ask(m, u, api, system_prompt_override=None):
         except Exception as e:
             print(f"[Memory] Could not store response: {e}")
         
-        # ── Save name if mentioned (update Firestore) ──
+        # ── Save name if mentioned (manual update) ──
         name_match = re.search(r'(?:my name is|call me|i am|i\'m)\s+(\w+)', original_m, re.IGNORECASE)
         if name_match:
-            name = name_match.group(1)
             try:
-                # Check if already exists, update if yes
-                existing = list(db.collection("users").document(u).collection("facts").where("key", "==", "name").stream())
-                if existing:
-                    existing[0].reference.update({"value": name, "updated_at": firestore.SERVER_TIMESTAMP})
-                else:
-                    db.collection("users").document(u).collection("facts").add({
-                        "key": "name",
-                        "value": name,
-                        "timestamp": firestore.SERVER_TIMESTAMP
-                    })
+                name = name_match.group(1).capitalize()
+                # Delete old name facts
+                old_docs = db.collection("users").document(u).collection("facts").where("key", "==", "name").stream()
+                for doc in old_docs:
+                    doc.reference.delete()
+                db.collection("users").document(u).collection("facts").add({
+                    "key": "name",
+                    "value": name,
+                    "timestamp": firestore.SERVER_TIMESTAMP
+                })
             except Exception as e:
-                print(f"[Name] Could not store name: {e}")
+                print(f"Could not save name: {e}")
         
         return resp
     
-    # ── 12. Fallback ──
+    # ── 12. Fallback to cache ──
     fallback = get_cached(m, u)
     if fallback:
         return f"[From memory] {fallback}\n\n(APIs busy, serving saved knowledge)"
+    
     return "I'm thinking slower than usual right now. Give me a moment? 🤔"
 # ════════════════════════════════════════════════════════════════════
 # [S10] HTML UI
