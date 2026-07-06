@@ -4993,9 +4993,16 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"reply": casual_response})
                     return
 
-                # ── STEP 5: Clarification Check (ONLY if NOT casual) ──
+                # ── STEP 5: Clarification Check ──
                 if state.get("awaiting") == "clarification":
-                    # User is responding to a clarification
+                    # ── If user asks for the previous question ──
+                    previous_question_phrases = r'(?:what was|what is|can you repeat|say again|what did you ask|previous question|your question)'
+                    if re.search(previous_question_phrases, message.lower()):
+                        question = state.get("question", "I asked you something earlier. Could you answer it?")
+                        self._json({"reply": f"I asked: {question}"})
+                        return
+                    
+                    # ── Otherwise, try to resolve the clarification ──
                     resolved_intent = check_clarification_response(message, user_id)
                     if resolved_intent:
                         update_understanding(user_id, {
@@ -5009,7 +5016,6 @@ class Handler(BaseHTTPRequestHandler):
                     else:
                         self._json({"reply": "I didn't catch that. Could you clarify?"})
                         return
-                else:
                     # ── STEP 6: Intent Discovery ──
                     intent = discover_intent(message)
                     if intent.get("clarification"):
