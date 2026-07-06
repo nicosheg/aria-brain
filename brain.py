@@ -1076,6 +1076,44 @@ def clear_understanding(user_id: str):
     save_conversation_state(user_id, state)
 
 # ════════════════════════════════════════════════════════════════════
+# CONVERSATION MODE – Pause/resume tasks naturally
+# ════════════════════════════════════════════════════════════════════
+
+def get_conversation_mode(user_id: str) -> str:
+    """Get current conversation mode. Default: 'NORMAL'."""
+    state = get_conversation_state(user_id) or {}
+    return state.get("conversation_mode", "NORMAL")
+
+def set_conversation_mode(user_id: str, mode: str):
+    """Set current conversation mode."""
+    state = get_conversation_state(user_id) or {}
+    state["conversation_mode"] = mode
+    save_conversation_state(user_id, state)
+
+def suspend_and_resume(user_id: str, mode: str):
+    """
+    Temporarily switch mode, preserving previous mode.
+    Call this before switching to a temporary mode (e.g., CASUAL).
+    """
+    state = get_conversation_state(user_id) or {}
+    state["_previous_mode"] = state.get("conversation_mode", "NORMAL")
+    state["conversation_mode"] = mode
+    save_conversation_state(user_id, state)
+
+def resume_previous_mode(user_id: str):
+    """Resume the mode that was active before suspension."""
+    state = get_conversation_state(user_id) or {}
+    if state.get("_previous_mode"):
+        state["conversation_mode"] = state["_previous_mode"]
+        state["_previous_mode"] = None
+        save_conversation_state(user_id, state)
+
+def is_mode_active(user_id: str) -> bool:
+    """Check if user is in an active task mode (not NORMAL or CASUAL)."""
+    mode = get_conversation_mode(user_id)
+    return mode in ["CLARIFICATION", "TASK", "WORKFLOW"]
+
+# ════════════════════════════════════════════════════════════════════
 # [S3.8] WORKFLOW ENGINE – Generic, configuration-driven workflow engine
 # ════════════════════════════════════════════════════════════════════
 """
