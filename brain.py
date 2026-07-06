@@ -463,9 +463,6 @@ firebase_breaker = CircuitBreaker(failure_threshold=3, recovery_time=30)
 # ════════════════════════════════════════════════════════════════════
 # [S3.3] CONVERSATION MANAGER – Handles casual chat naturally
 # ════════════════════════════════════════════════════════════════════
-# Handles casual, non-specialized conversations.
-# Detects when a user is just chatting and responds naturally.
-
 import re
 import random
 
@@ -482,7 +479,14 @@ class ConversationManager:
             r'\b(thanks|thank you|appreciate|gracias)\b',
             r'\b(lol|lmao|haha|funny|joke)\b',
             r'\b(okay|ok|alright|got it|understood)\b',
-            r'\b(bye|goodbye|see you|later|catch you)\b'
+            r'\b(bye|goodbye|see you|later|catch you)\b',
+            # ── Expanded casual patterns ──
+            r'\b(how are you|how are ya|how you doing|how\'s it going|how dey|how far|wassup|what\'s up|sup|hey|hi|hello)\b',
+            r'\b(bored|gist|chill|relax|just passing|nothing much|just saying)\b',
+            r'\b(😂|😄|😊|😅|🤔|💀|🙄)\b',
+            r'\b(lol|lmao|haha|hehe|rofl)\b',
+            r'\b(thanks|thank you|appreciate it|gracias)\b',
+            r'\b(good morning|good afternoon|good evening|good night|morning|evening)\b'
         ]
 
     def is_casual_conversation(self, message: str) -> dict:
@@ -592,15 +596,11 @@ def handle_casual_conversation(message: str, user_id: str = None) -> dict:
 # ════════════════════════════════════════════════════════════════════
 # [S3.4] INTENT DISCOVERY – Classifies user intent before routing
 # ════════════════════════════════════════════════════════════════════
-"""
-Intent Discovery classifies what the user wants before any specialized flow.
-It returns an intent with confidence score, and asks clarification if uncertain.
-"""
-
 import re
+from typing import Optional, Dict, Any
 
 class IntentDiscovery:
-    """Detects user intent and confidence score."""
+    """Detects user intent and confidence score with obvious‑intent pre‑check."""
 
     def __init__(self):
         self.intents = {
@@ -624,33 +624,55 @@ class IntentDiscovery:
                 "personal_indicators": ["my", "i need", "i want", "help me", "for me"],
                 "weight": 0.9
             }
-}
+        }
+
     def classify_intent(self, message: str) -> dict:
         """
         Classify the primary intent with confidence score.
         Returns: { "intent": str, "confidence": float, "clarification": str or None }
         """
         m_lower = message.lower().strip()
-        scores = {}
 
+        # ── Obvious‑intent pre‑check ──
+        obvious_task_keywords = ["build", "create", "make", "fix", "help", "teach", "explain", "write", "code", "design", "edit", "modify"]
+        if any(keyword in m_lower for keyword in obvious_task_keywords):
+            return {"intent": "task", "confidence": 0.7, "clarification": None}
+
+        # ── Income or education quick inference ──
+        if "income" in m_lower or "money" in m_lower or "earn" in m_lower:
+            if "research" not in m_lower:
+                return {"intent": "personal_income", "confidence": 0.8, "clarification": None}
+        if "exam" in m_lower or "study" in m_lower or "school" in m_lower:
+            return {"intent": "education", "confidence": 0.8, "clarification": None}
+
+        # ── Standard scoring ──
+        scores = {}
         for intent_name, config in self.intents.items():
             score = 0
-            # Check keywords
             for kw in config["keywords"]:
                 if kw in m_lower:
-                    score += config["weight"] * 0.3
-            # Check personal indicators
+                    score += config["weight"] * 0.5
             if config.get("personal_indicators"):
                 for p in config["personal_indicators"]:
                     if p in m_lower:
                         score += 0.2
+            # Bonus for exact matches
+            if intent_name == "education" and any(w in m_lower for w in ["exam", "jamb", "waec", "study", "school", "learn", "teach"]):
+                score += 0.4
             scores[intent_name] = min(score, 1.0)
 
-        # Find the highest scoring intent
         top_intent = max(scores, key=scores.get)
         top_confidence = scores[top_intent]
 
-        # If confidence is low or multiple intents are close, return clarification
+        # High confidence → return intent
+        if top_confidence >= 0.7:
+            return {"intent": top_intent, "confidence": top_confidence, "clarification": None}
+
+        # Education special case
+        if scores.get("education", 0) >= 0.5 and scores.get("personal_income", 0) < 0.4:
+            return {"intent": "education", "confidence": scores["education"], "clarification": None}
+
+        # Low confidence → ask clarification
         if top_confidence < 0.6:
             return {
                 "intent": "uncertain",
@@ -658,26 +680,13 @@ class IntentDiscovery:
                 "clarification": "I want to make sure I understand correctly. Are you looking for personal income advice, doing research, or something else?"
             }
 
-        # If it's casual, we already handled it in S3.3, but still classify
-        if top_intent == "casual":
-            return {"intent": "casual", "confidence": top_confidence, "clarification": None}
-
-        # If personal_income is the highest and has personal indicators, it's clear
-        if top_intent == "personal_income" and "personal_indicators" in self.intents["personal_income"]:
-            for p in self.intents["personal_income"]["personal_indicators"]:
-                if p in m_lower:
-                    return {"intent": "personal_income", "confidence": top_confidence, "clarification": None}
-
-        # If any other intent is above 0.7, proceed
-        if top_confidence >= 0.7:
-            return {"intent": top_intent, "confidence": top_confidence, "clarification": None}
-
-        # Otherwise, ask clarification
+        # Default clarification
         return {
             "intent": top_intent,
             "confidence": top_confidence,
             "clarification": "Just to clarify, are you looking for ways to earn income yourself, or are you thinking about solutions for Nigerian youths in general?"
         }
+
 
 # ── Initialize Intent Discovery ──
 intent_discovery = IntentDiscovery()
@@ -686,33 +695,24 @@ def discover_intent(message: str) -> dict:
     """Main entry point for Intent Discovery."""
     return intent_discovery.classify_intent(message)
 
-# ── Pending Clarification Tracking ──
+
+# ── Clarification helpers (if used) ──
 _pending_clarifications = {}
 
 def store_pending_clarification(user_id: str, clarification: str):
-    """Store the clarification question asked to this user."""
     _pending_clarifications[user_id] = {
         "question": clarification,
         "timestamp": datetime.now().isoformat()
     }
 
 def check_clarification_response(message: str, user_id: str) -> str:
-    """
-    Check if the user is responding to a clarification question.
-    Returns the clarified intent or None.
-    """
     if user_id not in _pending_clarifications:
         return None
-    
     pending = _pending_clarifications[user_id]
-    pending_time = datetime.fromisoformat(pending["timestamp"])
-    if (datetime.now() - pending_time).seconds > 300:
+    if (datetime.now() - datetime.fromisoformat(pending["timestamp"])).seconds > 300:
         del _pending_clarifications[user_id]
         return None
-    
     m_lower = message.lower().strip()
-    
-    # Check for keywords that clarify intent
     if any(word in m_lower for word in ["myself", "me", "my", "i want", "for me", "personal", "to earn", "for myself"]):
         del _pending_clarifications[user_id]
         return "personal_income"
