@@ -5068,47 +5068,8 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"reply": casual_response})
                     return
 
-                # ── STEP 6: Clarification Check ──
-                if state.get("awaiting") == "clarification":
-                    # ── User asks for previous question ──
-                    previous_question_phrases = r'(?:what was|what is|can you repeat|say again|what did you ask|previous question|your question|last question|what\'s the question|what\'s your question|ask again|repeat question)'
-                    if re.search(previous_question_phrases, message.lower()):
-                        question = state.get("question", "I asked you something earlier. Could you answer it?")
-                        self._json({"reply": f"I asked: {question}"})
-                        return
-                    
-                    # ── Try to resolve clarification ──
-                    resolved_intent = check_clarification_response(message, user_id)
-                    if resolved_intent:
-                        update_understanding(user_id, {
-                            "resolved_intents": resolved_intent,
-                            "active_goal": resolved_intent
-                        })
-                        state.pop("awaiting", None)
-                        state.pop("question", None)
-                        save_conversation_state(user_id, state)
-                        intent = {"intent": resolved_intent, "confidence": 0.9}
-                    else:
-                        self._json({"reply": "I didn't catch that. Could you clarify?"})
-                        return
-                else:
-                    # ── No pending clarification → Intent Discovery ──
-                    intent = discover_intent(message)
-                    if intent.get("clarification"):
-                        state["awaiting"] = "clarification"
-                        state["question"] = intent["clarification"]
-                        # ── Store in Firestore for persistence ──
-                        try:
-                            db.collection("users").document(user_id).collection("conversation_state").document("current").set({
-                                "awaiting": "clarification",
-                                "question": intent["clarification"],
-                                "timestamp": firestore.SERVER_TIMESTAMP
-                            }, merge=True)
-                        except:
-                            pass
-                        save_conversation_state(user_id, state)
-                        self._json({"reply": intent["clarification"]})
-                        return
+                # ── STEP 6: Clarification DISABLED (let Brain/LLM handle) ──
+                pass
 
                 # ── STEP 7: Load User Understanding from Firestore ──
                 understanding = get_understanding(user_id)
