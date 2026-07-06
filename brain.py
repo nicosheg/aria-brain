@@ -490,25 +490,44 @@ class ConversationManager:
         ]
 
     def is_casual_conversation(self, message: str) -> dict:
-        """Detect if the message is casual conversation."""
         m_lower = message.lower().strip()
-
-        # Check for greetings
-        for pattern in self.greeting_patterns:
-            if re.search(pattern, m_lower, re.IGNORECASE):
-                if len(m_lower.split()) <= 5:
-                    return {"is_casual": True, "type": "greeting", "confidence": 0.95}
-
-        # Check for casual patterns
-        for pattern in self.casual_patterns:
-            if re.search(pattern, m_lower, re.IGNORECASE):
-                if len(m_lower.split()) <= 8:
-                    return {"is_casual": True, "type": "casual_response", "confidence": 0.85}
-
-        # Very short messages (likely casual)
-        if len(m_lower.split()) <= 3:
-            return {"is_casual": True, "type": "short_response", "confidence": 0.70}
-
+        
+        # ── FIRST: If it's a question, it's NOT casual ──
+        if "?" in message:
+            return {"is_casual": False, "type": "meaningful", "confidence": 0.0}
+        
+        # ── EXPLICIT GREETINGS ──
+        greetings = [
+            r'^(hi|hello|hey|howdy|sup|wassup|yo|aloha|hola)$',
+            r'^good (morning|afternoon|evening|night)$',
+            r'^(hey|hi|hello) (there|everyone|all|guys|everybody)$',
+            r'^how (are you|are ya|you doing|dey|far)$',
+            r'^what\'?s up$',
+            r'^howdy$',
+        ]
+        for pattern in greetings:
+            if re.match(pattern, m_lower):
+                return {"is_casual": True, "type": "greeting", "confidence": 0.95}
+        
+        # ── EXPLICIT THANKS ──
+        thanks = [
+            r'^(thanks|thank you|thank you very much|thanks a lot|appreciate|appreciate it|gracias)$',
+            r'^thanks (so much|a lot|very much|for that)$',
+        ]
+        for pattern in thanks:
+            if re.match(pattern, m_lower):
+                return {"is_casual": True, "type": "thanks", "confidence": 0.9}
+        
+        # ── EXPLICIT GOODBYES ──
+        goodbyes = [
+            r'^(bye|goodbye|see you|later|catch you|c u|cya)$',
+            r'^(bye|goodbye|see you) (later|soon|around|tomorrow)$',
+        ]
+        for pattern in goodbyes:
+            if re.match(pattern, m_lower):
+                return {"is_casual": True, "type": "goodbye", "confidence": 0.9}
+        
+        # ── ANYTHING ELSE IS MEANINGFUL ──
         return {"is_casual": False, "type": "meaningful", "confidence": 0.0}
 
     def generate_casual_response(self, message: str, user_id: str = None) -> str:
