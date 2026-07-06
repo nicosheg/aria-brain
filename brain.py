@@ -4892,7 +4892,6 @@ class Handler(BaseHTTPRequestHandler):
                 message = data.get("message", "").strip()
                 email = data.get("email", "").strip().lower()
                 
-                # ── Input sanitization ──
                 if not message:
                     self._json({"reply": "I didn't catch that. Can you repeat?"})
                     return
@@ -4906,20 +4905,18 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 
                 u = uid_result["aria_uid"]
-                user_id = u  # consistent naming
+                user_id = u
 
-                # ── Load state and mode ──
+                # ── Load state ──
                 state = get_conversation_state(user_id) or {}
-                mode = get_conversation_mode(user_id)
 
-                # ── Detect location sharing ──
-                location_patterns = [
+                # ── Location detection ──
+                location_detected = None
+                for pattern in [
                     r'(?:live in|stay at|based in|in|located in|reside in|from)\s+([A-Za-z\s\-]+)',
                     r'(?:my location is|i am in|i\'m in|i stay at)\s+([A-Za-z\s\-]+)',
                     r'(?:city is|town is|area is)\s+([A-Za-z\s\-]+)'
-                ]
-                location_detected = None
-                for pattern in location_patterns:
+                ]:
                     match = re.search(pattern, message.lower())
                     if match:
                         city = match.group(1).strip()
@@ -4941,7 +4938,6 @@ class Handler(BaseHTTPRequestHandler):
                 # ── STEP 2: Memory Query ──
                 memory_phrases = ["remember me", "who am i", "what do you know about me", "do you know me", "tell me about myself"]
                 if any(phrase in message.lower() for phrase in memory_phrases):
-                    # Clear any pending clarification
                     state.pop("awaiting", None)
                     state.pop("question", None)
                     save_conversation_state(user_id, state)
@@ -4960,16 +4956,7 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"reply": reply})
                     return
 
-                # ── STEP 3: Conversation Mode Check (Pause & Resume) ──
-                # If in active mode (CLARIFICATION/TASK) and user is casual, pause, respond, resume
-                if is_mode_active(user_id) and conversation_manager.is_casual_conversation(message)["is_casual"]:
-                    suspend_and_resume(user_id, "CASUAL")
-                    casual_response = generate_human_response(message, user_id)
-                    resume_previous_mode(user_id)
-                    self._json({"reply": casual_response})
-                    return
-
-                # ── STEP 4: Pending Session ──
+                # ── STEP 3: Pending Session ──
                 session = None
                 try:
                     session = get_pending_session(user_id)
@@ -4983,6 +4970,7 @@ class Handler(BaseHTTPRequestHandler):
                         self._json({"reply": "Alright, I've cancelled that request. What would you like to do now?"})
                         return
                     state = get_conversation_state(user_id) or {}
+                    print(f"DEBUG: message='{message}', awaiting={state.get('awaiting')}, mode={state.get('conversation_mode', 'NORMAL')}")
                     intent = {"intent": "continue_workflow", "confidence": 1.0}
                     result = process_conversation_brain(message, user_id, state, intent)
                     decision = result.get("decision", {})
@@ -4993,9 +4981,10 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"reply": response})
                     return
 
-                # ── STEP 5: Casual Manager (if casual → respond, STOP) ──
+                # ── STEP 4: Casual Manager (STOP if casual) ──
+                # Casual must be checked BEFORE clarification
                 if conversation_manager.is_casual_conversation(message)["is_casual"]:
-                    state = get_conversation_state(user_id) or {}
+                    # Clear any stale clarification state
                     if state.get("awaiting") == "clarification":
                         state.pop("awaiting", None)
                         state.pop("question", None)
@@ -5004,59 +4993,48 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"reply": casual_response})
                     return
 
-                # ── STEP 6: Load State ──
-                state = get_conversation_state(user_id) or {}
-                state["goals"] = get_goals(user_id)
-                state["context"] = get_context(user_id)
-                understanding = get_understanding(user_id)
-                resolved_intents = understanding.get("resolved_intents", [])
-
-                # ── STEP 7: Intent Discovery with Mode Awareness ──
-                if is_topic_change(message):
-                    clear_understanding(user_id)
-                    state.pop("awaiting", None)
-                    state.pop("question", None)
-                    set_conversation_mode(user_id, "NORMAL")
-                    save_conversation_state(user_id, state)
-
-                intent = None
-                if resolved_intents and not state.get("awaiting"):
-                    intent = {"intent": resolved_intents[-1], "confidence": 0.9}
+                # ── STEP 5: Clarification Check (ONLY if NOT casual) ──
+                if state.get("awaiting") == "clarification":
+                    # User is responding to a clarification
+                    resolved_intent = check_clarification_response(message, user_id)
+                    if resolved_intent:
+                        update_understanding(user_id, {
+                            "resolved_intents": resolved_intent,
+                            "active_goal": resolved_intent
+                        })
+                        state.pop("awaiting", None)
+                        state.pop("question", None)
+                        save_conversation_state(user_id, state)
+                        intent = {"intent": resolved_intent, "confidence": 0.9}
+                    else:
+                        self._json({"reply": "I didn't catch that. Could you clarify?"})
+                        return
                 else:
+                    # ── STEP 6: Intent Discovery ──
                     intent = discover_intent(message)
-                    if intent.get("clarification") and not state.get("awaiting") == "clarification":
+                    if intent.get("clarification"):
                         state["awaiting"] = "clarification"
                         state["question"] = intent["clarification"]
-                        set_conversation_mode(user_id, "CLARIFICATION")
                         save_conversation_state(user_id, state)
                         self._json({"reply": intent["clarification"]})
                         return
-                    elif state.get("awaiting") == "clarification":
-                        # User is responding to a clarification – resolve it
-                        resolved_intent = check_clarification_response(message, user_id)
-                        if resolved_intent:
-                            update_understanding(user_id, {
-                                "resolved_intents": resolved_intent,
-                                "active_goal": resolved_intent
-                            })
-                            state.pop("awaiting", None)
-                            state.pop("question", None)
-                            set_conversation_mode(user_id, "NORMAL")
-                            save_conversation_state(user_id, state)
-                            intent = {"intent": resolved_intent, "confidence": 0.9}
-                        else:
-                            self._json({"reply": "I didn't catch that. Could you clarify?"})
-                            return
+
+                # ── STEP 7: Load Understanding ──
+                goals = get_goals(user_id)
+                state["goals"] = goals
+                state["context"] = get_context(user_id)
+                understanding = get_understanding(user_id)
+                resolved_intents = understanding.get("resolved_intents", [])
+                if resolved_intents and not state.get("awaiting"):
+                    intent = {"intent": resolved_intents[-1], "confidence": 0.9}
 
                 # ── STEP 8: Conversation Brain ──
                 result = process_conversation_brain(message, user_id, state, intent or {"intent": "general", "confidence": 0.5})
                 decision = result.get("decision", {})
                 new_state = result.get("new_state", {})
-
-                # ── STEP 9: Response Engine ──
                 response = execute_decision(decision, message, user_id, new_state)
 
-                # ── STEP 10: Update State ──
+                # ── STEP 9: Update State ──
                 if new_state:
                     save_conversation_state(user_id, new_state)
                     if new_state.get("current_goal") or new_state.get("long_term_goal"):
