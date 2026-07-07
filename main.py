@@ -235,13 +235,21 @@ async def serve_static(file_path: str):
     raise HTTPException(status_code=404, detail="File not found")
 
 # ── Debug Endpoints ──
+
 @app.get("/trace")
-async def trace_view(user_id: str = None, limit: int = 50):
+async def view_trace(user_id: str = None, limit: int = 100):
+    """View traces. If user_id is omitted, returns all traces (across all users)."""
     from brain import get_trace
-    return {"traces": get_trace(user_id, limit)}
+    traces = get_trace(user_id, limit)
+    return {
+        "count": len(traces),
+        "traces": traces,
+        "message": f"Showing last {len(traces)} steps{' for user ' + user_id if user_id else ' (all users)'}"
+    }
 
 @app.get("/debug-memory")
 async def debug_memory(email: str):
+    """View recent conversation memory for a specific user."""
     from brain import generate_aria_uid, db
     uid_result = generate_aria_uid(email)
     if "error" in uid_result:
@@ -256,7 +264,21 @@ async def debug_memory(email: str):
             "response": data.get("r", ""),
             "time": data.get("t", "")
         })
-    return {"memories": memories, "count": len(memories)}
+    return {"uid": uid, "memories": memories, "count": len(memories)}
+
+@app.get("/debug-facts")
+async def debug_facts(email: str):
+    """View all stored facts for a specific user."""
+    from brain import generate_aria_uid, db
+    uid_result = generate_aria_uid(email)
+    if "error" in uid_result:
+        return {"error": uid_result["error"]}
+    uid = uid_result["aria_uid"]
+    facts = []
+    docs = db.collection("users").document(uid).collection("facts").stream()
+    for doc in docs:
+        facts.append(doc.to_dict())
+    return {"uid": uid, "facts": facts, "count": len(facts)}
 
 # ── Run ──
 if __name__ == "__main__":
