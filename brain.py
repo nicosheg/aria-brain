@@ -2504,19 +2504,23 @@ def load_adaptive_scores(aria_uid):
     return result
 
 def save_memory(u, m, r):
-    """Save conversation to Firestore for history (field names match get_context)."""
+    print(f"[MEMORY] save_memory called for user {u}")
+    print(f"[MEMORY] message: {m[:50]}...")
+    print(f"[MEMORY] response: {r[:50]}...")
     if not db:
+        print("[MEMORY] ❌ db is None – cannot save")
         return
     try:
         data = {
-            "m": m,          # ✅ matches get_context's dt.get('m','')
-            "r": r,          # ✅ matches dt.get('r','')
+            "m": m,
+            "r": r,
             "t": datetime.now().isoformat(),
             "mo": detect_mode(m, u)
         }
         db.collection("users").document(u).collection("memory").add(data)
+        print("[MEMORY] ✅ Save successful")
     except Exception as e:
-        print(f"Save memory error: {e}")
+        print(f"[MEMORY] ❌ Save failed: {e}")
 
 def get_learning_insights(u):
     """Get patterns ARIA learned from this specific user"""
