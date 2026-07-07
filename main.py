@@ -238,7 +238,6 @@ async def serve_static(file_path: str):
 
 @app.get("/trace")
 async def view_trace(user_id: str = None, limit: int = 100):
-    """View traces. If user_id is omitted, returns all traces (across all users)."""
     from brain import get_trace
     traces = get_trace(user_id, limit)
     return {
@@ -249,7 +248,6 @@ async def view_trace(user_id: str = None, limit: int = 100):
 
 @app.get("/debug-memory")
 async def debug_memory(email: str):
-    """View recent conversation memory for a specific user."""
     from brain import generate_aria_uid, db
     uid_result = generate_aria_uid(email)
     if "error" in uid_result:
@@ -268,7 +266,6 @@ async def debug_memory(email: str):
 
 @app.get("/debug-facts")
 async def debug_facts(email: str):
-    """View all stored facts for a specific user."""
     from brain import generate_aria_uid, db
     uid_result = generate_aria_uid(email)
     if "error" in uid_result:
