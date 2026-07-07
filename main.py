@@ -234,6 +234,30 @@ async def serve_static(file_path: str):
         return FileResponse(full_path)
     raise HTTPException(status_code=404, detail="File not found")
 
+# ── Debug Endpoints ──
+@app.get("/trace")
+async def trace_view(user_id: str = None, limit: int = 50):
+    from brain import get_trace
+    return {"traces": get_trace(user_id, limit)}
+
+@app.get("/debug-memory")
+async def debug_memory(email: str):
+    from brain import generate_aria_uid, db
+    uid_result = generate_aria_uid(email)
+    if "error" in uid_result:
+        return {"error": uid_result["error"]}
+    uid = uid_result["aria_uid"]
+    memories = []
+    docs = db.collection("users").document(uid).collection("memory").order_by("t", direction=firestore.Query.DESCENDING).limit(10).stream()
+    for doc in docs:
+        data = doc.to_dict()
+        memories.append({
+            "message": data.get("m", ""),
+            "response": data.get("r", ""),
+            "time": data.get("t", "")
+        })
+    return {"memories": memories, "count": len(memories)}
+
 # ── Run ──
 if __name__ == "__main__":
     import uvicorn
