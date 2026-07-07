@@ -870,12 +870,16 @@ def call_llm(system_prompt: str, user_prompt: str, timeout: int = 20) -> str:
     return llm_adapter.call(system_prompt, user_prompt, timeout)
 
 # ════════════════════════════════════════════════════════════════════
-# [S3.5] TRACING SYSTEM – Debugging pipeline
+# [S3.5] STRUCTURED TRACING – Full pipeline visibility
 # ════════════════════════════════════════════════════════════════════
 from collections import deque
-TRACE_STORE = deque(maxlen=500)
+from datetime import datetime
+import json
+
+TRACE_STORE = deque(maxlen=1000)  # store last 1000 steps
 
 def trace_step(user_id: str, step: str, data: dict):
+    """Log every step of the conversation pipeline."""
     entry = {
         "timestamp": datetime.now().isoformat(),
         "user_id": user_id,
@@ -883,7 +887,17 @@ def trace_step(user_id: str, step: str, data: dict):
         **data
     }
     TRACE_STORE.append(entry)
+    # Also print to logs for real‑time viewing
     print(f"🔍 TRACE | {user_id} | {step} | {data.get('message', '')[:50]}")
+
+def get_trace(user_id: str = None, limit: int = 100):
+    """Retrieve traces. If user_id is None, return all traces (across all users)."""
+    if user_id:
+        return [t for t in TRACE_STORE if t.get("user_id") == user_id][-limit:]
+    return list(TRACE_STORE)[-limit:]
+
+def clear_trace():
+    TRACE_STORE.clear()
 
 # ════════════════════════════════════════════════════════════════════
 # [S3.6] CONTEXT BUILDER – Gather only what's needed
