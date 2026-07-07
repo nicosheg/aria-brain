@@ -870,6 +870,22 @@ def call_llm(system_prompt: str, user_prompt: str, timeout: int = 20) -> str:
     return llm_adapter.call(system_prompt, user_prompt, timeout)
 
 # ════════════════════════════════════════════════════════════════════
+# [S3.5] TRACING SYSTEM – Debugging pipeline
+# ════════════════════════════════════════════════════════════════════
+from collections import deque
+TRACE_STORE = deque(maxlen=500)
+
+def trace_step(user_id: str, step: str, data: dict):
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "user_id": user_id,
+        "step": step,
+        **data
+    }
+    TRACE_STORE.append(entry)
+    print(f"🔍 TRACE | {user_id} | {step} | {data.get('message', '')[:50]}")
+
+# ════════════════════════════════════════════════════════════════════
 # [S3.6] CONTEXT BUILDER – Gather only what's needed
 # ════════════════════════════════════════════════════════════════════
 """
@@ -5043,8 +5059,12 @@ class Handler(BaseHTTPRequestHandler):
                     self._json({"error": uid_result["error"]}, 500)
                     return
                 
-                u = uid_result["aria_uid"]
-                user_id = u
+                user_id = uid_result["aria_uid"]
+                trace_step(user_id, "incoming", {"message": message, "email": email})
+                
+                # ── Load state ──
+                state = get_conversation_state(user_id) or {}
+                trace_step(user_id, "state_loaded", {"awaiting": state.get("awaiting")})
                 
                 # ── 1. Location detection ──
                 for pattern in [
@@ -5059,21 +5079,24 @@ class Handler(BaseHTTPRequestHandler):
                         if len(city) > 1:
                             save_user_location(user_id, city, "Nigeria")
                             response = f"Got it! I'll remember you're in {city}."
+                            trace_step(user_id, "location_detected", {"city": city})
                             save_memory(user_id, message, response)
                             self._json({"reply": response})
                             return
                 
                 # ── 2. Human First ──
+                trace_step(user_id, "human_first_start", {})
                 human = handle_human_first(message, user_id)
                 if human["handled"]:
+                    trace_step(user_id, "human_first_handled", {"response": human["response"][:100]})
                     save_memory(user_id, message, human["response"])
                     self._json({"reply": human["response"]})
                     return
                 
-                # ── 3. Memory Query (explicit facts) ──
+                # ── 3. Memory Query ──
                 memory_phrases = ["remember me", "who am i", "what do you know about me", "do you know me", "tell me about myself"]
                 if any(phrase in message.lower() for phrase in memory_phrases):
-                    state = get_conversation_state(user_id) or {}
+                    trace_step(user_id, "memory_query_start", {})
                     state.pop("awaiting", None)
                     state.pop("question", None)
                     save_conversation_state(user_id, state)
@@ -5085,7 +5108,7 @@ class Handler(BaseHTTPRequestHandler):
                             data = doc.to_dict()
                             facts.append(f"{data['key']}: {data['value']}")
                     except Exception as e:
-                        print(f"Fact retrieval error: {e}")
+                        trace_step(user_id, "memory_query_error", {"error": str(e)})
                     
                     if facts:
                         response = "I remember: " + ", ".join(facts)
@@ -5097,6 +5120,7 @@ class Handler(BaseHTTPRequestHandler):
                             response = f"I remember you, {name}." + (f" You have skills: {', '.join(skills)}." if skills else "")
                         else:
                             response = "I don't have much info about you yet. Tell me your name and skills."
+                    trace_step(user_id, "memory_query_response", {"response": response[:100]})
                     save_memory(user_id, message, response)
                     self._json({"reply": response})
                     return
@@ -5106,10 +5130,10 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     session = get_pending_session(user_id)
                 except Exception as e:
-                    log_error("pending_session", "fetch_failed", e, user_id=user_id)
-                    session = None
+                    trace_step(user_id, "pending_session_error", {"error": str(e)})
                 
                 if session:
+                    trace_step(user_id, "pending_session_active", {"action": session.get("action")})
                     if message.lower().strip() in ["cancel", "nevermind", "stop", "forget it"]:
                         clear_pending_session(user_id)
                         response = "Alright, I've cancelled that request. What would you like to do now?"
@@ -5130,7 +5154,9 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 
                 # ── 5. Casual Manager ──
+                trace_step(user_id, "casual_check_start", {})
                 if conversation_manager.is_casual_conversation(message)["is_casual"]:
+                    trace_step(user_id, "casual_detected", {})
                     state = get_conversation_state(user_id) or {}
                     if state.get("awaiting") == "clarification":
                         state.pop("awaiting", None)
@@ -5142,7 +5168,9 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 
                 # ── 6. Intent Discovery ──
+                trace_step(user_id, "intent_discovery_start", {})
                 intent = discover_intent(message)
+                trace_step(user_id, "intent_discovered", {"intent": intent.get("intent"), "confidence": intent.get("confidence")})
                 state = get_conversation_state(user_id) or {}
                 
                 if intent.get("clarification") and not state.get("awaiting"):
@@ -5150,10 +5178,12 @@ class Handler(BaseHTTPRequestHandler):
                     state["question"] = intent["clarification"]
                     save_conversation_state(user_id, state)
                     response = intent["clarification"]
+                    trace_step(user_id, "clarification_asked", {"question": response})
                     save_memory(user_id, message, response)
                     self._json({"reply": response})
                     return
                 elif state.get("awaiting") == "clarification":
+                    trace_step(user_id, "clarification_response_start", {})
                     resolved_intent = check_clarification_response(message, user_id)
                     if resolved_intent:
                         update_understanding(user_id, {
@@ -5164,21 +5194,25 @@ class Handler(BaseHTTPRequestHandler):
                         state.pop("question", None)
                         save_conversation_state(user_id, state)
                         intent = {"intent": resolved_intent, "confidence": 0.9}
+                        trace_step(user_id, "clarification_resolved", {"intent": resolved_intent})
                     else:
                         # Check if user asked for the previous question
                         if re.search(r'(?:what was|what is|can you repeat|say again|what did you ask|previous question|your question|last question)', message.lower()):
                             question = state.get("question", "I asked you something earlier. Could you answer it?")
                             response = f"I asked: {question}"
+                            trace_step(user_id, "previous_question_asked", {"question": question})
                             save_memory(user_id, message, response)
                             self._json({"reply": response})
                             return
                         else:
                             response = "I didn't catch that. Could you clarify?"
+                            trace_step(user_id, "clarification_failed", {})
                             save_memory(user_id, message, response)
                             self._json({"reply": response})
                             return
                 
                 # ── 7. Build Response ──
+                trace_step(user_id, "build_response_start", {})
                 state = get_conversation_state(user_id) or {}
                 state["goals"] = get_goals(user_id)
                 state["context"] = get_context(user_id)
@@ -5191,6 +5225,7 @@ class Handler(BaseHTTPRequestHandler):
                 decision = result.get("decision", {})
                 new_state = result.get("new_state", {})
                 response = execute_decision(decision, message, user_id, new_state)
+                trace_step(user_id, "response_generated", {"response": response[:100]})
                 
                 if new_state:
                     save_conversation_state(user_id, new_state)
@@ -5204,12 +5239,12 @@ class Handler(BaseHTTPRequestHandler):
                 # ── Save memory ──
                 save_memory(user_id, message, response)
                 
-                # ── FORCE SAVE NAME IF MENTIONED ──
+                # ── Save name if mentioned ──
                 name_match = re.search(r'(?:my name is|call me|i am|i\'m)\s+(\w+)', message.lower())
                 if name_match:
                     try:
                         name = name_match.group(1).capitalize()
-                        # Delete old name fact
+                        trace_step(user_id, "name_detected", {"name": name})
                         old_docs = db.collection("users").document(user_id).collection("facts").where("key", "==", "name").stream()
                         for doc in old_docs:
                             doc.reference.delete()
@@ -5218,15 +5253,14 @@ class Handler(BaseHTTPRequestHandler):
                             "value": name,
                             "timestamp": firestore.SERVER_TIMESTAMP
                         })
-                        print(f"[NAME] Saved '{name}' for user {user_id}")
+                        trace_step(user_id, "name_saved", {"name": name})
                     except Exception as e:
-                        print(f"[NAME] Error saving name: {e}")
+                        trace_step(user_id, "name_save_error", {"error": str(e)})
                 
                 self._json({"reply": response})
                 
             except Exception as e:
-                import traceback
-                log_error("chat_endpoint", "unknown", "none", str(e), stack_trace=traceback.format_exc())
+                trace_step(user_id, "error", {"error": str(e), "traceback": traceback.format_exc()})
                 self._json({"error": f"Server error: {str(e)}"}, 500)
             return
             
