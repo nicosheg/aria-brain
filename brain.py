@@ -3776,7 +3776,6 @@ prompt = f"{context_block}\n\nTIME (Lagos): {cd}\n\nUSER MESSAGE: {m}{meta}"
     
     # ── 11. LLM call ──
     resp = try_all_apis_parallel(prompt, final_sp)
-    
     if resp:
         # ── Goal confirmation ──
         goal = extract_long_term_goal(original_m)
