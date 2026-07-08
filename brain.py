@@ -3775,8 +3775,9 @@ context_block = memory_instruction + "\n\n" + "\n".join(context_parts) if contex
 prompt = f"{context_block}\n\nTIME (Lagos): {cd}\n\nUSER MESSAGE: {m}{meta}"
     
     # ── 11. LLM call ──
+    prompt = f"{memory_section}TIME (Lagos): {cd}\n\n{m}{meta}"
+    
     resp = try_all_apis_parallel(prompt, final_sp)
-    if resp:
         # ── Goal confirmation ──
         goal = extract_long_term_goal(original_m)
         pending = get_pending_goal(u)
