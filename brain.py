@@ -1540,6 +1540,28 @@ def execute_decision(decision: dict, message: str, user_id: str, state: dict) ->
     style = decision.get("style", "natural")
     module_name = decision.get("module")
     
+    # ── BUILD MEMORY TEXT FROM STATE ──
+    # (state["memory"] is populated by main.py before calling this)
+    memory_text = ""
+    memory_data = state.get("memory", {})
+    if memory_data:
+        parts = []
+        if memory_data.get("recent"):
+            parts.append(f"RECENT CONVERSATION:\n{memory_data['recent']}")
+        if memory_data.get("personal"):
+            parts.append(f"PERSONAL FACTS:\n{memory_data['personal']}")
+        if memory_data.get("postgres"):
+            parts.append(f"STORED FACTS:\n{memory_data['postgres']}")
+        if parts:
+            memory_text = (
+                "\n\n═══════════════════════════════════════\n"
+                "USER CONTEXT (USE THIS TO PERSONALIZE):\n"
+                + "\n\n".join(parts) +
+                "\n═══════════════════════════════════════\n"
+                "IMPORTANT: Reference this context naturally in your response. "
+                "Do not ask questions that are already answered here.\n\n"
+            )
+    
     # ── Direct answer (bypass LLM) ──
     if action == "direct_answer" and decision.get("response"):
         return decision.get("response")
@@ -1547,7 +1569,6 @@ def execute_decision(decision: dict, message: str, user_id: str, state: dict) ->
     if action == "handle_clarification":
         return "I'm waiting for your clarification. Could you respond to my previous question?"
     
-    # ── Continue workflow ──
     if action == "continue_workflow":
         result = process_workflow_step(user_id, message, state)
         return result.get("response", "Let's continue. What would you like to do?")
@@ -1559,24 +1580,31 @@ def execute_decision(decision: dict, message: str, user_id: str, state: dict) ->
             if income_profile:
                 knowledge = get_relevant_income_knowledge(message)
                 system_prompt = build_income_system_prompt(income_profile, knowledge, state.get("current_path"))
-                response = call_llm(system_prompt, message)
+                # ── Inject memory into the USER prompt ──
+                user_prompt = f"{memory_text}\n\nUSER: {message}" if memory_text else message
+                response = call_llm(system_prompt, user_prompt)
                 return response or "Let me help you with that."
             else:
-                result = start_income_onboarding(user_id, message, 1)
+                result = start_income_onboarding(user_id, message)
                 return result.get("reply", "Tell me about your income goals.")
         
         if module_name == "education":
-            response = call_llm(SP, message)
+            # ── Inject memory into education prompts ──
+            user_prompt = f"{memory_text}\n\nUSER: {message}" if memory_text else message
+            response = call_llm(SP, user_prompt)
             return response or "I'd be happy to help you learn. What subject?"
         
-        response = call_llm(SP, message)
+        # ── Default LLM call with memory ──
+        user_prompt = f"{memory_text}\n\nUSER: {message}" if memory_text else message
+        response = call_llm(SP, user_prompt)
         return response or "I'm thinking. Please give me a moment."
     
     if action == "ask":
         return "Could you give me more details so I can help better?"
     
     # ── Fallback ──
-    response = call_llm(SP, message)
+    user_prompt = f"{memory_text}\n\nUSER: {message}" if memory_text else message
+    response = call_llm(SP, user_prompt)
     return response or "I'm having trouble. Please try again."
 
 # ════════════════════════════════════════════════════════════════════
