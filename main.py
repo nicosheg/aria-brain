@@ -288,21 +288,49 @@ async def view_trace(user_id: str = None, limit: int = 100):
 
 @app.get("/debug-memory")
 async def debug_memory(email: str):
-    from brain import generate_aria_uid, db
+    from brain import generate_aria_uid, db, load_user_memory, get_context
+    
     uid_result = generate_aria_uid(email)
     if "error" in uid_result:
         return {"error": uid_result["error"]}
     uid = uid_result["aria_uid"]
-    memories = []
+    
+    # Get Firebase memory
+    firebase_memory = []
     docs = db.collection("users").document(uid).collection("memory").order_by("t", direction=firestore.Query.DESCENDING).limit(10).stream()
     for doc in docs:
         data = doc.to_dict()
-        memories.append({
+        firebase_memory.append({
             "message": data.get("m", ""),
-            "response": data.get("r", ""),
+            "response": data.get("r", "")[:200],
             "time": data.get("t", "")
         })
-    return {"uid": uid, "memories": memories, "count": len(memories)}
+    
+    # Get PostgreSQL memory
+    pg_memory = load_user_memory(uid, limit=10)
+    
+    # Get facts
+    facts = []
+    fact_docs = db.collection("users").document(uid).collection("facts").stream()
+    for doc in fact_docs:
+        facts.append(doc.to_dict())
+    
+    # Get conversation state
+    state = get_conversation_state(uid) or {}
+    
+    return {
+        "uid": uid,
+        "firebase_memory_count": len(firebase_memory),
+        "firebase_memory": firebase_memory[:5],
+        "postgres_memory": pg_memory,
+        "facts": facts,
+        "state": {
+            "awaiting": state.get("awaiting"),
+            "question": state.get("question"),
+            "has_goals": bool(state.get("goals")),
+            "has_context": bool(state.get("context"))
+        }
+}
 
 @app.get("/debug-facts")
 async def debug_facts(email: str):
