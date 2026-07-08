@@ -79,9 +79,6 @@ async def ping():
 # ── Main Chat Endpoint ──
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
-    """
-    Main chat endpoint – handles all conversations.
-    """
     start_time = time.time()
     message = request.message.strip()
     email = request.email.strip().lower()
@@ -124,17 +121,49 @@ async def chat(request: ChatRequest):
         if casual["handled"]:
             return ChatResponse(reply=casual["response"])
         
-        # ── STEP 4: Load State ──
+        # ── STEP 4: Load State and Memory ──
         state = get_conversation_state(user_id) or {}
         goals = get_goals(user_id)
         state["goals"] = goals
-        context = get_context(user_id)
+        
+        # ── 🔥 NEW: Load and inject memory ──
+        context = get_context(user_id)  # Recent conversation
         state["context"] = context
         
+        # ── 🔥 NEW: Load PostgreSQL memory ──
+        from brain import load_user_memory, build_user_context_block
+        memory_data = load_user_memory(user_id, limit=10)
+        if memory_data:
+            # Build a readable memory string
+            memory_parts = []
+            if memory_data.get("facts"):
+                memory_parts.append(f"KNOWN FACTS:\n" + "\n".join([f"- {f['content']}" for f in memory_data["facts"]]))
+            if memory_data.get("context"):
+                memory_parts.append(f"CONTEXT:\n" + "\n".join([f"- {c['content']}" for c in memory_data["context"]]))
+            if memory_data.get("decisions"):
+                memory_parts.append(f"PAST DECISIONS:\n" + "\n".join([f"- {d['content']}" for d in memory_data["decisions"]]))
+            if memory_data.get("outcomes"):
+                memory_parts.append(f"OUTCOMES:\n" + "\n".join([f"- {o['content']}" for o in memory_data["outcomes"]]))
+            
+            if memory_parts:
+                state["memory_block"] = "\n\n".join(memory_parts)
+        
+        # ── 🔥 NEW: Load Firestore personal facts ──
+        try:
+            facts_docs = db.collection("users").document(user_id).collection("facts").stream()
+            personal_facts = []
+            for doc in facts_docs:
+                data = doc.to_dict()
+                personal_facts.append(f"{data['key']}: {data['value']}")
+            if personal_facts:
+                state["personal_facts"] = "\n".join(personal_facts)
+        except Exception as e:
+            log_error("chat_endpoint", "load_facts", e, user_id=user_id)
+        
+        # ── STEP 5: Intent Discovery ──
         understanding = get_understanding(user_id)
         resolved_intents = understanding.get("resolved_intents", [])
         
-        # ── STEP 5: Intent Discovery ──
         if is_topic_change(message):
             clear_understanding(user_id)
             state.pop("awaiting", None)
@@ -156,6 +185,17 @@ async def chat(request: ChatRequest):
         result = process_conversation_brain(message, user_id, state, intent or {"intent": "general", "confidence": 0.5})
         decision = result.get("decision", {})
         new_state = result.get("new_state", {})
+        
+        # ── 🔥 NEW: Pass memory to decision context ──
+        if state.get("memory_block") or state.get("personal_facts") or state.get("context"):
+            if "memory" not in new_state:
+                new_state["memory"] = {}
+            if state.get("memory_block"):
+                new_state["memory"]["postgres"] = state["memory_block"]
+            if state.get("personal_facts"):
+                new_state["memory"]["personal"] = state["personal_facts"]
+            if state.get("context"):
+                new_state["memory"]["recent"] = state["context"]
         
         # ── STEP 7: Response Engine ──
         response = execute_decision(decision, message, user_id, new_state)
