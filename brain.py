@@ -3737,50 +3737,12 @@ def ask(m, u, api, system_prompt_override=None):
     if system_prompt_override:
         final_sp = system_prompt_override
     
-# ── Build a structured context block ──
-context_parts = []
-
-# 1. Recent conversation (if any)
-if cx:
-    context_parts.append(f"### RECENT CONVERSATION\n{cx}\n")
-
-# 2. Known facts (PostgreSQL)
-if user_facts_pg:
-    context_parts.append(f"### KNOWN FACTS ABOUT USER\n{user_facts_pg}\n")
-
-# 3. Adaptive scores (if any)
-if adaptive_summary:
-    context_parts.append(f"### USER ADAPTIVE PROFILE\n{adaptive_summary}\n")
-
-# 4. Personal facts from Firestore (this is already in cx but we add separately if needed)
-if personal_facts:
-    # personal_facts is a list of strings like "name: Nicholas"
-    facts_str = "\n".join(personal_facts)
-    context_parts.append(f"### USER PERSONAL FACTS\n{facts_str}\n")
-
-# Combine into one block with clear instructions
-memory_instruction = """
-═══════════════════════════════════════
-USE THE FOLLOWING CONTEXT TO PERSONALISE YOUR REPLY:
-- If the user's question is already answered in this context, use that information directly.
-- Reference past conversations naturally (e.g., "You mentioned earlier that...").
-- Do not ask for information that is already provided below.
-- If the context conflicts with the user's current message, gently ask for clarification.
-═══════════════════════════════════════
-"""
-
-context_block = memory_instruction + "\n\n" + "\n".join(context_parts) if context_parts else ""
-
-# Final user prompt = context block + current message + time/metadata
-prompt = f"{context_block}\n\nTIME (Lagos): {cd}\n\nUSER MESSAGE: {m}{meta}"
+    prompt = f"{memory_section}TIME (Lagos): {cd}\n\n{m}{meta}"
     
-    # ── Call LLM ──
-    try:
-        response = try_all_apis_parallel(system_prompt, message)
-        if response and len(response) > 10:
-            return response
-    except Exception as e:
-        log_error("S8", "generate_human_response", e)
+    # ── 11. LLM call ──
+    resp = try_all_apis_parallel(prompt, final_sp)
+    
+    if resp:
         # ── Goal confirmation ──
         goal = extract_long_term_goal(original_m)
         pending = get_pending_goal(u)
