@@ -3484,10 +3484,7 @@ def generate_human_response(message: str, user_id: str = None) -> str:
 
     # ── Call LLM ──
     try:
-    # Build a user prompt that includes memory (reuse the same context_block)
-    # You can extract the same memory variables inside that branch.
-        user_prompt_with_context = f"{context_block}\n\nUSER MESSAGE: {message}"
-        response = call_llm(system_prompt, user_prompt_with_context)
+        response = try_all_apis_parallel(system_prompt, message)
         if response and len(response) > 10:
             return response
     except Exception as e:
