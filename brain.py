@@ -1541,7 +1541,6 @@ def execute_decision(decision: dict, message: str, user_id: str, state: dict) ->
     module_name = decision.get("module")
     
     # ── BUILD MEMORY TEXT FROM STATE ──
-    # (state["memory"] is populated by main.py before calling this)
     memory_text = ""
     memory_data = state.get("memory", {})
     if memory_data:
@@ -1580,7 +1579,6 @@ def execute_decision(decision: dict, message: str, user_id: str, state: dict) ->
             if income_profile:
                 knowledge = get_relevant_income_knowledge(message)
                 system_prompt = build_income_system_prompt(income_profile, knowledge, state.get("current_path"))
-                # ── Inject memory into the USER prompt ──
                 user_prompt = f"{memory_text}\n\nUSER: {message}" if memory_text else message
                 response = call_llm(system_prompt, user_prompt)
                 return response or "Let me help you with that."
@@ -1589,7 +1587,6 @@ def execute_decision(decision: dict, message: str, user_id: str, state: dict) ->
                 return result.get("reply", "Tell me about your income goals.")
         
         if module_name == "education":
-            # ── Inject memory into education prompts ──
             user_prompt = f"{memory_text}\n\nUSER: {message}" if memory_text else message
             response = call_llm(SP, user_prompt)
             return response or "I'd be happy to help you learn. What subject?"
