@@ -3739,7 +3739,7 @@ def ask(m, u, api, system_prompt_override=None):
     
     prompt = f"{memory_section}TIME (Lagos): {cd}\n\n{m}{meta}"
     
-    # ── 11. LLM call ──
+    # ── 11. LLM call ── ( ← This line has exactly 4 spaces )
     resp = try_all_apis_parallel(prompt, final_sp)
     
     if resp:
