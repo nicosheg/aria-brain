@@ -28,7 +28,7 @@ from brain import (
     discover_intent, check_clarification_response,
     is_topic_change, is_active_conversation,
     module_registry, task_module, call_llm,
-    logger
+    logger, load_user_memory
 )
 
 # ── FastAPI App ──
@@ -65,6 +65,36 @@ class UploadRequest(BaseModel):
     file_name: str
     file_type: str
     mime_type: Optional[str] = ""
+
+# ── Helper: Build Memory Block ──
+def build_memory_block(user_id: str) -> dict:
+    """Load all memory sources and return a dict for the LLM context."""
+    memory = {}
+    
+    # 1. Recent conversation (Firestore)
+    context = get_context(user_id)
+    if context:
+        memory["recent"] = context
+    
+    # 2. PostgreSQL facts
+    pg_data = load_user_memory(user_id, limit=10)
+    if pg_data and pg_data.get("facts"):
+        facts_str = "\n".join([f"- {f['content']}" for f in pg_data["facts"]])
+        memory["postgres"] = facts_str
+    
+    # 3. Firestore personal facts
+    try:
+        facts_docs = db.collection("users").document(user_id).collection("facts").stream()
+        personal_facts = []
+        for doc in facts_docs:
+            data = doc.to_dict()
+            personal_facts.append(f"{data['key']}: {data['value']}")
+        if personal_facts:
+            memory["personal"] = "\n".join(personal_facts)
+    except Exception as e:
+        log_error("build_memory_block", "load_facts", e, user_id=user_id)
+    
+    return memory
 
 # ── Health Check ──
 @app.get("/health")
@@ -111,7 +141,13 @@ async def chat(request: ChatRequest):
             result = process_conversation_brain(message, user_id, state, intent)
             decision = result.get("decision", {})
             new_state = result.get("new_state", {})
-            response = execute_decision(decision, message, user_id, new_state)
+            
+            # Load memory for pending session too
+            memory_block = build_memory_block(user_id)
+            if memory_block:
+                new_state["memory"] = memory_block
+            
+            response = execute_decision(decision, message, user_id, {**state, **new_state})
             if new_state:
                 save_conversation_state(user_id, new_state)
             return ChatResponse(reply=response)
@@ -121,46 +157,19 @@ async def chat(request: ChatRequest):
         if casual["handled"]:
             return ChatResponse(reply=casual["response"])
         
-        # ── STEP 4: Load State and Memory ──
+        # ── STEP 4: Load State ──
         state = get_conversation_state(user_id) or {}
         goals = get_goals(user_id)
         state["goals"] = goals
         
-        # ── 🔥 NEW: Load and inject memory ──
-        context = get_context(user_id)  # Recent conversation
-        state["context"] = context
+        # ── STEP 5: Load ALL Memory into state ──
+        memory_block = build_memory_block(user_id)
+        if memory_block:
+            state["memory"] = memory_block
+        else:
+            state["memory"] = {}
         
-        # ── 🔥 NEW: Load PostgreSQL memory ──
-        from brain import load_user_memory, build_user_context_block
-        memory_data = load_user_memory(user_id, limit=10)
-        if memory_data:
-            # Build a readable memory string
-            memory_parts = []
-            if memory_data.get("facts"):
-                memory_parts.append(f"KNOWN FACTS:\n" + "\n".join([f"- {f['content']}" for f in memory_data["facts"]]))
-            if memory_data.get("context"):
-                memory_parts.append(f"CONTEXT:\n" + "\n".join([f"- {c['content']}" for c in memory_data["context"]]))
-            if memory_data.get("decisions"):
-                memory_parts.append(f"PAST DECISIONS:\n" + "\n".join([f"- {d['content']}" for d in memory_data["decisions"]]))
-            if memory_data.get("outcomes"):
-                memory_parts.append(f"OUTCOMES:\n" + "\n".join([f"- {o['content']}" for o in memory_data["outcomes"]]))
-            
-            if memory_parts:
-                state["memory_block"] = "\n\n".join(memory_parts)
-        
-        # ── 🔥 NEW: Load Firestore personal facts ──
-        try:
-            facts_docs = db.collection("users").document(user_id).collection("facts").stream()
-            personal_facts = []
-            for doc in facts_docs:
-                data = doc.to_dict()
-                personal_facts.append(f"{data['key']}: {data['value']}")
-            if personal_facts:
-                state["personal_facts"] = "\n".join(personal_facts)
-        except Exception as e:
-            log_error("chat_endpoint", "load_facts", e, user_id=user_id)
-        
-        # ── STEP 5: Intent Discovery ──
+        # ── STEP 6: Intent Discovery ──
         understanding = get_understanding(user_id)
         resolved_intents = understanding.get("resolved_intents", [])
         
@@ -181,26 +190,21 @@ async def chat(request: ChatRequest):
                 save_conversation_state(user_id, state)
                 return ChatResponse(reply=intent["clarification"])
         
-        # ── STEP 6: Conversation Brain ──
+        # ── STEP 7: Conversation Brain ──
         result = process_conversation_brain(message, user_id, state, intent or {"intent": "general", "confidence": 0.5})
         decision = result.get("decision", {})
         new_state = result.get("new_state", {})
         
-        # ── 🔥 NEW: Pass memory to decision context ──
-        if state.get("memory_block") or state.get("personal_facts") or state.get("context"):
-            if "memory" not in new_state:
-                new_state["memory"] = {}
-            if state.get("memory_block"):
-                new_state["memory"]["postgres"] = state["memory_block"]
-            if state.get("personal_facts"):
-                new_state["memory"]["personal"] = state["personal_facts"]
-            if state.get("context"):
-                new_state["memory"]["recent"] = state["context"]
+        # ── STEP 8: Response Engine ──
+        # Merge memory from state into new_state (if not already present)
+        if state.get("memory") and not new_state.get("memory"):
+            new_state["memory"] = state["memory"]
         
-        # ── STEP 7: Response Engine ──
-        response = execute_decision(decision, message, user_id, new_state)
+        # Pass the merged state (state + new_state) to execute_decision
+        merged_state = {**state, **new_state}
+        response = execute_decision(decision, message, user_id, merged_state)
         
-        # ── STEP 8: Update State ──
+        # ── STEP 9: Update State ──
         if new_state:
             save_conversation_state(user_id, new_state)
             if new_state.get("current_goal") or new_state.get("long_term_goal"):
@@ -218,6 +222,7 @@ async def chat(request: ChatRequest):
     except Exception as e:
         error_msg = traceback.format_exc()
         log_error("chat_endpoint", "process_message", e, user_id=user_id, context=error_msg)
+        print(f"ERROR: {error_msg}")  # This will show in Render logs
         raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
 
 # ── Feedback Endpoint ──
