@@ -125,3 +125,35 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest):
+    start_time = time.time()
+    message = request.message.strip()
+    email = request.email.strip().lower()
+    
+    if not message:
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+    
+    uid_result = generate_aria_uid(email)
+    if "error" in uid_result:
+        raise HTTPException(status_code=400, detail=uid_result["error"])
+    user_id = uid_result["aria_uid"]
+    
+    try:
+        orchestrator = get_orchestrator_for_user(user_id)
+        result = orchestrator.process("conversation", message, {"email": email})
+        response = result.get("response", "I'm thinking...")
+        
+        elapsed_ms = (time.time() - start_time) * 1000
+        logger.info(f"REQUEST | user:{user_id} | time:{elapsed_ms:.0f}ms | ✓ SUCCESS")
+        
+        return ChatResponse(reply=response)
+    
+    except Exception as e:
+        import traceback
+        error_msg = traceback.format_exc()
+        log_error("chat_endpoint", "process_message", e, user_id=user_id, context=error_msg)
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
