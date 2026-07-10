@@ -17,6 +17,8 @@ class Extractor:
         Extract structured information from text.
         Returns: {"entities": [], "relationships": [], "claims": []}
         """
+        print(f"[Extractor] Processing: {text[:50]}...")
+        
         system_prompt = """You are an information extraction engine. Extract structured data from the user's message.
 
         Output ONLY valid JSON. Do not add any extra text, explanations, or markdown.
@@ -45,7 +47,10 @@ class Extractor:
         
         try:
             response = call_llm(system_prompt, user_prompt)
+            print(f"[Extractor] LLM response: {response[:100] if response else 'empty'}")
+            
             if not response:
+                print("[Extractor] LLM returned empty")
                 return {"entities": [], "relationships": [], "claims": []}
             
             # Clean up response
@@ -74,6 +79,7 @@ class Extractor:
             if "claims" not in result:
                 result["claims"] = []
             
+            print(f"[Extractor] Extracted {len(result['entities'])} entities")
             return result
             
         except json.JSONDecodeError as e:

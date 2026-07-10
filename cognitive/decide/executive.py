@@ -16,6 +16,7 @@ from cognitive.reason.metacognition import MetaCognition
 from cognitive.decide.planner import Planner, Action
 from cognitive.core.event_bus import EventBus, Event
 from cognitive.understand.extraction import Extractor
+from cognitive.infrastructure.llm import call_llm
 
 
 class Executive:
@@ -60,14 +61,20 @@ class Executive:
         # 1. Observe
         observation = self._observe(source, raw, metadata)
         
-        # 2. Understand (LLM extraction)
+        # 2. Understand (LLM extraction) — THIS IS WHERE IT FAILS
         understanding = self._understand(observation)
         
-        # 3. Update Memory
+        # 🔥 DEBUG: Print what was extracted
+        print(f"[Executive] Extracted: {len(understanding.get('entities', []))} entities, {len(understanding.get('claims', []))} claims")
+        
+        # 3. Update Memory — THIS IS WHERE STORAGE HAPPENS
         self._update_memory(observation, understanding)
         
         # 4. Retrieve & Build World Model
         world = self._build_world(observation.raw)
+        
+        # 🔥 DEBUG: Print what's in the world
+        print(f"[Executive] World has: {len(world.entities)} entities, {len(world.beliefs)} beliefs")
         
         # 5. Reason
         reasoning_result = self._reason(world)
@@ -79,7 +86,7 @@ class Executive:
         action = self._plan(world, reasoning_result, meta_result)
         
         # 8. Act
-        response = self._act(action, world, observation)
+        response = self._act(action, world, observation, reasoning_result)
         
         return {
             "observation": observation,
@@ -109,7 +116,13 @@ class Executive:
         """Step 2: LLM extraction."""
         # Get context from graph
         context = self._get_context(observation.raw)
-        return Extractor.extract(observation.raw, context)
+        result = Extractor.extract(observation.raw, context)
+        
+        # 🔥 DEBUG: Print what was extracted
+        if result.get("entities"):
+            print(f"[Executive] Extracted entities: {[e['name'] for e in result['entities']]}")
+        
+        return result
     
     def _get_context(self, text: str) -> str:
         """Get graph context for extraction."""
@@ -121,13 +134,15 @@ class Executive:
     
     def _update_memory(self, observation: Observation, understanding: Dict):
         """Step 3: Update all memory stores."""
-        # Store entities
+        # 🔥 Store entities
         for entity in understanding.get("entities", []):
             self.graph.get_or_create_entity(
                 name=entity["name"],
                 entity_type=entity.get("type", "concept"),
-                confidence=0.8
+                confidence=0.8,
+                importance=0.7
             )
+            print(f"[Executive] Stored entity: {entity['name']}")
         
         # Store relationships
         for rel in understanding.get("relationships", []):
@@ -145,6 +160,7 @@ class Executive:
                     }
                 )
                 self.graph.validate_and_commit(change)
+                print(f"[Executive] Stored relationship: {rel['source']} → {rel['target']}")
         
         # Store claims as semantic facts
         for claim in understanding.get("claims", []):
@@ -152,6 +168,7 @@ class Executive:
                 statement=claim["statement"],
                 confidence=claim.get("confidence", 0.6)
             )
+            print(f"[Executive] Stored claim: {claim['statement'][:50]}...")
         
         # Store episode
         entities = [e["name"] for e in understanding.get("entities", [])]
@@ -201,18 +218,86 @@ class Executive:
                 )
         return self.planner.plan(world)
     
-    def _act(self, action: Action, world: WorldModel, observation: Observation) -> str:
+    def _act(self, action: Action, world: WorldModel, observation: Observation, reasoning_result: Dict) -> str:
+        """Generate response using world model."""
         self.last_decision = {
             "action": action.type,
             "description": action.description,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
+        
         if action.type == "ask":
             return action.description
-        elif action.type == "continue":
-            return "I understand. What would you like to know?"
-        else:
-            return f"Action: {action.type} - {action.description}"
+        
+        # Build context from the world model
+        context = self._build_response_context(world)
+        
+        # 🔥 If we have entities, use them in the response
+        if world.entities:
+            entity_names = [e.canonical_name for e in world.entities]
+            # Check if we know the user's name
+            for entity in world.entities:
+                if entity.entity_type == "person":
+                    # We know the user's name!
+                    name = entity.canonical_name
+                    system_prompt = f"""You are ARIA, a warm, intelligent companion. 
+You know the user's name is {name}. 
+You remember things about them from previous conversations.
+
+Respond naturally, using their name when appropriate. Be warm and helpful.
+Do not mention that you are an AI or that you are analyzing data.
+Keep responses concise and conversational."""
+
+                    user_prompt = f"User said: {observation.raw}\n\nYour response:"
+                    
+                    try:
+                        response = call_llm(system_prompt, user_prompt)
+                        if response and len(response) > 10:
+                            return response
+                    except Exception as e:
+                        print(f"[Executive] Response error: {e}")
+                    
+                    return f"Hey {name}! What would you like to talk about today?"
+        
+        # If we have beliefs but no person entity
+        if world.beliefs:
+            system_prompt = f"""You are ARIA, a warm, intelligent companion.
+
+Context about the user:
+{context}
+
+Respond naturally. Be warm and helpful.
+Keep responses concise and conversational."""
+
+            user_prompt = f"User said: {observation.raw}\n\nYour response:"
+            
+            try:
+                response = call_llm(system_prompt, user_prompt)
+                if response and len(response) > 10:
+                    return response
+            except Exception as e:
+                print(f"[Executive] Response error: {e}")
+        
+        # Fallback: acknowledge the user
+        return "I'm listening. What would you like to talk about?"
+    
+    def _build_response_context(self, world: WorldModel) -> str:
+        """Build a context string from the world model."""
+        parts = []
+        
+        if world.entities:
+            entity_names = [e.canonical_name for e in world.entities]
+            parts.append(f"Known entities: {', '.join(entity_names)}")
+        
+        if world.beliefs:
+            belief_statements = [b.statement for b in world.beliefs[:3]]
+            parts.append(f"Things I know: {', '.join(belief_statements)}")
+        
+        if world.recent_episodes:
+            summaries = [e.summary for e in world.recent_episodes[:2]]
+            parts.append(f"Recent conversations: {', '.join(summaries)}")
+        
+        return "\n".join(parts) if parts else "No prior knowledge."
     
     # ─── Event Handlers ──────────────────────────────────────────
     
