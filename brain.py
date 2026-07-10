@@ -5453,3 +5453,22 @@ if __name__ == "__main__":          # ← ZERO spaces before this line
     server = HTTPServer(("0.0.0.0", port), Handler)
     print(f"ARIA 3.5 running on port {port}")
     server.serve_forever()
+
+# ════════════════════════════════════════════════════════════════════
+# COGNITIVE INTEGRATION – Replace the old ask() with the new system
+# ════════════════════════════════════════════════════════════════════
+
+from cognitive.core.orchestrator import get_orchestrator
+
+def ask_new(m: str, u: str, api=None, system_prompt_override=None) -> str:
+    """
+    New ask() function using the cognitive architecture.
+    Replaces the old ask() function.
+    """
+    orchestrator = get_orchestrator(u)
+    return orchestrator.ask(m, u)
+
+# Override the old ask() function
+# Comment out the old implementation and use this instead
+# ask = ask_new
+
