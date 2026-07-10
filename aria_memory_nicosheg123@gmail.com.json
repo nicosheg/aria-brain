@@ -1,0 +1,58 @@
+{
+  "entities": [
+    {
+      "id": "38e69de6-9a42-4e04-8d1c-07d74c2ddb90",
+      "canonical_name": "Nicholas",
+      "aliases": [],
+      "entity_type": "person",
+      "properties": {},
+      "confidence": 0.8,
+      "importance": 0.7,
+      "created": "2026-07-10T06:49:09.650838+00:00",
+      "last_updated": "2026-07-10T06:49:09.650902+00:00",
+      "version": 1
+    }
+  ],
+  "relationships": [],
+  "assertions": [],
+  "episodes": [
+    {
+      "id": "d0cff380-3118-4790-bffa-06e224681701",
+      "summary": "My name is Nicholas",
+      "full_text": "My name is Nicholas",
+      "timestamp": "2026-07-10T06:49:09.651288+00:00",
+      "importance": 0.3,
+      "source": "conversation",
+      "entities_involved": [
+        "Nicholas"
+      ],
+      "relationships_changed": [],
+      "beliefs_affected": [],
+      "metadata": {}
+    },
+    {
+      "id": "ef619848-a7f9-4d80-98f6-e0b25a9f3d9d",
+      "summary": "What is my name?",
+      "full_text": "What is my name?",
+      "timestamp": "2026-07-10T06:49:10.396531+00:00",
+      "importance": 0.4,
+      "source": "conversation",
+      "entities_involved": [],
+      "relationships_changed": [],
+      "beliefs_affected": [],
+      "metadata": {}
+    }
+  ],
+  "semantic_facts": [
+    {
+      "id": "15b63033-fcd1-4c26-a900-fef626de93c3",
+      "statement": "The speaker's name is Nicholas",
+      "confidence": 0.8,
+      "source_episode_ids": [],
+      "created": "2026-07-10T06:49:09.651090+00:00",
+      "last_updated": "2026-07-10T06:49:09.651126+00:00",
+      "version": 1
+    }
+  ],
+  "procedures": []
+}
