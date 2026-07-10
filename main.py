@@ -9,11 +9,10 @@ from pydantic import BaseModel
 from typing import Optional
 import os
 import time
-import json
 
-# ── Import the new cognitive architecture ──
+# ── Import the cognitive architecture ──
 from cognitive.core.orchestrator import Orchestrator, get_orchestrator
-from brain import generate_aria_uid, logger, log_error, db
+from brain import generate_aria_uid, logger, log_error
 
 # ── FastAPI App ──
 app = FastAPI(
@@ -43,7 +42,6 @@ class ChatResponse(BaseModel):
 _orchestrators = {}
 
 def get_orchestrator_for_user(user_id: str) -> Orchestrator:
-    """Get or create an orchestrator for a user."""
     if user_id not in _orchestrators:
         _orchestrators[user_id] = Orchestrator(user_id)
     return _orchestrators[user_id]
@@ -76,12 +74,8 @@ async def chat(request: ChatRequest):
     user_id = uid_result["aria_uid"]
     
     try:
-        # ── Get orchestrator for this user ──
         orchestrator = get_orchestrator_for_user(user_id)
-        
-        # ── Process through the cognitive pipeline ──
         result = orchestrator.process("conversation", message, {"email": email})
-        
         response = result.get("response", "I'm thinking...")
         
         elapsed_ms = (time.time() - start_time) * 1000
@@ -98,23 +92,19 @@ async def chat(request: ChatRequest):
 # ── Debug Endpoints ──
 @app.get("/debug-state")
 async def debug_state(email: str):
-    """Get the current state of the cognitive system."""
     uid_result = generate_aria_uid(email)
     if "error" in uid_result:
         return {"error": uid_result["error"]}
     user_id = uid_result["aria_uid"]
-    
     orchestrator = get_orchestrator_for_user(user_id)
     return orchestrator.get_state()
 
 @app.get("/debug-world")
 async def debug_world(email: str, query: str = ""):
-    """Get the world model for a user."""
     uid_result = generate_aria_uid(email)
     if "error" in uid_result:
         return {"error": uid_result["error"]}
     user_id = uid_result["aria_uid"]
-    
     orchestrator = get_orchestrator_for_user(user_id)
     return orchestrator.get_world_model(query or "test")
 
