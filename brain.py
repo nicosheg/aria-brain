@@ -41,8 +41,8 @@ import json, os, re, time, queue, threading, requests, hashlib
 import concurrent.futures
 import firebase_admin
 from firebase_admin import credentials, firestore
-import psycopg2
-from psycopg2 import pool
+# import psycopg2
+# from psycopg2 import pool
 pending_goals = {}
 
 # Optional pattern miner – ignore if missing
@@ -110,8 +110,8 @@ except:
 # [S2.5] POSTGRESQL (SUPABASE) SETUP
 # ════════════════════════════════════════════════════════════════════
 
-import psycopg2
-from psycopg2 import pool
+# import psycopg2
+# from psycopg2 import pool
 import os
 
 _postgres_pool = None
@@ -5472,3 +5472,12 @@ def ask_new(m: str, u: str, api=None, system_prompt_override=None) -> str:
 # Comment out the old implementation and use this instead
 # ask = ask_new
 
+
+# ── Fallback for generate_aria_uid if PostgreSQL is missing ──
+def generate_aria_uid(email):
+    """Fallback: generate deterministic UID from email."""
+    import hashlib
+    email = email.strip().lower()
+    # Use SHA-256 to get a consistent ID
+    hash_digest = hashlib.sha256(email.encode()).hexdigest()[:12]
+    return {"aria_uid": f"aria_{hash_digest}"}
