@@ -2,7 +2,7 @@
 # ARIA FastAPI Server – Cognitive Architecture Integration
 # ════════════════════════════════════════════════════════════════════
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
@@ -52,8 +52,8 @@ def get_orchestrator_for_user(user_id: str) -> Orchestrator:
         _orchestrators[user_id] = Orchestrator(user_id)
     return _orchestrators[user_id]
 
-# ── Health Check ──
-@app.get("/health")
+# ── Health Check (supports both GET and HEAD) ──
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health_check():
     return {"status": "ARIA 3.5 alive 💚", "stage": "PRODUCTION"}
 
