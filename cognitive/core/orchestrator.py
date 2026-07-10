@@ -110,3 +110,87 @@ def get_orchestrator(user_id: str = "default") -> Orchestrator:
     if _orchestrator is None:
         _orchestrator = Orchestrator(user_id)
     return _orchestrator
+
+    def _extract_and_store(self, text: str, observation_id: str):
+        """Extract entities/relationships and store them in the graph."""
+        from cognitive.understand.extraction import Extractor
+        
+        # Get context from the graph
+        context = self._get_graph_context(text)
+        
+        # Extract
+        result = Extractor.extract(text, context)
+        
+        # Store entities
+        for entity in result.get("entities", []):
+            self.graph.get_or_create_entity(
+                name=entity["name"],
+                entity_type=entity.get("type", "concept"),
+                confidence=0.8
+            )
+        
+        # Store relationships
+        for rel in result.get("relationships", []):
+            source = self.graph.get_entity_by_name(rel["source"])
+            target = self.graph.get_entity_by_name(rel["target"])
+            if source and target:
+                change = self.graph.propose_change(
+                    "ADD_RELATIONSHIP",
+                    {
+                        "source_id": source.id,
+                        "target_id": target.id,
+                        "relation_type": rel["relation_type"],
+                        "source": "conversation",
+                        "created_by": observation_id
+                    }
+                )
+                self.graph.validate_and_commit(change)
+        
+        # Store claims as semantic facts
+        for claim in result.get("claims", []):
+            self.semantic.add(
+                statement=claim["statement"],
+                confidence=claim.get("confidence", 0.6)
+            )
+        
+        return result
+    
+    def _get_graph_context(self, text: str) -> str:
+        """Get relevant context from the graph for extraction."""
+        context_parts = []
+        for entity in self.graph.entities_by_id.values():
+            if entity.canonical_name.lower() in text.lower():
+                context_parts.append(f"{entity.canonical_name} is a {entity.entity_type}")
+        return "\n".join(context_parts[:10])
+
+    def _load(self):
+        """Load from storage."""
+        # TODO: Implement loading from Firestore/PostgreSQL
+        # For now, try to load from in-memory backup if it exists
+        
+        # If storage adapter is available, load entities, relationships, etc.
+        if self.storage:
+            try:
+                # Load entities
+                entities = self.storage.get_all_entities()
+                for entity_data in entities:
+                    self.graph.get_or_create_entity(
+                        name=entity_data["canonical_name"],
+                        entity_type=entity_data.get("entity_type", "concept"),
+                        confidence=entity_data.get("confidence", 0.5)
+                    )
+                
+                # Load episodes
+                episodes = self.storage.get_episodes(limit=100)
+                for ep in episodes:
+                    self.episodic.add(
+                        summary=ep.get("summary", ""),
+                        full_text=ep.get("full_text", ""),
+                        importance=ep.get("importance", 0.5),
+                        source=ep.get("source", "conversation"),
+                        entities=ep.get("entities_involved", [])
+                    )
+            except Exception as e:
+                print(f"[Orchestrator] Load error: {e}")
+        
+        self._loaded = True

@@ -13,23 +13,14 @@ from cognitive.retrieve.retriever import Retriever
 from cognitive.retrieve.world_model import WorldModel, WorldModelBuilder
 from cognitive.reason.reasoner import Reasoner
 from cognitive.reason.metacognition import MetaCognition
-from cognitive.decide.planner import Planner, Action  # We'll build Planner next
-from cognitive.core.event_bus import EventBus, Event  # We'll build EventBus next
+from cognitive.decide.planner import Planner, Action
+from cognitive.core.event_bus import EventBus, Event
+from cognitive.understand.extraction import Extractor
 
 
 class Executive:
     """
     The Executive Controller orchestrates the entire cognitive pipeline.
-    
-    Flow:
-    1. Observe → Create Observation
-    2. Understand → LLM extracts entities/relationships/claims
-    3. Update Memory → Graph + Episodic + Semantic + Procedural
-    4. Retrieve → Build World Model
-    5. Reason → Detect contradictions, patterns, hypotheses
-    6. Metacognition → Assess certainty, hallucination risk
-    7. Plan → Decide next action
-    8. Act → Execute action (tool, response, ask, etc.)
     """
     
     def __init__(self, graph: KnowledgeGraph, episodic: EpisodicMemory,
@@ -103,7 +94,6 @@ class Executive:
     # ─── Pipeline Steps ──────────────────────────────────────────
     
     def _observe(self, source: str, raw: str, metadata: Dict = None) -> Observation:
-        """Step 1: Create Observation."""
         obs = Observation(
             source=source,
             raw=raw,
@@ -111,30 +101,75 @@ class Executive:
             importance=self._calculate_importance(raw)
         )
         self.last_observation = obs
-        
         if self.event_bus:
             self.event_bus.publish("OBSERVATION_CREATED", {"observation": obs})
-        
         return obs
     
     def _understand(self, observation: Observation) -> Dict:
-        """Step 2: LLM extraction (to be implemented with your call_llm)."""
-        # Placeholder: In production, call your LLM here
-        # For now, return empty extraction
-        return {
-            "entities": [],
-            "relationships": [],
-            "claims": [],
-            "events": []
-        }
+        """Step 2: LLM extraction."""
+        # Get context from graph
+        context = self._get_context(observation.raw)
+        return Extractor.extract(observation.raw, context)
+    
+    def _get_context(self, text: str) -> str:
+        """Get graph context for extraction."""
+        parts = []
+        for entity in self.graph.entities_by_id.values():
+            if entity.canonical_name.lower() in text.lower():
+                parts.append(f"{entity.canonical_name} is a {entity.entity_type}")
+        return "\n".join(parts[:5])
     
     def _update_memory(self, observation: Observation, understanding: Dict):
         """Step 3: Update all memory stores."""
-        # This will be implemented with the actual extraction
-        pass
+        # Store entities
+        for entity in understanding.get("entities", []):
+            self.graph.get_or_create_entity(
+                name=entity["name"],
+                entity_type=entity.get("type", "concept"),
+                confidence=0.8
+            )
+        
+        # Store relationships
+        for rel in understanding.get("relationships", []):
+            source = self.graph.get_entity_by_name(rel["source"])
+            target = self.graph.get_entity_by_name(rel["target"])
+            if source and target:
+                change = self.graph.propose_change(
+                    "ADD_RELATIONSHIP",
+                    {
+                        "source_id": source.id,
+                        "target_id": target.id,
+                        "relation_type": rel["relation_type"],
+                        "source": observation.source,
+                        "created_by": observation.id
+                    }
+                )
+                self.graph.validate_and_commit(change)
+        
+        # Store claims as semantic facts
+        for claim in understanding.get("claims", []):
+            self.semantic.add(
+                statement=claim["statement"],
+                confidence=claim.get("confidence", 0.6)
+            )
+        
+        # Store episode
+        entities = [e["name"] for e in understanding.get("entities", [])]
+        self.episodic.add(
+            summary=observation.raw[:100],
+            full_text=observation.raw,
+            importance=observation.importance,
+            source=observation.source,
+            entities=entities
+        )
+        
+        if self.event_bus:
+            self.event_bus.publish("MEMORY_UPDATED", {
+                "observation_id": observation.id,
+                "entity_count": len(understanding.get("entities", []))
+            })
     
     def _build_world(self, query: str) -> WorldModel:
-        """Step 4: Build World Model."""
         world_builder = WorldModelBuilder(
             self.graph, self.retriever, self.episodic,
             self.semantic, self.procedural
@@ -144,21 +179,15 @@ class Executive:
         return world
     
     def _reason(self, world: WorldModel) -> Dict:
-        """Step 5: Run Reasoning."""
         result = self.reasoner.reason(world)
-        
         if self.event_bus:
             self.event_bus.publish("REASONING_COMPLETE", {"world": world, "result": result})
-        
         return result
     
     def _metacognition(self, world: WorldModel, reasoning_result: Dict) -> Dict:
-        """Step 6: Run Metacognition."""
         return self.metacognition.evaluate_reasoning(world, reasoning_result)
     
     def _plan(self, world: WorldModel, reasoning_result: Dict, meta_result: Dict) -> Action:
-        """Step 7: Plan the next action."""
-        # Check metacognition: should we ask a question?
         ask_decision = meta_result.get("ask_decision", {})
         if ask_decision.get("should_ask", False):
             questions = ask_decision.get("questions", [])
@@ -170,20 +199,14 @@ class Executive:
                     priority="high",
                     details={"question": questions[0]}
                 )
-        
-        # Otherwise use planner
         return self.planner.plan(world)
     
     def _act(self, action: Action, world: WorldModel, observation: Observation) -> str:
-        """Step 8: Execute the action and generate response."""
         self.last_decision = {
             "action": action.type,
             "description": action.description,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
-        
-        # In production, this would call the response generator
-        # For now, return a placeholder
         if action.type == "ask":
             return action.description
         elif action.type == "continue":
@@ -193,30 +216,14 @@ class Executive:
     
     # ─── Event Handlers ──────────────────────────────────────────
     
-    def _on_observation_created(self, event):
-        """Handle OBSERVATION_CREATED event."""
-        # Could trigger understanding asynchronously
-        pass
-    
-    def _on_understanding_complete(self, event):
-        """Handle UNDERSTANDING_COMPLETE event."""
-        # Could trigger memory update asynchronously
-        pass
-    
-    def _on_memory_updated(self, event):
-        """Handle MEMORY_UPDATED event."""
-        # Could trigger reasoning asynchronously
-        pass
-    
-    def _on_reasoning_complete(self, event):
-        """Handle REASONING_COMPLETE event."""
-        # Could trigger planning asynchronously
-        pass
+    def _on_observation_created(self, event): pass
+    def _on_understanding_complete(self, event): pass
+    def _on_memory_updated(self, event): pass
+    def _on_reasoning_complete(self, event): pass
     
     # ─── Helpers ──────────────────────────────────────────────────
     
     def _calculate_importance(self, text: str) -> float:
-        """Calculate importance of an observation."""
         score = 0.3
         important_words = ["goal", "dream", "life", "career", "identity", "value", "mission", "purpose"]
         if any(w in text.lower() for w in important_words):
@@ -228,7 +235,6 @@ class Executive:
         return min(1.0, score)
     
     def get_state(self) -> Dict:
-        """Get current executive state."""
         return {
             "last_observation": self.last_observation.to_dict() if self.last_observation else None,
             "last_decision": self.last_decision,
