@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ARIA Debug Companion</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0a0e27; color: #fff; }
+        .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { font-size: 28px; margin-bottom: 5px; }
+        .header p { color: #888; }
+        
+        .chat-box { 
+            background: #1a1f3a; 
+            border: 1px solid #333; 
+            border-radius: 8px; 
+            height: 500px; 
+            display: flex; 
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .message {
+            padding: 12px 16px;
+            border-radius: 8px;
+            max-width: 80%;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+        
+        .message.user {
+            align-self: flex-end;
+            background: #0066cc;
+            margin-left: 20%;
+        }
+        
+        .message.agent {
+            align-self: flex-start;
+            background: #2d333b;
+            margin-right: 20%;
+        }
+        
+        .message.error {
+            background: #da3633;
+            width: 100%;
+            margin: 0;
+        }
+        
+        .input-area {
+            padding: 15px;
+            border-top: 1px solid #333;
+            display: flex;
+            gap: 10px;
+        }
+        
+        input {
+            flex: 1;
+            background: #0a0e27;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        input:focus { outline: none; border-color: #0066cc; }
+        
+        button {
+            background: #0066cc;
+            border: none;
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        button:hover { background: #0052a3; }
+        button:disabled { background: #666; cursor: not-allowed; }
+        
+        .trace-context {
+            margin-top: 20px;
+            background: #1a1f3a;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #0066cc;
+        }
+        
+        .trace-context h3 { margin-bottom: 10px; color: #0066cc; }
+        .trace-context code { background: #0a0e27; padding: 2px 6px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 ARIA Debug Companion</h1>
+            <p>Talk to me like you talk to Copilot. I'll debug & fix your code.</p>
+        </div>
+        
+        <div class="chat-box">
+            <div class="messages" id="messages"></div>
+            <div class="input-area">
+                <input type="text" id="query" placeholder="Ask me anything... 'why is extraction failing?' 'optimize this'" />
+                <button id="send" onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+        
+        <div class="trace-context" id="context" style="display: none;">
+            <h3>📊 Trace Context</h3>
+            <p id="context-text"></p>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let currentRequestId = null;
+
+        async function sendMessage() {
+            const query = document.getElementById('query').value.trim();
+            if (!query) return;
+
+            addMessage(query, 'user');
+            document.getElementById('query').value = '';
+            document.getElementById('send').disabled = true;
+
+            try {
+                // Get latest trace first
+                if (!currentRequestId) {
+                    const tracesRes = await fetch(`${API_BASE}/traces?limit=1`);
+                    const tracesData = await tracesRes.json();
+                    if (tracesData.traces && tracesData.traces.length > 0) {
+                        currentRequestId = tracesData.traces[0].request_id;
+                    }
+                }
+
+                // Call debug companion
+                const response = await fetch(`${API_BASE}/trace-chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: query,
+                        request_id: currentRequestId
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    addMessage(`❌ Error: ${error.detail || error.message}`, 'error');
+                } else {
+                    const result = await response.json();
+                    
+                    const formattedResponse = formatResponse(result.response);
+                    addMessage(formattedResponse, 'agent');
+                    
+                    if (result.trace_context) {
+                        updateTraceContext(result.trace_context);
+                        currentRequestId = result.trace_context.request_id;
+                    }
+                }
+            } catch (err) {
+                addMessage(`❌ Network error: ${err.message}`, 'error');
+            } finally {
+                document.getElementById('send').disabled = false;
+            }
+        }
+
+        function addMessage(text, role) {
+            const container = document.getElementById('messages');
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+            div.textContent = text;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function formatResponse(obj) {
+            if (typeof obj === 'string') return obj;
+            
+            let formatted = '';
+            
+            if (obj.finding) formatted += `🎯 ${obj.finding}\n\n`;
+            
+            if (obj.root_cause) formatted += `🔍 Root Cause: ${obj.root_cause}\n\n`;
+            
+            if (obj.suggested_fix) {
+                const fix = obj.suggested_fix;
+                if (fix.title) formatted += `✅ ${fix.title}\n`;
+                if (fix.file) formatted += `📄 File: ${fix.file}\n`;
+                if (fix.steps) formatted += `Steps:\n${fix.steps.map(s => `  ${s}`).join('\n')}\n\n`;
+            }
+            
+            if (obj.optimization_strategies) {
+                formatted += `⚡ Optimizations:\n${obj.optimization_strategies.map(s => `  ${s}`).join('\n')}\n\n`;
+            }
+            
+            if (obj.errors) {
+                formatted += `⚠️ Issues: ${obj.errors.length}\n`;
+            }
+            
+            if (obj.statistics) {
+                formatted += `📊 Stats:\n  Total spans: ${obj.statistics.total_spans}\n  Errors: ${obj.statistics.failed_spans}\n  Duration: ${obj.statistics.total_duration_ms}ms\n\n`;
+            }
+            
+            if (obj.code_snippet) {
+                formatted += `\n💻 Code Fix:\n\`\`\`\n${obj.code_snippet}\n\`\`\``;
+            }
+            
+            return formatted || JSON.stringify(obj, null, 2);
+        }
+
+        function updateTraceContext(ctx) {
+            const contextDiv = document.getElementById('context');
+            const contextText = document.getElementById('context-text');
+            
+            contextText.innerHTML = `
+                <strong>Request:</strong> <code>${ctx.request_id}</code><br>
+                <strong>Spans:</strong> ${ctx.span_count}<br>
+                <strong>Errors:</strong> ${ctx.errors}
+            `;
+            contextDiv.style.display = 'block';
+        }
+
+        document.getElementById('query').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Initial message
+        addMessage("👋 Hi! I'm your debug companion. Ask me:\n• 'Why is extraction failing?'\n• 'Optimize the LLM call'\n• 'What's the error?'\n• 'Fix this bug'", 'agent');
+    </script>
+</body>
+</html>
