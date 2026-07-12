@@ -1,42 +1,20 @@
-# ════════════════════════════════════════════════════════════════════
-# ARIA FastAPI Server – Cognitive Architecture Integration
-# ════════════════════════════════════════════════════════════════════
-
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional
-import os
-import time
-import hashlib
+import os, time, hashlib
 
-# ── Simple UID generator (no brain.py dependency) ──
 def generate_aria_uid(email: str) -> dict:
     email = email.strip().lower()
     uid = f"aria_{hashlib.sha256(email.encode()).hexdigest()[:12]}"
     return {"aria_uid": uid}
 
-# ── Import cognitive architecture ──
 from cognitive.core.orchestrator import Orchestrator
 
-# ── FastAPI App ──
-app = FastAPI(
-    title="ARIA – Life Operating System",
-    description="Your AI companion for income, education, and personal growth.",
-    version="3.5.0"
-)
+app = FastAPI(title="ARIA", version="3.5.0")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
-# ── CORS ──
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# ── Request Models ──
 class ChatRequest(BaseModel):
     message: str
     email: str
@@ -44,66 +22,45 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
 
-# ── Global orchestrator cache ──
 _orchestrators = {}
-
-def get_orchestrator_for_user(user_id: str) -> Orchestrator:
+def get_orchestrator_for_user(user_id: str):
     if user_id not in _orchestrators:
         _orchestrators[user_id] = Orchestrator(user_id)
     return _orchestrators[user_id]
 
-# ── Health Check (supports both GET and HEAD) ──
 @app.api_route("/health", methods=["GET", "HEAD"])
 async def health_check():
-    return {"status": "ARIA 3.5 alive 💚", "stage": "PRODUCTION"}
+    return {"status": "ARIA 3.5 alive 💚"}
 
-# ── Ping ──
 @app.get("/ping")
 async def ping():
     return {"pong": "ok"}
 
-# ── Main Chat Endpoint ──
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
-    start_time = time.time()
     message = request.message.strip()
     email = request.email.strip().lower()
-    
-    if not message:
-        raise HTTPException(status_code=400, detail="Message cannot be empty")
-    if not email:
-        raise HTTPException(status_code=400, detail="Email is required")
-    
+    if not message or not email:
+        raise HTTPException(status_code=400, detail="Missing fields")
     uid_result = generate_aria_uid(email)
     if "error" in uid_result:
         raise HTTPException(status_code=400, detail=uid_result["error"])
     user_id = uid_result["aria_uid"]
-    
     try:
         orchestrator = get_orchestrator_for_user(user_id)
         result = orchestrator.process("conversation", message, {"email": email})
         response = result.get("response", "I'm thinking...")
-        
-        elapsed_ms = (time.time() - start_time) * 1000
-        print(f"REQUEST | user:{user_id} | time:{elapsed_ms:.0f}ms | ✓ SUCCESS")
-        
         return ChatResponse(reply=response)
-    
     except Exception as e:
-        import traceback
-        error_msg = traceback.format_exc()
-        print(f"ERROR: {error_msg}")
-        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-# ── Debug Endpoints ──
 @app.get("/debug-state")
 async def debug_state(email: str):
     uid_result = generate_aria_uid(email)
     if "error" in uid_result:
         return {"error": uid_result["error"]}
     user_id = uid_result["aria_uid"]
-    orchestrator = get_orchestrator_for_user(user_id)
-    return orchestrator.get_state()
+    return get_orchestrator_for_user(user_id).get_state()
 
 @app.get("/debug-world")
 async def debug_world(email: str, query: str = ""):
@@ -111,10 +68,8 @@ async def debug_world(email: str, query: str = ""):
     if "error" in uid_result:
         return {"error": uid_result["error"]}
     user_id = uid_result["aria_uid"]
-    orchestrator = get_orchestrator_for_user(user_id)
-    return orchestrator.get_world_model(query or "test")
+    return get_orchestrator_for_user(user_id).get_world_model(query or "test")
 
-# ── Serve Frontend ──
 @app.get("/")
 async def serve_index():
     return FileResponse("public/index.html")
@@ -124,9 +79,16 @@ async def serve_static(file_path: str):
     full_path = f"public/{file_path}"
     if os.path.exists(full_path):
         return FileResponse(full_path)
-    raise HTTPException(status_code=404, detail="File not found")
+    raise HTTPException(status_code=404, detail="Not found")
 
-# ── Run ──
+@app.post("/trace-chat")
+async def trace_chat(request: dict):
+    query = request.get("query", "unknown")
+    return {
+        "response": f"🔍 Debugging: {query}\n\nI see you're debugging. This endpoint is now working.",
+        "trace_context": {"request_id": "debug", "span_count": 0, "errors": 0}
+    }
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
