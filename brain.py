@@ -178,63 +178,44 @@ def init_postgres():
         return {"error": str(e)}
 
 def generate_aria_uid(email):
-    """Get or create a stable UID for an email using Firestore mapping."""
+    """Generate a stable sequential UID using PostgreSQL, with fallback."""
     email = email.strip().lower()
     
-    # 1. Try Firestore mapping first
-    if db is not None:
+    # 1. Try PostgreSQL
+    if _postgres_pool is not None:
         try:
-            doc = db.collection("email_uid_map").document(email).get()
-            if doc.exists:
-                return {"aria_uid": doc.to_dict().get("uid")}
-        except Exception as e:
-            print(f"[generate_aria_uid] Firestore lookup error: {e}")
-    
-    # 2. Fallback to PostgreSQL (if available)
-    try:
-        if _postgres_pool:
             conn = _postgres_pool.getconn()
             cur = conn.cursor()
-            cur.execute("SELECT aria_uid FROM users WHERE email = %s", (email,))
+            # Case‑insensitive query
+            cur.execute("SELECT aria_uid FROM users WHERE LOWER(email) = %s", (email,))
             row = cur.fetchone()
             if row:
                 uid = row[0]
-                # Also store in Firestore for future
-                if db:
-                    db.collection("email_uid_map").document(email).set({"uid": uid})
                 _postgres_pool.putconn(conn)
                 return {"aria_uid": uid}
-            _postgres_pool.putconn(conn)
-    except Exception as e:
-        print(f"[generate_aria_uid] PostgreSQL error: {e}")
-    
-    # 3. Create new deterministic UID (using SHA-256 hash)
-    import hashlib
-    hash_digest = hashlib.sha256(email.encode()).hexdigest()[:12]
-    new_uid = f"aria_{hash_digest}"
-    
-    # Store in Firestore
-    if db:
-        try:
-            db.collection("email_uid_map").document(email).set({"uid": new_uid})
-        except Exception as e:
-            print(f"[generate_aria_uid] Failed to store new mapping: {e}")
-    
-    # Also try to store in PostgreSQL
-    try:
-        if _postgres_pool:
-            conn = _postgres_pool.getconn()
-            cur = conn.cursor()
+            
+            # Insert new user
+            cur.execute("SELECT COUNT(*) FROM users")
+            count = cur.fetchone()[0]
+            next_num = count + 1
+            new_uid = f"aria{next_num:012d}"
             cur.execute(
                 "INSERT INTO users (aria_uid, email) VALUES (%s, %s) ON CONFLICT (email) DO NOTHING",
                 (new_uid, email)
             )
             conn.commit()
             _postgres_pool.putconn(conn)
-    except Exception as e:
-        print(f"[generate_aria_uid] PostgreSQL insert error: {e}")
+            return {"aria_uid": new_uid}
+        except Exception as e:
+            print(f"[generate_aria_uid] PostgreSQL error: {e}")
+    else:
+        print("[generate_aria_uid] _postgres_pool is None")
     
-    return {"aria_uid": new_uid}
+    # 2. Fallback: deterministic hash (only if DB is unreachable)
+    import hashlib
+    hash_uid = f"aria_{hashlib.sha256(email.encode()).hexdigest()[:12]}"
+    print(f"[generate_aria_uid] Using fallback hash: {hash_uid}")
+    return {"aria_uid": hash_uid}
 def save_memory_node(aria_uid, node_type, content, importance=50):
     valid_types = ["fact", "context", "decision", "outcome"]
     if node_type not in valid_types:
@@ -5506,60 +5487,41 @@ def ask_new(m: str, u: str, api=None, system_prompt_override=None) -> str:
 
 # ── Fallback for generate_aria_uid if PostgreSQL is missing ──
 def generate_aria_uid(email):
-    """Get or create a stable UID for an email using Firestore mapping."""
+    """Generate a stable sequential UID using PostgreSQL, with fallback."""
     email = email.strip().lower()
     
-    # 1. Try Firestore mapping first
-    if db is not None:
+    # 1. Try PostgreSQL
+    if _postgres_pool is not None:
         try:
-            doc = db.collection("email_uid_map").document(email).get()
-            if doc.exists:
-                return {"aria_uid": doc.to_dict().get("uid")}
-        except Exception as e:
-            print(f"[generate_aria_uid] Firestore lookup error: {e}")
-    
-    # 2. Fallback to PostgreSQL (if available)
-    try:
-        if _postgres_pool:
             conn = _postgres_pool.getconn()
             cur = conn.cursor()
-            cur.execute("SELECT aria_uid FROM users WHERE email = %s", (email,))
+            # Case‑insensitive query
+            cur.execute("SELECT aria_uid FROM users WHERE LOWER(email) = %s", (email,))
             row = cur.fetchone()
             if row:
                 uid = row[0]
-                # Also store in Firestore for future
-                if db:
-                    db.collection("email_uid_map").document(email).set({"uid": uid})
                 _postgres_pool.putconn(conn)
                 return {"aria_uid": uid}
-            _postgres_pool.putconn(conn)
-    except Exception as e:
-        print(f"[generate_aria_uid] PostgreSQL error: {e}")
-    
-    # 3. Create new deterministic UID (using SHA-256 hash)
-    import hashlib
-    hash_digest = hashlib.sha256(email.encode()).hexdigest()[:12]
-    new_uid = f"aria_{hash_digest}"
-    
-    # Store in Firestore
-    if db:
-        try:
-            db.collection("email_uid_map").document(email).set({"uid": new_uid})
-        except Exception as e:
-            print(f"[generate_aria_uid] Failed to store new mapping: {e}")
-    
-    # Also try to store in PostgreSQL
-    try:
-        if _postgres_pool:
-            conn = _postgres_pool.getconn()
-            cur = conn.cursor()
+            
+            # Insert new user
+            cur.execute("SELECT COUNT(*) FROM users")
+            count = cur.fetchone()[0]
+            next_num = count + 1
+            new_uid = f"aria{next_num:012d}"
             cur.execute(
                 "INSERT INTO users (aria_uid, email) VALUES (%s, %s) ON CONFLICT (email) DO NOTHING",
                 (new_uid, email)
             )
             conn.commit()
             _postgres_pool.putconn(conn)
-    except Exception as e:
-        print(f"[generate_aria_uid] PostgreSQL insert error: {e}")
+            return {"aria_uid": new_uid}
+        except Exception as e:
+            print(f"[generate_aria_uid] PostgreSQL error: {e}")
+    else:
+        print("[generate_aria_uid] _postgres_pool is None")
     
-    return {"aria_uid": new_uid}
+    # 2. Fallback: deterministic hash (only if DB is unreachable)
+    import hashlib
+    hash_uid = f"aria_{hashlib.sha256(email.encode()).hexdigest()[:12]}"
+    print(f"[generate_aria_uid] Using fallback hash: {hash_uid}")
+    return {"aria_uid": hash_uid}
