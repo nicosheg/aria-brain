@@ -3631,17 +3631,15 @@ def ask(m, u, api, system_prompt_override=None):
     # ── 1. Rate limit ──────────────────────────────
     if not check_rate_limit(u):
         return "You're moving fast! Take a breath, try again in a moment 🧘"
-    
+
     original_m = m
     m_compressed = compress_message(m, 800)
-    
+
     # ── 2. Cache check (fastest) ──────────────────
     cached = get_cached(m, u)
     if cached:
         return f"{cached}\n\n[✨ From cache]"
 
-[✨ From cache]"
-    
     # ── 3. LOAD FIRESTORE FACTS (PERMANENT MEMORY) ──
     user_facts_context = ""
     if db is not None:
@@ -3655,11 +3653,7 @@ def ask(m, u, api, system_prompt_override=None):
                 if key and value:
                     facts_list.append(f"{key}: {value}")
             if facts_list:
-                user_facts_context = "
-🧠 USER FACTS FROM FIRESTORE:
-" + "
-".join(facts_list) + "
-"
+                user_facts_context = "\n🧠 USER FACTS FROM FIRESTORE:\n" + "\n".join(facts_list) + "\n"
                 print(f"[ask] Loaded {len(facts_list)} facts for {u}")
             else:
                 print(f"[ask] No facts found for {u}")
@@ -3667,7 +3661,7 @@ def ask(m, u, api, system_prompt_override=None):
             print(f"[ask] Error loading facts: {e}")
     else:
         print("[ask] db is None, cannot load facts")
-    
+
     # ── 4. DIRECT FIRESTORE FACT RETRIEVAL (personal info) ──
     personal_facts = []
     if db is not None:
@@ -3678,7 +3672,7 @@ def ask(m, u, api, system_prompt_override=None):
                 personal_facts.append(f"{data['key']}: {data['value']}")
         except Exception as e:
             print(f"Fact retrieval error: {e}")
-    
+
     if personal_facts:
         fact_string = "I know about you: " + ", ".join(personal_facts)
         personal_keywords = [
@@ -3688,156 +3682,113 @@ def ask(m, u, api, system_prompt_override=None):
             "what do you remember", "tell me about myself", "what do you know me"
         ]
         if any(keyword in m.lower() for keyword in personal_keywords):
-            return f"{fact_string}
+            return f"{fact_string}\n\n[💡 From your personal facts]"
 
-[💡 From your personal facts]"
-    
     # ── 5. Per‑user memory (past high‑rated responses) ──
     user_memory = search_user_memory(m_compressed, u)
     if user_memory:
-        return f"{user_memory}
+        return f"{user_memory}\n\n[💡 From your memory]"
 
-[💡 From your memory]"
-    
     # ── 6. Global knowledge base ──
     kb_result = search_knowledge_base(m_compressed) if len(m_compressed) > 30 else None
     if kb_result and kb_result["found"]:
         stage, _ = get_aria_stage()
         prefix = get_stage_prefix(stage)
-        return f"{prefix}
+        return f"{prefix}\n\n{kb_result['answer']}\n\n[🧠 {kb_result['confidence']}% confidence]"
 
-{kb_result['answer']}
-
-[🧠 {kb_result['confidence']}% confidence]"
-    
     # ── 7. Load conversation history ──
     if is_new_session(u):
         cx = get_full_history(u)
     else:
         cx = get_context(u)
-    
+
     # ── 8. Load PostgreSQL facts ──
     try:
         user_memory_data = load_user_memory(u)
         if user_memory_data["facts"]:
-            user_facts_pg = "
-".join([f"- {f['content']}" for f in user_memory_data["facts"]])
+            user_facts_pg = "\n".join([f"- {f['content']}" for f in user_memory_data["facts"]])
         else:
             user_facts_pg = ""
     except Exception as e:
         print(f"Memory load error: {e}")
         user_facts_pg = ""
-    
+
     # ── 9. Adaptive scores ──
     adaptive = load_adaptive_scores(u)
     adaptive_summary = ""
     if adaptive.get("learning_style"):
-        adaptive_summary += f"Learning style: {json.dumps(adaptive['learning_style'])}
-"
+        adaptive_summary += f"Learning style: {json.dumps(adaptive['learning_style'])}\n"
     if adaptive.get("communication_preference"):
-        adaptive_summary += f"Communication: {json.dumps(adaptive['communication_preference'])}
-"
+        adaptive_summary += f"Communication: {json.dumps(adaptive['communication_preference'])}\n"
     if adaptive.get("decision_pattern"):
-        adaptive_summary += f"Decision: {json.dumps(adaptive['decision_pattern'])}
-"
-    
+        adaptive_summary += f"Decision: {json.dumps(adaptive['decision_pattern'])}\n"
+
     # ── 10. Build memory section ──
     memory_section = ""
     if cx:
-        memory_section += f"## RECENT CONVERSATION
-{cx}
-
-"
+        memory_section += f"## RECENT CONVERSATION\n{cx}\n\n"
     if user_facts_pg:
-        memory_section += f"### KNOWN FACTS:
-{user_facts_pg}
-
-"
+        memory_section += f"### KNOWN FACTS:\n{user_facts_pg}\n\n"
     if adaptive_summary:
-        memory_section += f"### ADAPTIVE PROBABILITIES
-{adaptive_summary}
+        memory_section += f"### ADAPTIVE PROBABILITIES\n{adaptive_summary}\n\n"
 
-"
-    
     # ── 11. Build system prompt ──
     nz = timezone(timedelta(hours=1))
     cd = datetime.now(nz).strftime("%A, %B %d, %Y at %H:%M")
     is_owner = (u == OWNER_UID) if OWNER_UID else False
-    owner_note = "
-[OWNER MODE — Push harder]" if is_owner else ""
+    owner_note = "\n[OWNER MODE — Push harder]" if is_owner else ""
     tone = detect_tone(m, u)
     mode = detect_mode(m, u)
     topic = detect_topic(m)
     stage, conf = get_aria_stage()
-    stage_ctx = f"
-ARIA STAGE: {stage} ({round(conf*100)}%)
-{get_stage_prefix(stage)}"
-    compress_note = f"
-[Input compressed: {len(original_m)}→{len(m_compressed)} chars]" if len(original_m) > 800 else ""
-    meta = f"
-
-MODE: {mode.upper()} | TONE: {tone} | TOPIC: {topic}{owner_note}{stage_ctx}{compress_note}"
+    stage_ctx = f"\nARIA STAGE: {stage} ({round(conf*100)}%)\n{get_stage_prefix(stage)}"
+    compress_note = f"\n[Input compressed: {len(original_m)}→{len(m_compressed)} chars]" if len(original_m) > 800 else ""
+    meta = f"\n\nMODE: {mode.upper()} | TONE: {tone} | TOPIC: {topic}{owner_note}{stage_ctx}{compress_note}"
     lesson_injection = get_relevant_lessons(m)
     behavior_guidance = get_behavior_guidance()
-    
+
     final_sp = SP
     if lesson_injection or behavior_guidance:
-        final_sp = final_sp + "
+        final_sp = final_sp + "\n\n## LEARNED PATTERNS\n" + lesson_injection + behavior_guidance
 
-## LEARNED PATTERNS
-" + lesson_injection + behavior_guidance
-    
     if adaptive_summary:
-        final_sp += f"
+        final_sp += f"\n\nUSER ADAPTIVE PROFILE:\n{adaptive_summary}\n\n"
 
-USER ADAPTIVE PROFILE:
-{adaptive_summary}
-
-"
-    
     if system_prompt_override:
         final_sp = system_prompt_override
-    
-    # ── Build the final prompt ──
-    prompt = f"{memory_section}TIME (Lagos): {cd}
 
-{m}{meta}"
-    
+    # ── Build the final prompt ──
+    prompt = f"{memory_section}TIME (Lagos): {cd}\n\n{m}{meta}"
+
     # ── Inject Firestore facts into prompt ──
     if user_facts_context:
         prompt = user_facts_context + prompt
         print(f"[ask] Injected Firestore facts into prompt")
-    
+
     # ── 12. LLM call ──
     resp = try_all_apis_parallel(prompt, final_sp)
-    
+
     if resp:
         # ── Goal confirmation ──
         goal = extract_long_term_goal(original_m)
         pending = get_pending_goal(u)
         if goal and not pending:
             set_pending_goal(u, goal)
-            resp += f"
-
-Should I remember "{goal}" as a long-term goal? (Say yes or no)"
+            resp += f"\n\nShould I remember \"{goal}\" as a long-term goal? (Say yes or no)"
         elif pending:
             user_response = original_m.lower().strip()
             if user_response in ["yes", "yeah", "yep", "sure", "ok", "okay"]:
                 save_goal_with_type(u, pending["goal"], "long_term")
                 clear_pending_goal(u)
-                resp += "
-
-✓ Saved your long-term goal."
+                resp += "\n\n✓ Saved your long-term goal."
             elif user_response in ["no", "nah", "no thanks", "nevermind"]:
                 clear_pending_goal(u)
-                resp += "
+                resp += "\n\nNo problem, I won't save that goal."
 
-No problem, I won't save that goal."
-        
         # ── Save memory and cache ──
         save_memory(u, original_m, resp)
         cache_response(m, u, resp)
-        
+
         # ── Store response for future per‑user memory ──
         try:
             if db:
@@ -3861,16 +3812,14 @@ No problem, I won't save that goal."
                     })
         except Exception as e:
             print(f"[Memory] Could not store response: {e}")
-        
+
         return resp
-    
+
     # ── 13. Fallback ──
     fallback = get_cached(m, u)
     if fallback:
-        return f"[From memory] {fallback}
+        return f"[From memory] {fallback}\n\n(APIs busy, serving saved knowledge)"
 
-(APIs busy, serving saved knowledge)"
-    
     return "I'm thinking slower than usual right now. Give me a moment? 🤔"
 
 def test_postgres_connection():
