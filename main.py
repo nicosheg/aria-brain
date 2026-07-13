@@ -4,7 +4,6 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import os
 
-# ── Your original brain ──
 from brain import ask, generate_aria_uid
 
 app = FastAPI()
@@ -16,6 +15,11 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     reply: str
+
+# ── Health check (explicit) ──
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 @app.get("/ping")
 async def ping():
@@ -34,6 +38,10 @@ async def chat(req: ChatRequest):
 async def index():
     return FileResponse("public/index.html")
 
+# ── Catch-all must be LAST ──
 @app.get("/{path:path}")
 async def static(path: str):
-    return FileResponse(f"public/{path}")
+    full_path = f"public/{path}"
+    if os.path.exists(full_path):
+        return FileResponse(full_path)
+    raise HTTPException(404, detail="Not found")
