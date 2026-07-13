@@ -3,7 +3,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import os
+import json
+import firebase_admin
+from firebase_admin import credentials, firestore
 
+# ── Initialize Firestore ──
+if not firebase_admin._apps:
+    cred_json = os.environ.get("FIREBASE_CREDENTIALS")
+    if cred_json:
+        cred = credentials.Certificate(json.loads(cred_json))
+        firebase_admin.initialize_app(cred)
+        db = firestore.client()
+        print("✅ Firestore initialized")
+    else:
+        print("❌ FIREBASE_CREDENTIALS not found")
+        db = None
+
+# ── Import brain (uses db if available) ──
 from brain import ask, generate_aria_uid
 
 app = FastAPI()
@@ -16,7 +32,6 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
 
-# ── Health check (explicit) ──
 @app.get("/health")
 async def health():
     return {"status": "ok"}
@@ -38,7 +53,6 @@ async def chat(req: ChatRequest):
 async def index():
     return FileResponse("public/index.html")
 
-# ── Catch-all must be LAST ──
 @app.get("/{path:path}")
 async def static(path: str):
     full_path = f"public/{path}"
