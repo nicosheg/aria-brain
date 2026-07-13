@@ -3638,7 +3638,7 @@ def ask(m, u, api, system_prompt_override=None):
     # ── 2. Cache check (fastest) ──────────────────
     cached = get_cached(m, u)
     if cached:
-        return f"{cached}
+        return f"{cached}\n\n[✨ From cache]"
 
 [✨ From cache]"
     
