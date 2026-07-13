@@ -7,7 +7,7 @@ import json
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-# ── Initialize Firestore FIRST ──
+# ── Initialize Firestore ──
 if not firebase_admin._apps:
     cred_json = os.environ.get("FIREBASE_CREDENTIALS")
     if cred_json:
@@ -22,8 +22,12 @@ else:
     db = firestore.client()
     print("✅ Firestore already initialized")
 
-# ── Import brain (after Firestore is ready) ──
-from brain import ask, generate_aria_uid
+# ── Import brain and initialize PostgreSQL ──
+from brain import ask, generate_aria_uid, init_postgres
+
+print("🔧 Initializing PostgreSQL pool...")
+init_postgres()
+print("✅ PostgreSQL pool initialized")
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -48,10 +52,10 @@ async def chat(req: ChatRequest):
     try:
         uid_result = generate_aria_uid(req.email.lower())
         user_id = uid_result["aria_uid"]
+        reply = ask(req.message, user_id, None)
+        return ChatResponse(reply=reply)
     except Exception as e:
         raise HTTPException(500, detail=str(e))
-    reply = ask(req.message, user_id, None)
-    return ChatResponse(reply=reply)
 
 @app.get("/debug-uid")
 async def debug_uid(email: str):
