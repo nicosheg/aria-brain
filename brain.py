@@ -180,8 +180,9 @@ def init_postgres():
 def generate_aria_uid(email):
     """
     Generate a stable sequential UID using PostgreSQL.
-    No fallback – raises an exception if anything fails.
+    Email is normalized to lowercase (RFC-compliant + practical).
     """
+    # Normalize email: strip spaces, lowercase
     email = email.strip().lower()
     
     if _postgres_pool is None:
@@ -191,13 +192,13 @@ def generate_aria_uid(email):
     try:
         conn = _postgres_pool.getconn()
         cur = conn.cursor()
-        # Case‑insensitive lookup
-        cur.execute("SELECT aria_uid FROM users WHERE LOWER(email) = %s", (email,))
+        # Case‑insensitive lookup (email is already lowercase)
+        cur.execute("SELECT aria_uid FROM users WHERE email = %s", (email,))
         row = cur.fetchone()
         if row:
             return {"aria_uid": row[0]}
         
-        # Insert new user with sequential UID
+        # Insert new user with normalized email
         cur.execute("SELECT COUNT(*) FROM users")
         count = cur.fetchone()[0]
         next_num = count + 1
@@ -209,7 +210,6 @@ def generate_aria_uid(email):
         conn.commit()
         return {"aria_uid": new_uid}
     except Exception as e:
-        # Re-raise so we know there's a problem (no silent fallback)
         raise Exception(f"generate_aria_uid failed: {e}")
     finally:
         if conn:
@@ -5487,8 +5487,9 @@ def ask_new(m: str, u: str, api=None, system_prompt_override=None) -> str:
 def generate_aria_uid(email):
     """
     Generate a stable sequential UID using PostgreSQL.
-    No fallback – raises an exception if anything fails.
+    Email is normalized to lowercase (RFC-compliant + practical).
     """
+    # Normalize email: strip spaces, lowercase
     email = email.strip().lower()
     
     if _postgres_pool is None:
@@ -5498,13 +5499,13 @@ def generate_aria_uid(email):
     try:
         conn = _postgres_pool.getconn()
         cur = conn.cursor()
-        # Case‑insensitive lookup
-        cur.execute("SELECT aria_uid FROM users WHERE LOWER(email) = %s", (email,))
+        # Case‑insensitive lookup (email is already lowercase)
+        cur.execute("SELECT aria_uid FROM users WHERE email = %s", (email,))
         row = cur.fetchone()
         if row:
             return {"aria_uid": row[0]}
         
-        # Insert new user with sequential UID
+        # Insert new user with normalized email
         cur.execute("SELECT COUNT(*) FROM users")
         count = cur.fetchone()[0]
         next_num = count + 1
@@ -5516,7 +5517,6 @@ def generate_aria_uid(email):
         conn.commit()
         return {"aria_uid": new_uid}
     except Exception as e:
-        # Re-raise so we know there's a problem (no silent fallback)
         raise Exception(f"generate_aria_uid failed: {e}")
     finally:
         if conn:
