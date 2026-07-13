@@ -73,3 +73,18 @@ async def static(path: str):
     if os.path.exists(full_path):
         return FileResponse(full_path)
     raise HTTPException(404, detail="Not found")
+
+@app.get("/debug-db")
+async def debug_db():
+    from brain import _postgres_pool
+    if _postgres_pool is None:
+        return {"error": "PostgreSQL pool is None"}
+    try:
+        conn = _postgres_pool.getconn()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM users")
+        count = cur.fetchone()[0]
+        _postgres_pool.putconn(conn)
+        return {"connected": True, "user_count": count}
+    except Exception as e:
+        return {"error": str(e)}

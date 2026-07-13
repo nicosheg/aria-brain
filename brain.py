@@ -117,88 +117,56 @@ import os
 _postgres_pool = None
 
 def init_postgres():
-    """Create PostgreSQL connection pool and tables if they don't exist.
-    
-    Usage:
-        result = init_postgres()
-        print(result)  # {"status": "connected"} or {"error": "..."}
-    
-    Returns:
-        dict with 'status' or 'error'
-    """
+    """Create PostgreSQL connection pool."""
     global _postgres_pool
-    
-    # Get Supabase connection string from environment
+    print("[DEBUG] init_postgres called")
+    import os
     db_url = os.environ.get("SUPABASE_DB_URL", "")
+    print(f"[DEBUG] SUPABASE_DB_URL present: {bool(db_url)}")
     if not db_url:
+        print("[ERROR] SUPABASE_DB_URL not set")
         return {"error": "SUPABASE_DB_URL not set in environment"}
-    
     try:
-        # Create connection pool (5 connections max)
-        _postgres_pool = psycopg2.pool.SimpleConnectionPool(2, 10, db_url, keepalives=1, keepalives_idle=5, keepalives_interval=2, keepalives_count=2)
-        
-        # Get a connection to create tables
+        import psycopg2
+        from psycopg2 import pool
+        print("[DEBUG] Creating connection pool...")
+        _postgres_pool = psycopg2.pool.SimpleConnectionPool(2, 10, db_url)
+        print("[DEBUG] Pool created successfully")
+        # Test connection
         conn = _postgres_pool.getconn()
         cur = conn.cursor()
-        
-        # Create users table
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                aria_uid TEXT PRIMARY KEY,
-                email TEXT UNIQUE,
-                created_at TIMESTAMP DEFAULT NOW()
-            )
-        """)
-        
-        # Create memory_nodes table
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS memory_nodes (
-                node_id SERIAL PRIMARY KEY,
-                aria_uid TEXT REFERENCES users(aria_uid),
-                node_type TEXT CHECK (node_type IN ('fact', 'context', 'decision', 'outcome')),
-                content TEXT,
-                importance INTEGER DEFAULT 50,
-                created_at TIMESTAMP DEFAULT NOW()
-            )
-        """)
-        
-        # Create index for faster lookups
-        cur.execute("""
-            CREATE INDEX IF NOT EXISTS idx_memory_nodes_aria_uid 
-            ON memory_nodes(aria_uid)
-        """)
-        
-        conn.commit()
+        cur.execute("SELECT 1")
         cur.close()
         _postgres_pool.putconn(conn)
-        
+        print("[DEBUG] Test query successful")
         return {"status": "connected"}
-        
     except Exception as e:
+        print(f"[ERROR] init_postgres failed: {e}")
+        _postgres_pool = None
         return {"error": str(e)}
-
 def generate_aria_uid(email):
-    """
-    Generate a stable sequential UID using PostgreSQL.
-    Email is normalized to lowercase (RFC-compliant + practical).
-    """
-    # Normalize email: strip spaces, lowercase
+    """Generate a stable sequential UID using PostgreSQL."""
+    print(f"[DEBUG] generate_aria_uid called with email: {email}")
     email = email.strip().lower()
+    print(f"[DEBUG] Normalized email: {email}")
     
     if _postgres_pool is None:
+        print("[ERROR] _postgres_pool is None")
         raise Exception("PostgreSQL connection pool is not initialized.")
     
     conn = None
     try:
         conn = _postgres_pool.getconn()
+        print("[DEBUG] Got connection from pool")
         cur = conn.cursor()
-        # Case‑insensitive lookup (email is already lowercase)
         cur.execute("SELECT aria_uid FROM users WHERE email = %s", (email,))
         row = cur.fetchone()
         if row:
-            return {"aria_uid": row[0]}
-        
-        # Insert new user with normalized email
+            uid = row[0]
+            _postgres_pool.putconn(conn)
+            print(f"[DEBUG] Found existing UID: {uid}")
+            return {"aria_uid": uid}
+        # Insert new user
         cur.execute("SELECT COUNT(*) FROM users")
         count = cur.fetchone()[0]
         next_num = count + 1
@@ -208,8 +176,11 @@ def generate_aria_uid(email):
             (new_uid, email)
         )
         conn.commit()
+        _postgres_pool.putconn(conn)
+        print(f"[DEBUG] Created new UID: {new_uid}")
         return {"aria_uid": new_uid}
     except Exception as e:
+        print(f"[ERROR] generate_aria_uid DB error: {e}")
         raise Exception(f"generate_aria_uid failed: {e}")
     finally:
         if conn:
@@ -5485,27 +5456,28 @@ def ask_new(m: str, u: str, api=None, system_prompt_override=None) -> str:
 
 # ── Fallback for generate_aria_uid if PostgreSQL is missing ──
 def generate_aria_uid(email):
-    """
-    Generate a stable sequential UID using PostgreSQL.
-    Email is normalized to lowercase (RFC-compliant + practical).
-    """
-    # Normalize email: strip spaces, lowercase
+    """Generate a stable sequential UID using PostgreSQL."""
+    print(f"[DEBUG] generate_aria_uid called with email: {email}")
     email = email.strip().lower()
+    print(f"[DEBUG] Normalized email: {email}")
     
     if _postgres_pool is None:
+        print("[ERROR] _postgres_pool is None")
         raise Exception("PostgreSQL connection pool is not initialized.")
     
     conn = None
     try:
         conn = _postgres_pool.getconn()
+        print("[DEBUG] Got connection from pool")
         cur = conn.cursor()
-        # Case‑insensitive lookup (email is already lowercase)
         cur.execute("SELECT aria_uid FROM users WHERE email = %s", (email,))
         row = cur.fetchone()
         if row:
-            return {"aria_uid": row[0]}
-        
-        # Insert new user with normalized email
+            uid = row[0]
+            _postgres_pool.putconn(conn)
+            print(f"[DEBUG] Found existing UID: {uid}")
+            return {"aria_uid": uid}
+        # Insert new user
         cur.execute("SELECT COUNT(*) FROM users")
         count = cur.fetchone()[0]
         next_num = count + 1
@@ -5515,8 +5487,11 @@ def generate_aria_uid(email):
             (new_uid, email)
         )
         conn.commit()
+        _postgres_pool.putconn(conn)
+        print(f"[DEBUG] Created new UID: {new_uid}")
         return {"aria_uid": new_uid}
     except Exception as e:
+        print(f"[ERROR] generate_aria_uid DB error: {e}")
         raise Exception(f"generate_aria_uid failed: {e}")
     finally:
         if conn:
