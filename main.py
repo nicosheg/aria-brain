@@ -52,7 +52,6 @@ async def chat(req: ChatRequest):
     reply = ask(req.message, user_id, None)
     return ChatResponse(reply=reply)
 
-# ── DEBUG ENDPOINT ──
 @app.get("/debug-uid")
 async def debug_uid(email: str):
     from brain import generate_aria_uid
