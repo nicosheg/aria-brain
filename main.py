@@ -45,10 +45,11 @@ async def ping():
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):
-    uid_result = generate_aria_uid(req.email.lower())
-    if "error" in uid_result:
-        raise HTTPException(400, detail=uid_result["error"])
-    user_id = uid_result["aria_uid"]
+    try:
+        uid_result = generate_aria_uid(req.email.lower())
+        user_id = uid_result["aria_uid"]
+    except Exception as e:
+        raise HTTPException(500, detail=str(e))
     reply = ask(req.message, user_id, None)
     return ChatResponse(reply=reply)
 

@@ -178,44 +178,42 @@ def init_postgres():
         return {"error": str(e)}
 
 def generate_aria_uid(email):
-    """Generate a stable sequential UID using PostgreSQL, with fallback."""
+    """
+    Generate a stable sequential UID using PostgreSQL.
+    No fallback – raises an exception if anything fails.
+    """
     email = email.strip().lower()
     
-    # 1. Try PostgreSQL
-    if _postgres_pool is not None:
-        try:
-            conn = _postgres_pool.getconn()
-            cur = conn.cursor()
-            # Case‑insensitive query
-            cur.execute("SELECT aria_uid FROM users WHERE LOWER(email) = %s", (email,))
-            row = cur.fetchone()
-            if row:
-                uid = row[0]
-                _postgres_pool.putconn(conn)
-                return {"aria_uid": uid}
-            
-            # Insert new user
-            cur.execute("SELECT COUNT(*) FROM users")
-            count = cur.fetchone()[0]
-            next_num = count + 1
-            new_uid = f"aria{next_num:012d}"
-            cur.execute(
-                "INSERT INTO users (aria_uid, email) VALUES (%s, %s) ON CONFLICT (email) DO NOTHING",
-                (new_uid, email)
-            )
-            conn.commit()
-            _postgres_pool.putconn(conn)
-            return {"aria_uid": new_uid}
-        except Exception as e:
-            print(f"[generate_aria_uid] PostgreSQL error: {e}")
-    else:
-        print("[generate_aria_uid] _postgres_pool is None")
+    if _postgres_pool is None:
+        raise Exception("PostgreSQL connection pool is not initialized.")
     
-    # 2. Fallback: deterministic hash (only if DB is unreachable)
-    import hashlib
-    hash_uid = f"aria_{hashlib.sha256(email.encode()).hexdigest()[:12]}"
-    print(f"[generate_aria_uid] Using fallback hash: {hash_uid}")
-    return {"aria_uid": hash_uid}
+    conn = None
+    try:
+        conn = _postgres_pool.getconn()
+        cur = conn.cursor()
+        # Case‑insensitive lookup
+        cur.execute("SELECT aria_uid FROM users WHERE LOWER(email) = %s", (email,))
+        row = cur.fetchone()
+        if row:
+            return {"aria_uid": row[0]}
+        
+        # Insert new user with sequential UID
+        cur.execute("SELECT COUNT(*) FROM users")
+        count = cur.fetchone()[0]
+        next_num = count + 1
+        new_uid = f"aria{next_num:012d}"
+        cur.execute(
+            "INSERT INTO users (aria_uid, email) VALUES (%s, %s) ON CONFLICT (email) DO NOTHING",
+            (new_uid, email)
+        )
+        conn.commit()
+        return {"aria_uid": new_uid}
+    except Exception as e:
+        # Re-raise so we know there's a problem (no silent fallback)
+        raise Exception(f"generate_aria_uid failed: {e}")
+    finally:
+        if conn:
+            _postgres_pool.putconn(conn)
 def save_memory_node(aria_uid, node_type, content, importance=50):
     valid_types = ["fact", "context", "decision", "outcome"]
     if node_type not in valid_types:
@@ -5487,41 +5485,39 @@ def ask_new(m: str, u: str, api=None, system_prompt_override=None) -> str:
 
 # ── Fallback for generate_aria_uid if PostgreSQL is missing ──
 def generate_aria_uid(email):
-    """Generate a stable sequential UID using PostgreSQL, with fallback."""
+    """
+    Generate a stable sequential UID using PostgreSQL.
+    No fallback – raises an exception if anything fails.
+    """
     email = email.strip().lower()
     
-    # 1. Try PostgreSQL
-    if _postgres_pool is not None:
-        try:
-            conn = _postgres_pool.getconn()
-            cur = conn.cursor()
-            # Case‑insensitive query
-            cur.execute("SELECT aria_uid FROM users WHERE LOWER(email) = %s", (email,))
-            row = cur.fetchone()
-            if row:
-                uid = row[0]
-                _postgres_pool.putconn(conn)
-                return {"aria_uid": uid}
-            
-            # Insert new user
-            cur.execute("SELECT COUNT(*) FROM users")
-            count = cur.fetchone()[0]
-            next_num = count + 1
-            new_uid = f"aria{next_num:012d}"
-            cur.execute(
-                "INSERT INTO users (aria_uid, email) VALUES (%s, %s) ON CONFLICT (email) DO NOTHING",
-                (new_uid, email)
-            )
-            conn.commit()
-            _postgres_pool.putconn(conn)
-            return {"aria_uid": new_uid}
-        except Exception as e:
-            print(f"[generate_aria_uid] PostgreSQL error: {e}")
-    else:
-        print("[generate_aria_uid] _postgres_pool is None")
+    if _postgres_pool is None:
+        raise Exception("PostgreSQL connection pool is not initialized.")
     
-    # 2. Fallback: deterministic hash (only if DB is unreachable)
-    import hashlib
-    hash_uid = f"aria_{hashlib.sha256(email.encode()).hexdigest()[:12]}"
-    print(f"[generate_aria_uid] Using fallback hash: {hash_uid}")
-    return {"aria_uid": hash_uid}
+    conn = None
+    try:
+        conn = _postgres_pool.getconn()
+        cur = conn.cursor()
+        # Case‑insensitive lookup
+        cur.execute("SELECT aria_uid FROM users WHERE LOWER(email) = %s", (email,))
+        row = cur.fetchone()
+        if row:
+            return {"aria_uid": row[0]}
+        
+        # Insert new user with sequential UID
+        cur.execute("SELECT COUNT(*) FROM users")
+        count = cur.fetchone()[0]
+        next_num = count + 1
+        new_uid = f"aria{next_num:012d}"
+        cur.execute(
+            "INSERT INTO users (aria_uid, email) VALUES (%s, %s) ON CONFLICT (email) DO NOTHING",
+            (new_uid, email)
+        )
+        conn.commit()
+        return {"aria_uid": new_uid}
+    except Exception as e:
+        # Re-raise so we know there's a problem (no silent fallback)
+        raise Exception(f"generate_aria_uid failed: {e}")
+    finally:
+        if conn:
+            _postgres_pool.putconn(conn)
