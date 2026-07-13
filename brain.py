@@ -3652,6 +3652,29 @@ def ask(m, u, api, system_prompt_override=None):
     # ── 2. Cache check (fastest) ──────────────────
     cached = get_cached(m, u)
     if cached:
+
+    # ── LOAD FIRESTORE FACTS (permanent memory) ──
+    user_facts_context = ""
+    if db is not None:
+        try:
+            docs = db.collection("users").document(u).collection("facts").stream()
+            facts_list = []
+            for doc in docs:
+                data = doc.to_dict()
+                key = data.get("key", "")
+                value = data.get("value", "")
+                if key and value:
+                    facts_list.append(f"{key}: {value}")
+            if facts_list:
+                user_facts_context = "\n🧠 USER FACTS FROM FIRESTORE:\n" + "\n".join(facts_list) + "\n"
+                print(f"[ask] Loaded {len(facts_list)} facts for {u}")
+            else:
+                print(f"[ask] No facts found for {u}")
+        except Exception as e:
+            print(f"[ask] Error loading facts: {e}")
+    else:
+        print("[ask] db is None, cannot load facts")
+
         return f"{cached}\n\n[✨ From cache]"
     
     # ── 3. DIRECT FIRESTORE FACT RETRIEVAL (personal info) ──
@@ -3749,6 +3772,11 @@ def ask(m, u, api, system_prompt_override=None):
         final_sp = system_prompt_override
     
     prompt = f"{memory_section}TIME (Lagos): {cd}\n\n{m}{meta}"
+
+    # ── Inject Firestore facts into prompt ──
+    if user_facts_context:
+        prompt = user_facts_context + prompt
+        print(f"[ask] Injected Firestore facts into prompt")
     # ── Inject Firestore facts into prompt ──
     if user_facts_context:
         prompt = user_facts_context + prompt
