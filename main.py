@@ -7,19 +7,22 @@ import json
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-# ── Initialize Firestore ──
+# ── Initialize Firestore FIRST ──
 if not firebase_admin._apps:
     cred_json = os.environ.get("FIREBASE_CREDENTIALS")
     if cred_json:
         cred = credentials.Certificate(json.loads(cred_json))
         firebase_admin.initialize_app(cred)
         db = firestore.client()
-        print("✅ Firestore initialized")
+        print("✅ Firestore initialized in main")
     else:
         print("❌ FIREBASE_CREDENTIALS not found")
         db = None
+else:
+    db = firestore.client()
+    print("✅ Firestore already initialized")
 
-# ── Import brain (uses db if available) ──
+# ── Import brain (after Firestore is ready) ──
 from brain import ask, generate_aria_uid
 
 app = FastAPI()
