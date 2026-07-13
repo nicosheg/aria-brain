@@ -3633,27 +3633,16 @@ def ask(m, u, api, system_prompt_override=None):
         return "You're moving fast! Take a breath, try again in a moment 🧘"
     
     original_m = m
-    # ── LOAD FIRESTORE FACTS ──
-    user_facts_context = ""
-    if db is not None:
-        try:
-            docs = db.collection("users").document(u).collection("facts").stream()
-            facts_list = []
-            for doc in docs:
-                data = doc.to_dict()
-                facts_list.append(f"{data.get(key, )}: {data.get(value, )}")
-            if facts_list:
-                user_facts_context = "\n🧠 USER FACTS FROM FIRESTORE:\n" + "\n".join(facts_list) + "\n"
-                print(f"[ask] Loaded {len(facts_list)} facts for {u}")
-        except Exception as e:
-            print(f"[ask] Could not load facts: {e}")
     m_compressed = compress_message(m, 800)
     
     # ── 2. Cache check (fastest) ──────────────────
     cached = get_cached(m, u)
     if cached:
+        return f"{cached}
 
-    # ── LOAD FIRESTORE FACTS (permanent memory) ──
+[✨ From cache]"
+    
+    # ── 3. LOAD FIRESTORE FACTS (PERMANENT MEMORY) ──
     user_facts_context = ""
     if db is not None:
         try:
@@ -3666,7 +3655,11 @@ def ask(m, u, api, system_prompt_override=None):
                 if key and value:
                     facts_list.append(f"{key}: {value}")
             if facts_list:
-                user_facts_context = "\n🧠 USER FACTS FROM FIRESTORE:\n" + "\n".join(facts_list) + "\n"
+                user_facts_context = "
+🧠 USER FACTS FROM FIRESTORE:
+" + "
+".join(facts_list) + "
+"
                 print(f"[ask] Loaded {len(facts_list)} facts for {u}")
             else:
                 print(f"[ask] No facts found for {u}")
@@ -3674,18 +3667,17 @@ def ask(m, u, api, system_prompt_override=None):
             print(f"[ask] Error loading facts: {e}")
     else:
         print("[ask] db is None, cannot load facts")
-
-        return f"{cached}\n\n[✨ From cache]"
     
-    # ── 3. DIRECT FIRESTORE FACT RETRIEVAL (personal info) ──
+    # ── 4. DIRECT FIRESTORE FACT RETRIEVAL (personal info) ──
     personal_facts = []
-    try:
-        docs = db.collection("users").document(u).collection("facts").stream()
-        for doc in docs:
-            data = doc.to_dict()
-            personal_facts.append(f"{data['key']}: {data['value']}")
-    except Exception as e:
-        print(f"Fact retrieval error: {e}")
+    if db is not None:
+        try:
+            docs = db.collection("users").document(u).collection("facts").stream()
+            for doc in docs:
+                data = doc.to_dict()
+                personal_facts.append(f"{data['key']}: {data['value']}")
+        except Exception as e:
+            print(f"Fact retrieval error: {e}")
     
     if personal_facts:
         fact_string = "I know about you: " + ", ".join(personal_facts)
@@ -3696,92 +3688,127 @@ def ask(m, u, api, system_prompt_override=None):
             "what do you remember", "tell me about myself", "what do you know me"
         ]
         if any(keyword in m.lower() for keyword in personal_keywords):
-            return f"{fact_string}\n\n[💡 From your personal facts]"
+            return f"{fact_string}
+
+[💡 From your personal facts]"
     
-    # ── 4. Per‑user memory (past high‑rated responses) ──
+    # ── 5. Per‑user memory (past high‑rated responses) ──
     user_memory = search_user_memory(m_compressed, u)
     if user_memory:
-        return f"{user_memory}\n\n[💡 From your memory]"
+        return f"{user_memory}
+
+[💡 From your memory]"
     
-    # ── 5. Global knowledge base ──
+    # ── 6. Global knowledge base ──
     kb_result = search_knowledge_base(m_compressed) if len(m_compressed) > 30 else None
     if kb_result and kb_result["found"]:
         stage, _ = get_aria_stage()
         prefix = get_stage_prefix(stage)
-        return f"{prefix}\n\n{kb_result['answer']}\n\n[🧠 {kb_result['confidence']}% confidence]"
+        return f"{prefix}
+
+{kb_result['answer']}
+
+[🧠 {kb_result['confidence']}% confidence]"
     
-    # ── 6. Load conversation history ──
+    # ── 7. Load conversation history ──
     if is_new_session(u):
         cx = get_full_history(u)
     else:
         cx = get_context(u)
     
-    # ── 7. Load PostgreSQL facts ──
+    # ── 8. Load PostgreSQL facts ──
     try:
         user_memory_data = load_user_memory(u)
         if user_memory_data["facts"]:
-            user_facts_pg = "\n".join([f"- {f['content']}" for f in user_memory_data["facts"]])
+            user_facts_pg = "
+".join([f"- {f['content']}" for f in user_memory_data["facts"]])
         else:
             user_facts_pg = ""
     except Exception as e:
         print(f"Memory load error: {e}")
         user_facts_pg = ""
     
-    # ── 8. Adaptive scores ──
+    # ── 9. Adaptive scores ──
     adaptive = load_adaptive_scores(u)
     adaptive_summary = ""
     if adaptive.get("learning_style"):
-        adaptive_summary += f"Learning style: {json.dumps(adaptive['learning_style'])}\n"
+        adaptive_summary += f"Learning style: {json.dumps(adaptive['learning_style'])}
+"
     if adaptive.get("communication_preference"):
-        adaptive_summary += f"Communication: {json.dumps(adaptive['communication_preference'])}\n"
+        adaptive_summary += f"Communication: {json.dumps(adaptive['communication_preference'])}
+"
     if adaptive.get("decision_pattern"):
-        adaptive_summary += f"Decision: {json.dumps(adaptive['decision_pattern'])}\n"
+        adaptive_summary += f"Decision: {json.dumps(adaptive['decision_pattern'])}
+"
     
-    # ── 9. Build memory section ──
+    # ── 10. Build memory section ──
     memory_section = ""
     if cx:
-        memory_section += f"## RECENT CONVERSATION\n{cx}\n\n"
+        memory_section += f"## RECENT CONVERSATION
+{cx}
+
+"
     if user_facts_pg:
-        memory_section += f"### KNOWN FACTS:\n{user_facts_pg}\n\n"
+        memory_section += f"### KNOWN FACTS:
+{user_facts_pg}
+
+"
     if adaptive_summary:
-        memory_section += f"### ADAPTIVE PROBABILITIES\n{adaptive_summary}\n\n"
+        memory_section += f"### ADAPTIVE PROBABILITIES
+{adaptive_summary}
+
+"
     
-    # ── 10. Build system prompt ──
+    # ── 11. Build system prompt ──
     nz = timezone(timedelta(hours=1))
     cd = datetime.now(nz).strftime("%A, %B %d, %Y at %H:%M")
     is_owner = (u == OWNER_UID) if OWNER_UID else False
-    owner_note = "\n[OWNER MODE — Push harder]" if is_owner else ""
+    owner_note = "
+[OWNER MODE — Push harder]" if is_owner else ""
     tone = detect_tone(m, u)
     mode = detect_mode(m, u)
     topic = detect_topic(m)
     stage, conf = get_aria_stage()
-    stage_ctx = f"\nARIA STAGE: {stage} ({round(conf*100)}%)\n{get_stage_prefix(stage)}"
-    compress_note = f"\n[Input compressed: {len(original_m)}→{len(m_compressed)} chars]" if len(original_m) > 800 else ""
-    meta = f"\n\nMODE: {mode.upper()} | TONE: {tone} | TOPIC: {topic}{owner_note}{stage_ctx}{compress_note}"
+    stage_ctx = f"
+ARIA STAGE: {stage} ({round(conf*100)}%)
+{get_stage_prefix(stage)}"
+    compress_note = f"
+[Input compressed: {len(original_m)}→{len(m_compressed)} chars]" if len(original_m) > 800 else ""
+    meta = f"
+
+MODE: {mode.upper()} | TONE: {tone} | TOPIC: {topic}{owner_note}{stage_ctx}{compress_note}"
     lesson_injection = get_relevant_lessons(m)
     behavior_guidance = get_behavior_guidance()
     
     final_sp = SP
     if lesson_injection or behavior_guidance:
-        final_sp = final_sp + "\n\n## LEARNED PATTERNS\n" + lesson_injection + behavior_guidance
+        final_sp = final_sp + "
+
+## LEARNED PATTERNS
+" + lesson_injection + behavior_guidance
     
     if adaptive_summary:
-        final_sp += f"\n\nUSER ADAPTIVE PROFILE:\n{adaptive_summary}\n\n"
+        final_sp += f"
+
+USER ADAPTIVE PROFILE:
+{adaptive_summary}
+
+"
     
     if system_prompt_override:
         final_sp = system_prompt_override
     
-    prompt = f"{memory_section}TIME (Lagos): {cd}\n\n{m}{meta}"
+    # ── Build the final prompt ──
+    prompt = f"{memory_section}TIME (Lagos): {cd}
 
+{m}{meta}"
+    
     # ── Inject Firestore facts into prompt ──
     if user_facts_context:
         prompt = user_facts_context + prompt
         print(f"[ask] Injected Firestore facts into prompt")
-    # ── Inject Firestore facts into prompt ──
-    if user_facts_context:
-        prompt = user_facts_context + prompt
     
-    # ── 11. LLM call ── ( ← This line has exactly 4 spaces )
+    # ── 12. LLM call ──
     resp = try_all_apis_parallel(prompt, final_sp)
     
     if resp:
@@ -3790,16 +3817,22 @@ def ask(m, u, api, system_prompt_override=None):
         pending = get_pending_goal(u)
         if goal and not pending:
             set_pending_goal(u, goal)
-            resp += f"\n\nShould I remember \"{goal}\" as a long-term goal? (Say yes or no)"
+            resp += f"
+
+Should I remember "{goal}" as a long-term goal? (Say yes or no)"
         elif pending:
             user_response = original_m.lower().strip()
             if user_response in ["yes", "yeah", "yep", "sure", "ok", "okay"]:
                 save_goal_with_type(u, pending["goal"], "long_term")
                 clear_pending_goal(u)
-                resp += "\n\n✓ Saved your long-term goal."
+                resp += "
+
+✓ Saved your long-term goal."
             elif user_response in ["no", "nah", "no thanks", "nevermind"]:
                 clear_pending_goal(u)
-                resp += "\n\nNo problem, I won't save that goal."
+                resp += "
+
+No problem, I won't save that goal."
         
         # ── Save memory and cache ──
         save_memory(u, original_m, resp)
@@ -3831,29 +3864,15 @@ def ask(m, u, api, system_prompt_override=None):
         
         return resp
     
-    # ── 12. Fallback ──
+    # ── 13. Fallback ──
     fallback = get_cached(m, u)
     if fallback:
-        return f"[From memory] {fallback}\n\n(APIs busy, serving saved knowledge)"
+        return f"[From memory] {fallback}
+
+(APIs busy, serving saved knowledge)"
     
     return "I'm thinking slower than usual right now. Give me a moment? 🤔"
-# ════════════════════════════════════════════════════════════════════
-# [S10] HTML UI
-#  Edit the interface here.
-#  This is the complete ARIA HUD design.
-#  To update the UI: edit everything inside HTML = """..."""
-# ════════════════════════════════════════════════════════════════════
-HTML = """<!DOCTYPE html> <html> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"> <title>ARIA 3.5</title> <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script> <style> :root{ --c:#00d9ff; --cdk:#0099bb; --g:rgba(0,217,255,0.18); --g2:rgba(0,217,255,0.06); --bg:#07091a; --bg2:#0d1128; --bg3:#111830; --usr:#00c4e8; --usrdark:#007a9e; --txt:#ffffff; --sub:rgba(255,255,255,0.5); --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif } :root.female{ --c:#ff2d9a; --cdk:#c4006e; --g:rgba(255,45,154,0.18); --g2:rgba(255,45,154,0.06); --usr:#ff2d9a; --usrdark:#b0005e } *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent} html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--txt);font-family:var(--font)} body{background:linear-gradient(160deg,#070a1e 0%,#0b0f28 50%,#0f0820 100%)} .wrap{width:100%;height:100%;display:flex;flex-direction:column;max-width:640px;margin:0 auto;position:relative} /* HEADER */ .hdr{ padding:16px 20px 12px; background:linear-gradient(180deg,rgba(7,9,26,0.98) 0%,rgba(10,13,32,0.95) 100%); border-bottom:1.5px solid var(--c); box-shadow:0 1px 20px var(--g); flex-shrink:0; text-align:center } .hdr-row{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:6px} .hdr h1{font-size:28px;font-weight:800;color:var(--txt);letter-spacing:1px} .hdr h1 span{color:var(--c)} .toggles{display:flex;gap:8px} .tog{ width:42px;height:42px;border-radius:50%; border:2px solid var(--c); background:rgba(0,217,255,0.1); color:var(--c);font-size:18px; display:flex;align-items:center;justify-content:center; cursor:pointer;transition:all 0.25s ease } .tog.active{background:var(--c);color:#07091a;box-shadow:0 0 16px var(--g)} .tog:hover{transform:scale(1.08)} .tog.ftog{border-color:var(--c);color:var(--c)} .tog.ftog.active{background:var(--c)} .hdr-sub{font-size:13px;color:var(--sub);letter-spacing:0.5px} /* CHAT */ .chat{ flex:1;overflow-y:auto; padding:18px 16px 12px; display:flex;flex-direction:column;gap:12px; scroll-behavior:smooth } .chat::-webkit-scrollbar{width:3px} .chat::-webkit-scrollbar-thumb{background:var(--c);border-radius:10px} /* MESSAGES */ .msg-row{display:flex;flex-direction:column;animation:rise 0.3s ease} @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}} .msg-row.user{align-items:flex-end} .msg-row.aria{align-items:flex-start} .bubble{ max-width:82%; padding:13px 17px; border-radius:22px; line-height:1.65; font-size:15px; word-break:break-word } /* USER bubble - solid cyan */ .msg-row.user .bubble{ background:linear-gradient(135deg,var(--usr) 0%,var(--usrdark) 100%); color:#ffffff; border-radius:22px 22px 6px 22px; font-weight:500; box-shadow:0 2px 16px var(--g) } /* ARIA bubble - dark card */ .msg-row.aria .bubble{ background:var(--bg2); border:1.5px solid var(--c); color:var(--txt); border-radius:22px 22px 22px 6px; box-shadow:0 2px 20px var(--g),inset 0 0 20px var(--g2) } /* Markdown inside ARIA bubble */ .bubble p{margin:4px 0;line-height:1.65} .bubble strong{color:var(--c);font-weight:700} .bubble em{color:rgba(255,255,255,0.85);font-style:italic} .bubble h1,.bubble h2,.bubble h3{ color:var(--c);font-weight:700; margin:8px 0 4px; text-shadow:0 0 10px var(--g) } .bubble h1{font-size:15px;text-transform:uppercase;letter-spacing:1px} .bubble h2{font-size:14px} .bubble h3{font-size:13px} .bubble ul,.bubble ol{margin:6px 0 6px 20px} .bubble li{margin:3px 0;line-height:1.6} .bubble ol{list-style:decimal} .bubble ul{list-style:disc} .bubble code{ background:rgba(0,217,255,0.12); border:1px solid rgba(0,217,255,0.3); border-radius:4px;padding:1px 6px; font-family:'Courier New',monospace; font-size:12px;color:var(--c) } .bubble pre{ background:rgba(0,0,0,0.4); border:1px solid var(--c); border-radius:10px;padding:12px; margin:8px 0;overflow-x:auto } .bubble pre code{background:none;border:none;padding:0;font-size:12px} .bubble blockquote{ border-left:3px solid var(--c); padding-left:12px; margin:6px 0; opacity:0.85 } .bubble a{color:var(--c);text-decoration:underline} .bubble hr{border:none;border-top:1px solid rgba(0,217,255,0.2);margin:8px 0} /* Timestamp */ .ts{font-size:10px;color:var(--sub);margin-top:4px;padding:0 4px;display:flex;align-items:center;gap:4px} .msg-row.user .ts{justify-content:flex-end} .tick{color:var(--c);font-size:11px} /* Typing dots */ .dots{display:flex;gap:5px;padding:6px 2px} .dots span{width:7px;height:7px;border-radius:50%;background:var(--c);opacity:0.4;animation:db 1.2s infinite} .dots span:nth-child(2){animation-delay:.2s} .dots span:nth-child(3){animation-delay:.4s} @keyframes db{0%,80%,100%{opacity:0.4;transform:scale(1)}40%{opacity:1;transform:scale(1.4)}} /* Rating row */ .rate-row{display:flex;gap:6px;margin-top:5px;flex-wrap:wrap;padding:0 4px} .rbtn{ padding:5px 12px;border-radius:20px; background:transparent;border:1px solid var(--c); color:var(--c);font-size:13px;cursor:pointer; transition:all 0.2s } .rbtn:hover,.rbtn.done{background:var(--c);color:#07091a;box-shadow:0 0 10px var(--g)} .rdone{font-size:11px;color:var(--c);opacity:0.7;letter-spacing:0.5px} /* FLOATING INPUT */ .inp-outer{ padding:10px 14px 14px; background:transparent; flex-shrink:0 } .inp-pill{ display:flex;gap:10px;align-items:flex-end; background:var(--bg2); border:1.5px solid var(--c); border-radius:30px; padding:8px 8px 8px 18px; box-shadow:0 4px 30px var(--g),0 0 0 1px rgba(0,217,255,0.08) } textarea{ flex:1;background:transparent;border:none;outline:none; color:var(--txt);font-family:var(--font); font-size:14px;resize:none; min-height:36px;max-height:100px; line-height:1.5;padding:4px 0 } textarea::placeholder{color:var(--sub)} .send{ padding:10px 22px; background:linear-gradient(135deg,var(--usr) 0%,var(--cdk) 100%); color:#ffffff;border:none;border-radius:22px; font-family:var(--font);font-size:14px;font-weight:700; cursor:pointer;transition:all 0.2s; white-space:nowrap; box-shadow:0 2px 12px var(--g); flex-shrink:0 } .send:hover{transform:translateY(-1px);box-shadow:0 4px 20px var(--g)} .send:active{transform:scale(0.97)} /* RATE FOOTER */ .ftr{ text-align:center;padding:8px; font-size:12px;color:var(--c); opacity:0.65;cursor:pointer; flex-shrink:0;transition:opacity 0.2s } .ftr:hover{opacity:1} </style> </head> <body> <div class="wrap"> <div class="hdr"> <div class="hdr-row"> <h1>&#127475;&#127468; <span>ARIA</span></h1> <div class="toggles"> <button class="tog active" id="btnM" onclick="setTheme('male')">&#9794;</button> <button class="tog ftog" id="btnF" onclick="setTheme('female')">&#9792;</button> </div> </div> <div class="hdr-sub">Your Strategic AI Friend</div> </div> <div class="chat" id="chat"></div> <div class="inp-outer"> <div class="inp-pill"> <textarea id="inp" placeholder="Talk to ARIA..." rows="1"></textarea> <button class="send" onclick="send()">Send</button> </div> </div> <div class="ftr" id="ftr" onclick="showRate()">&#11088; Rate ARIA's last response</div> </div> <script> marked.setOptions({breaks:true,gfm:true}); const chat=document.getElementById("chat"),inp=document.getElementById("input")||document.getElementById("inp"),ftr=document.getElementById("ftr"); let UID=localStorage.getItem("aria_uid"); if(!UID){const n=prompt("What's your name?")||"user_"+Math.random().toString(36).substr(2,6);UID=n.toLowerCase().replace(/ +/g,"_")+Math.random().toString(36).substr(2,5);localStorage.setItem("aria_uid",UID);localStorage.setItem("aria_name",n)} let lastRateBar=null,lastMsgId=null; function setTheme(t){ const r=document.documentElement; document.getElementById("btnM").classList.toggle("active",t==="male"); document.getElementById("btnF").classList.toggle("active",t==="female"); t==="female"?r.classList.add("female"):r.classList.remove("female"); localStorage.setItem("aria_theme",t) } function now(){return new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})} function addMsg(text,sender,rate=false){ const row=document.createElement("div"); row.className="msg-row "+sender; const bub=document.createElement("div"); bub.className="bubble"; if(sender==="aria"){ bub.style.whiteSpace="normal"; bub.innerHTML=text==="..."?'<div class="dots"><span></span><span></span><span></span></div>':marked.parse(String(text)) }else{ bub.style.whiteSpace="pre-wrap"; bub.textContent=text } const ts=document.createElement("div"); ts.className="ts"; ts.innerHTML=sender==="user"?now()+' <span class="tick">&#10003;&#10003;</span>':now(); row.appendChild(bub);row.appendChild(ts); if(sender==="aria"&&rate){ const rr=document.createElement("div"); rr.className="rate-row"; [["&#128078;",1],["&#128528;",2],["&#128077;",3],["&#128293;",4],["&#128175;",5]].forEach(([e,s])=>{ const b=document.createElement("button");b.className="rbtn";b.innerHTML=e; b.onclick=()=>doRate(s,rr);rr.appendChild(b) }); row.appendChild(rr);lastRateBar=rr } chat.appendChild(row);chat.scrollTop=chat.scrollHeight;lastMsgId=Math.random();return row } function showRate(){if(lastRateBar)lastRateBar.scrollIntoView({behavior:"smooth"})} function doRate(s,bar){ fetch("/feedback",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({user_id:UID,score:s,message_id:lastMsgId})}).catch(()=>{}); bar.innerHTML='<div class="rdone">&#10003; Rated '+s+'/5 — Thanks!</div>' } async function send(){ const m=inp.value.trim();if(!m)return; addMsg(m,"user");inp.value="";inp.style.height="36px"; const tw=addMsg("...","aria",false); try{ const r=await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:m,user_id:UID})}); const d=await r.json();tw.remove();addMsg(d.reply||"No response","aria",true) }catch(e){tw.remove();addMsg("Connection error. Try again.","aria",false)} } inp.addEventListener("input",()=>{inp.style.height="36px";inp.style.height=Math.min(inp.scrollHeight,100)+"px"}); inp.addEventListener("keydown",(e)=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}}); window.addEventListener("load",()=>{setTheme(localStorage.getItem("aria_theme")||"male")}); </script> </body> </html>"""
 
-# ════════════════════════════════════════════════════════════════════
-# [S11] HTTP ENDPOINTS
-#  All routes ARIA responds to.
-#  To add a new endpoint: add an elif self.path=="/yourpath" block.
-# ════════════════════════════════════════════════════════════════════
-
-# ════════════════════════════════════════════════════════════════════
-# STARTUP: Test PostgreSQL Connection
-# ═══════════════════════════════════════════════════════════════════
 def test_postgres_connection():
     """Test if PostgreSQL connection works."""
     print("\n" + "="*50)
