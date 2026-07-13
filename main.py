@@ -62,3 +62,9 @@ async def static(path: str):
     if os.path.exists(full_path):
         return FileResponse(full_path)
     raise HTTPException(404, detail="Not found")
+
+@app.get("/debug-uid")
+async def debug_uid(email: str):
+    from brain import generate_aria_uid
+    result = generate_aria_uid(email)
+    return result
