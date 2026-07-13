@@ -3633,6 +3633,20 @@ def ask(m, u, api, system_prompt_override=None):
         return "You're moving fast! Take a breath, try again in a moment 🧘"
     
     original_m = m
+    # ── LOAD FIRESTORE FACTS ──
+    user_facts_context = ""
+    if db is not None:
+        try:
+            docs = db.collection("users").document(u).collection("facts").stream()
+            facts_list = []
+            for doc in docs:
+                data = doc.to_dict()
+                facts_list.append(f"{data.get(key, )}: {data.get(value, )}")
+            if facts_list:
+                user_facts_context = "\n🧠 USER FACTS FROM FIRESTORE:\n" + "\n".join(facts_list) + "\n"
+                print(f"[ask] Loaded {len(facts_list)} facts for {u}")
+        except Exception as e:
+            print(f"[ask] Could not load facts: {e}")
     m_compressed = compress_message(m, 800)
     
     # ── 2. Cache check (fastest) ──────────────────
@@ -3735,6 +3749,9 @@ def ask(m, u, api, system_prompt_override=None):
         final_sp = system_prompt_override
     
     prompt = f"{memory_section}TIME (Lagos): {cd}\n\n{m}{meta}"
+    # ── Inject Firestore facts into prompt ──
+    if user_facts_context:
+        prompt = user_facts_context + prompt
     
     # ── 11. LLM call ── ( ← This line has exactly 4 spaces )
     resp = try_all_apis_parallel(prompt, final_sp)
