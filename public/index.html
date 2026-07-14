@@ -1102,6 +1102,32 @@
         userNameSpan.textContent = displayName;
         const initials = getUserInitials(user.displayName, user.email);
         userInitialsSpan.textContent = initials;
+        
+        // ── Get ARIA UID and store it ──
+        const ariaUid = await getAriaUid(user.email);
+        if (ariaUid) {
+            localStorage.setItem('aria_uid', ariaUid);
+            console.log('[Auth] ARIA UID:', ariaUid);
+            try {
+                await fetch('/set_user_name', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        email: user.email.toLowerCase(), 
+                        name: displayName 
+                    })
+                });
+            } catch(e) { console.warn('Name save error:', e); }
+        }
+    } else {
+        window.location.href = '/login.html';
+    }
+});;
+        }, 4 * 60 * 1000);
+        const displayName = user.displayName || user.email.split('@')[0];
+        userNameSpan.textContent = displayName;
+        const initials = getUserInitials(user.displayName, user.email);
+        userInitialsSpan.textContent = initials;
         try {
           const nameRes = await fetch('/set_user_name', {
             method: 'POST',
