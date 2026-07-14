@@ -867,11 +867,54 @@
     }
 
     async function fetchHistory() {
-      if (!currentUser) return;
-      let ariaUid = localStorage.getItem('aria_uid');
-      if (!ariaUid) {
-        try {
-          const checkRes = await fetch(`/check_user?email=${encodeURIComponent(currentUser.email.toLowerCase())}`);
+    if (!currentUser) return;
+    let ariaUid = localStorage.getItem('aria_uid');
+    if (!ariaUid) {
+        ariaUid = await getAriaUid(currentUser.email);
+        if (!ariaUid) {
+            historyContent.innerHTML = '<p>No conversation history yet.</p>';
+            return;
+        }
+    }
+    try {
+        const res = await fetch(`/context?uid=${encodeURIComponent(ariaUid)}`);
+        const data = await res.json();
+        if (data.context && data.context.trim()) {
+            const lines = data.context.split('\n');
+            let items = [];
+            let currentUserMsg = null;
+            let currentAriaMsg = null;
+            for (let line of lines) {
+                if (line.startsWith('User:')) {
+                    if (currentUserMsg && currentAriaMsg) {
+                        items.push({ user: currentUserMsg, aria: currentAriaMsg });
+                        currentUserMsg = null; currentAriaMsg = null;
+                    }
+                    currentUserMsg = line.substring(5).trim();
+                } else if (line.startsWith('ARIA:')) {
+                    currentAriaMsg = line.substring(5).trim();
+                }
+            }
+            if (currentUserMsg && currentAriaMsg) items.push({ user: currentUserMsg, aria: currentAriaMsg });
+            historyContent.innerHTML = '';
+            if (items.length === 0) {
+                historyContent.innerHTML = '<p>No conversation history yet.</p>';
+                return;
+            }
+            items.slice(-10).forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'history-item';
+                div.innerHTML = `<div class="history-user">🧑 ${item.user}</div><div class="history-aria">🤖 ${item.aria}</div>`;
+                historyContent.appendChild(div);
+            });
+        } else {
+            historyContent.innerHTML = '<p>No conversation history yet.</p>';
+        }
+    } catch(e) {
+        console.warn(e);
+        historyContent.innerHTML = '<p>Failed to load history.</p>';
+    }
+}`);
           const checkData = await checkRes.json();
           if (checkData.aria_uid) {
             ariaUid = checkData.aria_uid;
@@ -1024,10 +1067,36 @@
     }
 
     auth.onAuthStateChanged(async (user) => {
-      if (user) {
+    if (user) {
         currentUser = user;
         setInterval(() => {
-          fetch('/health').catch(() => {});
+            fetch('/health').catch(() => {});
+        }, 4 * 60 * 1000);
+        const displayName = user.displayName || user.email.split('@')[0];
+        userNameSpan.textContent = displayName;
+        const initials = getUserInitials(user.displayName, user.email);
+        userInitialsSpan.textContent = initials;
+        
+        // ── Get ARIA UID and store it ──
+        const ariaUid = await getAriaUid(user.email);
+        if (ariaUid) {
+            localStorage.setItem('aria_uid', ariaUid);
+            console.log('[Auth] ARIA UID:', ariaUid);
+            try {
+                await fetch('/set_user_name', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        email: user.email.toLowerCase(), 
+                        name: displayName 
+                    })
+                });
+            } catch(e) { console.warn('Name save error:', e); }
+        }
+    } else {
+        window.location.href = '/login.html';
+    }
+});;
         }, 4 * 60 * 1000);
         const displayName = user.displayName || user.email.split('@')[0];
         userNameSpan.textContent = displayName;
