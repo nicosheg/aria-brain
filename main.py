@@ -126,3 +126,15 @@ async def static(path: str):
     if os.path.exists(full_path):
         return FileResponse(full_path)
     raise HTTPException(404, detail="Not found")
+
+@app.get("/context")
+async def get_context(uid: str):
+    """Return conversation history for a user."""
+    from brain import get_full_history
+    try:
+        history = get_full_history(uid)
+        if history:
+            return {"context": history}
+        return {"context": ""}
+    except Exception as e:
+        return {"error": str(e), "context": ""}
