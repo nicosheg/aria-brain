@@ -39,6 +39,8 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
 
+# ─── SPECIFIC ROUTES (in order of priority) ─────────────────
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
@@ -63,17 +65,6 @@ async def debug_uid(email: str):
     result = generate_aria_uid(email)
     return result
 
-@app.get("/")
-async def index():
-    return FileResponse("public/index.html")
-
-@app.get("/{path:path}")
-async def static(path: str):
-    full_path = f"public/{path}"
-    if os.path.exists(full_path):
-        return FileResponse(full_path)
-    raise HTTPException(404, detail="Not found")
-
 @app.get("/debug-db")
 async def debug_db():
     from brain import _postgres_pool
@@ -95,13 +86,10 @@ async def check_db():
     from brain import _postgres_pool
     if _postgres_pool is None:
         return {"error": "PostgreSQL pool is None"}
-    
     conn = None
     try:
         conn = _postgres_pool.getconn()
         cur = conn.cursor()
-        
-        # Check if table exists
         cur.execute("""
             SELECT EXISTS (
                 SELECT FROM information_schema.tables
@@ -109,18 +97,12 @@ async def check_db():
             );
         """)
         table_exists = cur.fetchone()[0]
-        
         if not table_exists:
             return {"table_exists": False, "message": "users table does not exist"}
-        
-        # Count rows
         cur.execute("SELECT COUNT(*) FROM users")
         count = cur.fetchone()[0]
-        
-        # Get first 5 rows
         cur.execute("SELECT aria_uid, email FROM users LIMIT 5")
         rows = cur.fetchall()
-        
         _postgres_pool.putconn(conn)
         return {
             "table_exists": True,
@@ -132,45 +114,15 @@ async def check_db():
             _postgres_pool.putconn(conn)
         return {"error": str(e)}
 
-@app.get("/check-db")
-async def check_db():
-    """Check if users table exists and count rows."""
-    from brain import _postgres_pool
-    if _postgres_pool is None:
-        return {"error": "PostgreSQL pool is None"}
-    
-    conn = None
-    try:
-        conn = _postgres_pool.getconn()
-        cur = conn.cursor()
-        
-        # Check if table exists
-        cur.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables
-                WHERE table_name = 'users'
-            );
-        """)
-        table_exists = cur.fetchone()[0]
-        
-        if not table_exists:
-            return {"table_exists": False, "message": "users table does not exist"}
-        
-        # Count rows
-        cur.execute("SELECT COUNT(*) FROM users")
-        count = cur.fetchone()[0]
-        
-        # Get first 5 rows
-        cur.execute("SELECT aria_uid, email FROM users LIMIT 5")
-        rows = cur.fetchall()
-        
-        _postgres_pool.putconn(conn)
-        return {
-            "table_exists": True,
-            "row_count": count,
-            "sample_rows": [{"aria_uid": r[0], "email": r[1]} for r in rows]
-        }
-    except Exception as e:
-        if conn:
-            _postgres_pool.putconn(conn)
-        return {"error": str(e)}
+@app.get("/")
+async def index():
+    return FileResponse("public/index.html")
+
+# ─── CATCH‑ALL ROUTE (MUST BE LAST) ──────────────────────────
+
+@app.get("/{path:path}")
+async def static(path: str):
+    full_path = f"public/{path}"
+    if os.path.exists(full_path):
+        return FileResponse(full_path)
+    raise HTTPException(404, detail="Not found")
