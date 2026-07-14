@@ -131,14 +131,23 @@ async def static(path: str):
 async def get_context(uid: str):
     """Return conversation history for a user."""
     from brain import get_full_history
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"[context] Received uid: {uid}")
+    if not uid.startswith('aria'):
+        logger.warning(f"[context] Invalid UID format: {uid}")
+        return {"error": "Invalid UID format, must start with 'aria'", "context": ""}
+    
     try:
         history = get_full_history(uid)
+        logger.info(f"[context] Found history length: {len(history) if history else 0}")
         if history:
             return {"context": history}
         return {"context": ""}
     except Exception as e:
+        logger.error(f"[context] Error: {e}")
         return {"error": str(e), "context": ""}
-
 @app.get("/get-uid")
 async def get_uid(email: str):
     """Return the ARIA UID for a given email."""
@@ -199,3 +208,34 @@ async def set_user_name(request: dict):
         except Exception as e:
             raise HTTPException(500, detail=str(e))
     return {"status": "ok", "aria_uid": aria_uid}
+
+
+@app.get("/debug-memory")
+async def debug_memory(email: str):
+    """Debug endpoint to check stored memories for a user."""
+    from brain import generate_aria_uid, db
+    from firebase_admin import firestore
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    uid_result = generate_aria_uid(email)
+    if "error" in uid_result:
+        logger.error(f"UID generation error: {uid_result['error']}")
+        return {"error": uid_result["error"]}
+    uid = uid_result["aria_uid"]
+    logger.info(f"Checking memory for UID: {uid}")
+    
+    try:
+        docs = db.collection("users").document(uid).collection("memory").order_by("t", direction=firestore.Query.DESCENDING).limit(20).stream()
+        memories = []
+        for doc in docs:
+            data = doc.to_dict()
+            memories.append({
+                "message": data.get("m", ""),
+                "response": data.get("r", ""),
+                "time": data.get("t", "")
+            })
+        return {"uid": uid, "count": len(memories), "memories": memories}
+    except Exception as e:
+        logger.error(f"Error fetching memories: {e}")
+        return {"error": str(e)}
