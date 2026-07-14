@@ -131,3 +131,46 @@ async def check_db():
         if conn:
             _postgres_pool.putconn(conn)
         return {"error": str(e)}
+
+@app.get("/check-db")
+async def check_db():
+    """Check if users table exists and count rows."""
+    from brain import _postgres_pool
+    if _postgres_pool is None:
+        return {"error": "PostgreSQL pool is None"}
+    
+    conn = None
+    try:
+        conn = _postgres_pool.getconn()
+        cur = conn.cursor()
+        
+        # Check if table exists
+        cur.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_name = 'users'
+            );
+        """)
+        table_exists = cur.fetchone()[0]
+        
+        if not table_exists:
+            return {"table_exists": False, "message": "users table does not exist"}
+        
+        # Count rows
+        cur.execute("SELECT COUNT(*) FROM users")
+        count = cur.fetchone()[0]
+        
+        # Get first 5 rows
+        cur.execute("SELECT aria_uid, email FROM users LIMIT 5")
+        rows = cur.fetchall()
+        
+        _postgres_pool.putconn(conn)
+        return {
+            "table_exists": True,
+            "row_count": count,
+            "sample_rows": [{"aria_uid": r[0], "email": r[1]} for r in rows]
+        }
+    except Exception as e:
+        if conn:
+            _postgres_pool.putconn(conn)
+        return {"error": str(e)}
