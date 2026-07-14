@@ -9,568 +9,101 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      -webkit-tap-highlight-color: transparent;
-    }
-    body {
-      background: #01030A;
-      font-family: 'Inter', sans-serif;
-      overflow-x: hidden;
-      min-height: 100vh;
-    }
-    .cosmic-bg {
-      position: fixed;
-      inset: 0;
-      background: radial-gradient(ellipse at 45% 30%, #0D1E3A 0%, #071222 35%, #030810 70%, #01030A 100%);
-      z-index: 0;
-    }
-    .space-glow {
-      position: fixed;
-      top: 0; left: 0; width: 100%; height: 60%;
-      background: radial-gradient(ellipse at 50% 0%, rgba(12,28,64,0.5) 0%, rgba(6,14,32,0.2) 50%, transparent 100%);
-      pointer-events: none;
-      z-index: 1;
-    }
-    .starfield {
-      position: fixed;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      z-index: 2;
-    }
-    .star {
-      position: absolute;
-      background: white;
-      border-radius: 50%;
-      opacity: 0;
-      animation: twinkle linear infinite;
-    }
-    @keyframes twinkle {
-      0% { opacity: 0; transform: scale(0.6); }
-      40% { opacity: 0.9; transform: scale(1); }
-      100% { opacity: 0; transform: scale(0.6); }
-    }
-    .shooting-star {
-      position: absolute;
-      width: 2px;
-      height: 2px;
-      background: rgba(255,255,240,0.95);
-      box-shadow: 0 0 6px rgba(255,240,200,0.8);
-      border-radius: 50%;
-      opacity: 0;
-      animation: shootVerySlow linear infinite;
-    }
-    @keyframes shootVerySlow {
-      0% { transform: translate(0, 0); opacity: 0; }
-      10% { opacity: 1; }
-      30% { transform: translate(-60px, 60px); opacity: 0.6; }
-      100% { transform: translate(-140px, 140px); opacity: 0; }
-    }
-    .app-container {
-      position: relative;
-      z-index: 3;
-      max-width: 430px;
-      margin: 0 auto;
-      min-height: 100vh;
-      padding: 20px 20px 12px;
-      display: flex;
-      flex-direction: column;
-    }
-    .header {
-      display: flex;
-      justify-content: flex-end;
-      align-items: flex-start;
-      margin-bottom: 24px;
-    }
-    .signout-block {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      background: rgba(255,255,255,0.04);
-      border: 0.5px solid rgba(255,255,255,0.1);
-      border-radius: 40px;
-      padding: 6px 14px 4px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .signout-block:hover {
-      background: rgba(255,255,255,0.06);
-      border-color: rgba(255,255,255,0.15);
-    }
-    .user-initials {
-      font-size: 13px;
-      font-weight: 500;
-      color: #E2E8F0;
-      letter-spacing: 0.5px;
-    }
-    .signout-label {
-      font-size: 7px;
-      font-weight: 400;
-      color: #7A8AAA;
-      margin-top: 1px;
-    }
-    .title-section {
-      margin-right: auto;
-    }
-    .main-title {
-      font-size: 28px;
-      font-weight: 700;
-      letter-spacing: 3px;
-      color: white;
-    }
-    .subtitle {
-      font-size: 10px;
-      font-weight: 400;
-      letter-spacing: 0.8px;
-      color: #94A3B8;
-      margin-top: 4px;
-    }
-    .center-message {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      text-align: center;
-      margin: 20px 0;
-    }
-    .greeting {
-      font-size: 24px;
-      font-weight: 300;
-      letter-spacing: -0.3px;
-      color: #F0F4FA;
-    }
-    .greeting span {
-      font-weight: 500;
-      background: linear-gradient(120deg, #A78BFA, #60A5FA, #10B981);
-      background-size: 200% auto;
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-      animation: shimmer 6s linear infinite;
-    }
-    @keyframes shimmer {
-      0% { background-position: 0% center; }
-      100% { background-position: 200% center; }
-    }
-    .timestamp {
-      font-size: 12px;
-      color: #7A8AAA;
-      margin-top: 8px;
-      opacity: 0.7;
-    }
-    .bottom-block {
-      margin-top: auto;
-      width: 100%;
-    }
-    .cards-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-    .feature-card {
-      background: rgba(20,22,40,0.5);
-      backdrop-filter: blur(8px);
-      border-radius: 18px;
-      padding: 14px 8px 10px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-      border: 0.5px solid rgba(255,255,255,0.05);
-      cursor: pointer;
-      transition: all 0.2s;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { background: #01030A; font-family: 'Inter', sans-serif; overflow-x: hidden; min-height: 100vh; }
+    .cosmic-bg { position: fixed; inset: 0; background: radial-gradient(ellipse at 45% 30%, #0D1E3A 0%, #071222 35%, #030810 70%, #01030A 100%); z-index: 0; }
+    .space-glow { position: fixed; top: 0; left: 0; width: 100%; height: 60%; background: radial-gradient(ellipse at 50% 0%, rgba(12,28,64,0.5) 0%, rgba(6,14,32,0.2) 50%, transparent 100%); pointer-events: none; z-index: 1; }
+    .starfield { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
+    .star { position: absolute; background: white; border-radius: 50%; opacity: 0; animation: twinkle linear infinite; }
+    @keyframes twinkle { 0% { opacity: 0; transform: scale(0.6); } 40% { opacity: 0.9; transform: scale(1); } 100% { opacity: 0; transform: scale(0.6); } }
+    .shooting-star { position: absolute; width: 2px; height: 2px; background: rgba(255,255,240,0.95); box-shadow: 0 0 6px rgba(255,240,200,0.8); border-radius: 50%; opacity: 0; animation: shootVerySlow linear infinite; }
+    @keyframes shootVerySlow { 0% { transform: translate(0, 0); opacity: 0; } 10% { opacity: 1; } 30% { transform: translate(-60px, 60px); opacity: 0.6; } 100% { transform: translate(-140px, 140px); opacity: 0; } }
+    .app-container { position: relative; z-index: 3; max-width: 430px; margin: 0 auto; min-height: 100vh; padding: 20px 20px 12px; display: flex; flex-direction: column; }
+    .header { display: flex; justify-content: flex-end; align-items: flex-start; margin-bottom: 24px; }
+    .signout-block { display: flex; flex-direction: column; align-items: center; background: rgba(255,255,255,0.04); border: 0.5px solid rgba(255,255,255,0.1); border-radius: 40px; padding: 6px 14px 4px; cursor: pointer; transition: all 0.2s; }
+    .signout-block:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.15); }
+    .user-initials { font-size: 13px; font-weight: 500; color: #E2E8F0; letter-spacing: 0.5px; }
+    .signout-label { font-size: 7px; font-weight: 400; color: #7A8AAA; margin-top: 1px; }
+    .title-section { margin-right: auto; }
+    .main-title { font-size: 28px; font-weight: 700; letter-spacing: 3px; color: white; }
+    .subtitle { font-size: 10px; font-weight: 400; letter-spacing: 0.8px; color: #94A3B8; margin-top: 4px; }
+    .center-message { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; margin: 20px 0; }
+    .greeting { font-size: 24px; font-weight: 300; letter-spacing: -0.3px; color: #F0F4FA; }
+    .greeting span { font-weight: 500; background: linear-gradient(120deg, #A78BFA, #60A5FA, #10B981); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 6s linear infinite; }
+    @keyframes shimmer { 0% { background-position: 0% center; } 100% { background-position: 200% center; } }
+    .timestamp { font-size: 12px; color: #7A8AAA; margin-top: 8px; opacity: 0.7; }
+    .bottom-block { margin-top: auto; width: 100%; }
+    .cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+    .feature-card { background: rgba(20,22,40,0.5); backdrop-filter: blur(8px); border-radius: 18px; padding: 14px 8px 10px; display: flex; flex-direction: column; align-items: center; text-align: center; border: 0.5px solid rgba(255,255,255,0.05); cursor: pointer; transition: all 0.2s; }
     .feature-card:hover { background: rgba(20,22,40,0.7); }
-    .card-icon {
-      width: 36px;
-      height: 36px;
-      border-radius: 18px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 8px;
-    }
+    .card-icon { width: 36px; height: 36px; border-radius: 18px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
     .card-memory .card-icon { background: rgba(167,139,250,0.15); }
     .card-education .card-icon { background: rgba(96,165,250,0.15); }
     .card-income .card-icon { background: rgba(16,185,129,0.15); }
-    .card-icon svg {
-      width: 18px;
-      height: 18px;
-      fill: none;
-      stroke-width: 1.5;
-    }
+    .card-icon svg { width: 18px; height: 18px; fill: none; stroke-width: 1.5; }
     .card-memory .card-icon svg { stroke: #A78BFA; }
     .card-education .card-icon svg { stroke: #60A5FA; }
     .card-income .card-icon svg { stroke: #10B981; }
-    .card-title {
-      font-size: 13px;
-      font-weight: 600;
-      color: white;
-      margin-bottom: 2px;
-    }
-    .card-desc {
-      font-size: 9px;
-      color: #9CA3AF;
-    }
-    .divider {
-      text-align: center;
-      margin: 8px 0 16px;
-    }
-    .divider-text {
-      font-size: 9px;
-      letter-spacing: 1.5px;
-      color: #60A5FA;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      opacity: 0.6;
-    }
-    .input-capsule {
-      background: #0A0F1A;
-      border: 1.5px solid #3B82F6;
-      border-radius: 50px;
-      padding: 8px 12px 8px 18px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 12px;
-      box-shadow: 0 0 8px rgba(59,130,246,0.1);
-    }
-    .input-icon-left svg {
-      width: 16px;
-      height: 16px;
-      stroke: #60A5FA;
-    }
-    /* Auto-expanding textarea */
-    .input-field {
-      flex: 1;
-      background: transparent;
-      border: none;
-      color: white;
-      font-size: 14px;
-      outline: none;
-      padding: 8px 0;
-      resize: none;
-      min-height: 42px;
-      max-height: 120px;
-      font-family: inherit;
-      line-height: 1.4;
-    }
+    .card-title { font-size: 13px; font-weight: 600; color: white; margin-bottom: 2px; }
+    .card-desc { font-size: 9px; color: #9CA3AF; }
+    .divider { text-align: center; margin: 8px 0 16px; }
+    .divider-text { font-size: 9px; letter-spacing: 1.5px; color: #60A5FA; display: inline-flex; align-items: center; gap: 6px; opacity: 0.6; }
+    .input-capsule { background: #0A0F1A; border: 1.5px solid #3B82F6; border-radius: 50px; padding: 8px 12px 8px 18px; display: flex; align-items: center; gap: 12px; margin-bottom: 12px; box-shadow: 0 0 8px rgba(59,130,246,0.1); }
+    .input-icon-left svg { width: 16px; height: 16px; stroke: #60A5FA; }
+    .input-field { flex: 1; background: transparent; border: none; color: white; font-size: 14px; outline: none; padding: 8px 0; resize: none; min-height: 42px; max-height: 120px; font-family: inherit; line-height: 1.4; }
     .input-field::placeholder { color: #334155; }
-    /* Round buttons */
-    .send-circle {
-      width: 34px;
-      height: 34px;
-      background: transparent;
-      border: 1px solid #1E40AF;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      flex-shrink: 0;
-    }
-    .send-circle svg {
-      width: 14px;
-      height: 14px;
-      stroke: #3B82F6;
-      stroke-width: 2;
-    }
-    .upload-btn {
-      background: rgba(96,165,250,0.15);
-      border-radius: 50%;
-      width: 38px;
-      height: 38px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      color: #60A5FA;
-      transition: all 0.25s ease;
-      border: 0.5px solid rgba(96,165,250,0.3);
-      position: relative;
-      flex-shrink: 0;
-    }
-    .upload-btn:hover {
-      background: rgba(96,165,250,0.3);
-      color: #A78BFA;
-      transform: scale(1.05);
-      border-color: #A78BFA;
-      box-shadow: 0 0 12px rgba(96,165,250,0.5);
-    }
-    .upload-btn svg {
-      width: 18px;
-      height: 18px;
-    }
-    .upload-btn::after {
-      content: "Upload (image/PDF)";
-      position: absolute;
-      bottom: 45px;
-      background: rgba(0,0,0,0.8);
-      color: white;
-      font-size: 10px;
-      padding: 4px 8px;
-      border-radius: 12px;
-      white-space: nowrap;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.2s;
-      font-weight: 400;
-    }
-    .upload-btn:hover::after {
-      opacity: 1;
-    }
-    @media (max-width: 640px) {
-      .upload-btn::after {
-        font-size: 9px;
-        bottom: 40px;
-      }
-    }
-    .footer {
-      text-align: center;
-      padding: 8px 0 12px;
-      font-size: 10px;
-      letter-spacing: 0.6px;
-      color: #4A5A7A;
-      border-top: 0.5px solid rgba(255,255,255,0.04);
-      width: 100%;
-    }
-    .chat-view {
-      position: fixed;
-      inset: 0;
-      background: transparent;
-      z-index: 100;
-      padding: 20px;
-      display: none;
-      flex-direction: column;
-    }
+    .send-circle { width: 34px; height: 34px; background: transparent; border: 1px solid #1E40AF; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+    .send-circle svg { width: 14px; height: 14px; stroke: #3B82F6; stroke-width: 2; }
+    .upload-btn { background: rgba(96,165,250,0.15); border-radius: 50%; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #60A5FA; transition: all 0.25s ease; border: 0.5px solid rgba(96,165,250,0.3); position: relative; flex-shrink: 0; }
+    .upload-btn:hover { background: rgba(96,165,250,0.3); color: #A78BFA; transform: scale(1.05); border-color: #A78BFA; box-shadow: 0 0 12px rgba(96,165,250,0.5); }
+    .upload-btn svg { width: 18px; height: 18px; }
+    .upload-btn::after { content: "Upload (image/PDF)"; position: absolute; bottom: 45px; background: rgba(0,0,0,0.8); color: white; font-size: 10px; padding: 4px 8px; border-radius: 12px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; font-weight: 400; }
+    .upload-btn:hover::after { opacity: 1; }
+    @media (max-width: 640px) { .upload-btn::after { font-size: 9px; bottom: 40px; } }
+    .footer { text-align: center; padding: 8px 0 12px; font-size: 10px; letter-spacing: 0.6px; color: #4A5A7A; border-top: 0.5px solid rgba(255,255,255,0.04); width: 100%; }
+    .chat-view { position: fixed; inset: 0; background: transparent; z-index: 100; padding: 20px; display: none; flex-direction: column; }
     .chat-view.active { display: flex; }
-    .chat-header {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 20px;
-    }
-    .back-btn {
-      background: rgba(0,0,0,0.4);
-      backdrop-filter: blur(8px);
-      border: none;
-      color: white;
-      font-size: 26px;
-      cursor: pointer;
-      width: 40px;
-      height: 40px;
-      border-radius: 30px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .chat-actions {
-      display: flex;
-      gap: 12px;
-      margin-left: auto;
-    }
-    .chat-action {
-      background: rgba(0,0,0,0.4);
-      backdrop-filter: blur(8px);
-      border: none;
-      font-size: 18px;
-      cursor: pointer;
-      color: white;
-      width: 40px;
-      height: 40px;
-      border-radius: 30px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: 0.1s;
-    }
+    .chat-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+    .back-btn { background: rgba(0,0,0,0.4); backdrop-filter: blur(8px); border: none; color: white; font-size: 26px; cursor: pointer; width: 40px; height: 40px; border-radius: 30px; display: flex; align-items: center; justify-content: center; }
+    .chat-actions { display: flex; gap: 12px; margin-left: auto; }
+    .chat-action { background: rgba(0,0,0,0.4); backdrop-filter: blur(8px); border: none; font-size: 18px; cursor: pointer; color: white; width: 40px; height: 40px; border-radius: 30px; display: flex; align-items: center; justify-content: center; transition: 0.1s; }
     .chat-action:hover { background: rgba(0,0,0,0.6); }
-    .messages-area {
-      flex: 1;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      margin-bottom: 16px;
-    }
-    .message {
-      max-width: 80%;
-      animation: fadeIn 0.2s ease;
-    }
+    .messages-area { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; }
+    .message { max-width: 80%; animation: fadeIn 0.2s ease; }
     .message.user { align-self: flex-end; }
     .message.aria { align-self: flex-start; }
-    .message-bubble {
-      padding: 10px 14px;
-      border-radius: 20px;
-      font-size: 14px;
-      background: rgba(0,0,0,0.5);
-      backdrop-filter: blur(4px);
-      color: white;
-    }
-    .user .message-bubble {
-      background: rgba(96,165,250,0.3);
-      border: 0.5px solid rgba(96,165,250,0.5);
-    }
-    .message-actions {
-      display: flex;
-      gap: 8px;
-      margin-top: 6px;
-      opacity: 0;
-      transition: opacity 0.2s;
-    }
+    .message-bubble { padding: 10px 14px; border-radius: 20px; font-size: 14px; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); color: white; }
+    .user .message-bubble { background: rgba(96,165,250,0.3); border: 0.5px solid rgba(96,165,250,0.5); }
+    .message-actions { display: flex; gap: 8px; margin-top: 6px; opacity: 0; transition: opacity 0.2s; }
     .message:hover .message-actions { opacity: 0.8; }
-    .message-action {
-      background: rgba(0,0,0,0.4);
-      backdrop-filter: blur(4px);
-      border: none;
-      font-size: 12px;
-      cursor: pointer;
-      color: white;
-      padding: 4px 8px;
-      border-radius: 16px;
-    }
+    .message-action { background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); border: none; font-size: 12px; cursor: pointer; color: white; padding: 4px 8px; border-radius: 16px; }
     .message-action:hover { background: rgba(0,0,0,0.6); }
-    .rating-row {
-      display: flex;
-      gap: 6px;
-      justify-content: flex-end;
-      margin-top: 6px;
-      padding: 2px 0;
-    }
-    .rating-star {
-      width: 18px;
-      height: 18px;
-      cursor: pointer;
-      fill: none;
-      stroke: rgba(255, 255, 255, 0.3);
-      stroke-width: 1.5;
-      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
-                  filter 0.3s,
-                  fill 0.2s;
-    }
-    .rating-star.active {
-      fill: #ffffff;
-      stroke: #3b82f6;
-      filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.8)) 
-              drop-shadow(0 0 10px rgba(167, 139, 250, 0.4));
-      transform: scale(1.05);
-    }
-    @media (max-width: 640px) {
-      .rating-star {
-        width: 22px;
-        height: 22px;
-      }
-      .rating-row {
-        gap: 8px;
-      }
-    }
-    .typing-indicator {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      padding: 8px 12px;
-      background: rgba(0,0,0,0.4);
-      backdrop-filter: blur(4px);
-      border-radius: 20px;
-      width: fit-content;
-      animation: glowPulse 1.2s infinite;
-    }
-    .typing-dot {
-      width: 6px;
-      height: 6px;
-      background: #60A5FA;
-      border-radius: 50%;
-      animation: dotBounce 1.2s infinite;
-    }
+    .rating-row { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px; padding: 2px 0; }
+    .rating-star { width: 18px; height: 18px; cursor: pointer; fill: none; stroke: rgba(255, 255, 255, 0.3); stroke-width: 1.5; transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.3s, fill 0.2s; }
+    .rating-star.active { fill: #ffffff; stroke: #3b82f6; filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.8)) drop-shadow(0 0 10px rgba(167, 139, 250, 0.4)); transform: scale(1.05); }
+    @media (max-width: 640px) { .rating-star { width: 22px; height: 22px; } .rating-row { gap: 8px; } }
+    .typing-indicator { display: flex; align-items: center; gap: 4px; padding: 8px 12px; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); border-radius: 20px; width: fit-content; animation: glowPulse 1.2s infinite; }
+    .typing-dot { width: 6px; height: 6px; background: #60A5FA; border-radius: 50%; animation: dotBounce 1.2s infinite; }
     .typing-dot:nth-child(2) { animation-delay: 0.2s; }
     .typing-dot:nth-child(3) { animation-delay: 0.4s; }
-    @keyframes dotBounce {
-      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-      30% { transform: translateY(-4px); opacity: 1; }
-    }
-    @keyframes glowPulse {
-      0% { box-shadow: 0 0 0 rgba(96,165,250,0); }
-      50% { box-shadow: 0 0 10px rgba(96,165,250,0.3); }
-      100% { box-shadow: 0 0 0 rgba(96,165,250,0); }
-    }
-    .history-modal {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.8);
-      backdrop-filter: blur(8px);
-      z-index: 200;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      opacity: 0;
-      pointer-events: none;
-      transition: 0.2s;
-    }
-    .history-modal.active {
-      opacity: 1;
-      pointer-events: auto;
-    }
-    .history-container {
-      background: rgba(10,20,40,0.95);
-      border-radius: 24px;
-      max-width: 90%;
-      width: 500px;
-      max-height: 80%;
-      overflow-y: auto;
-      padding: 20px;
-      border: 1px solid rgba(255,255,255,0.1);
-    }
-    .history-item {
-      margin-bottom: 16px;
-      padding-bottom: 12px;
-      border-bottom: 0.5px solid rgba(255,255,255,0.1);
-    }
-    .history-user {
-      font-size: 12px;
-      color: #60A5FA;
-    }
-    .history-aria {
-      font-size: 12px;
-      color: #A78BFA;
-      margin-top: 4px;
-    }
-    .close-history {
-      background: transparent;
-      border: none;
-      color: white;
-      font-size: 20px;
-      float: right;
-      cursor: pointer;
-    }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    @media (max-width: 640px) {
-      .cards-grid { gap: 8px; }
-      .feature-card { padding: 10px 4px 6px; }
-      .card-title { font-size: 11px; }
-      .card-desc { font-size: 8px; }
-      .card-icon { width: 30px; height: 30px; }
-      .card-icon svg { width: 16px; height: 16px; }
-    }
+    @keyframes dotBounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
+    @keyframes glowPulse { 0% { box-shadow: 0 0 0 rgba(96,165,250,0); } 50% { box-shadow: 0 0 10px rgba(96,165,250,0.3); } 100% { box-shadow: 0 0 0 rgba(96,165,250,0); } }
+    .history-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); z-index: 200; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: 0.2s; }
+    .history-modal.active { opacity: 1; pointer-events: auto; }
+    .history-container { background: rgba(10,20,40,0.95); border-radius: 24px; max-width: 90%; width: 500px; max-height: 80%; overflow-y: auto; padding: 20px; border: 1px solid rgba(255,255,255,0.1); }
+    .history-item { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 0.5px solid rgba(255,255,255,0.1); }
+    .history-user { font-size: 12px; color: #60A5FA; }
+    .history-aria { font-size: 12px; color: #A78BFA; margin-top: 4px; }
+    .close-history { background: transparent; border: none; color: white; font-size: 20px; float: right; cursor: pointer; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    @media (max-width: 640px) { .cards-grid { gap: 8px; } .feature-card { padding: 10px 4px 6px; } .card-title { font-size: 11px; } .card-desc { font-size: 8px; } .card-icon { width: 30px; height: 30px; } .card-icon svg { width: 16px; height: 16px; } }
   </style>
 </head>
 <body>
   <div class="cosmic-bg"></div>
   <div class="space-glow"></div>
   <div class="starfield" id="starfield"></div>
-    <div class="app-container" id="mainUI">
+  <div class="app-container" id="mainUI">
     <div class="header">
       <div class="title-section">
         <div class="main-title">ARIA</div>
@@ -648,6 +181,7 @@
     </div>
   </div>
   <script>
+    // ── Stars ──
     (function() {
       const starfield = document.getElementById('starfield');
       function isNearDiagonal(x, y) { return (x + y) > 1.2; }
@@ -684,8 +218,8 @@
         starfield.appendChild(shoot);
       }
     })();
-  </script>
-  <script>
+
+    // ── Firebase ──
     const firebaseConfig = {
       apiKey: "AIzaSyAfrs67qWlU8FjsjqHwNeivGgm7x_vHdJY",
       authDomain: "fiducia-148b9.firebaseapp.com",
@@ -715,6 +249,7 @@
       return (parts[0][0] + (parts[1][0] || '')).toUpperCase();
     }
 
+    // ── DOM refs ──
     const mainUI = document.getElementById('mainUI');
     const chatView = document.getElementById('chatView');
     const mainInput = document.getElementById('mainInput');
@@ -730,32 +265,30 @@
       textarea.style.height = 'auto';
       textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
     }
-
     function setupTextarea(inputEl) {
       if (!inputEl) return;
       inputEl.addEventListener('input', () => autoResize(inputEl));
       autoResize(inputEl);
     }
-
     setupTextarea(mainInput);
     setupTextarea(chatInput);
 
-    // ── Get ARIA UID from email ──
+    // ── Get ARIA UID ──
     async function getAriaUid(email) {
-        try {
-            const res = await fetch(`/get-uid?email=${encodeURIComponent(email)}`);
-            const data = await res.json();
-            if (data.aria_uid) {
-                localStorage.setItem('aria_uid', data.aria_uid);
-                return data.aria_uid;
-            }
-        } catch (e) {
-            console.warn('Could not fetch ARIA UID:', e);
+      try {
+        const res = await fetch(`/get-uid?email=${encodeURIComponent(email)}`);
+        const data = await res.json();
+        if (data.aria_uid) {
+          localStorage.setItem('aria_uid', data.aria_uid);
+          return data.aria_uid;
         }
-        return null;
+      } catch (e) {
+        console.warn('Could not fetch ARIA UID:', e);
+      }
+      return null;
     }
 
-
+    // ── Chat functions ──
     function addMessage(text, sender, showRating = false, msgId = null) {
       const div = document.createElement('div');
       div.className = `message ${sender}`;
@@ -825,6 +358,7 @@
       if (el) el.remove();
     }
 
+    // ── SEND MESSAGE ──
     async function sendToAria(message, inputElement) {
       if (!currentUser) {
         addMessage("Please sign in first.", 'aria');
@@ -834,11 +368,21 @@
       inputElement.value = '';
       autoResize(inputElement);
       showTyping();
+
+      // Ensure we have ARIA UID
+      let ariaUid = localStorage.getItem('aria_uid');
+      if (!ariaUid) {
+        ariaUid = await getAriaUid(currentUser.email);
+      }
+
       try {
         const res = await fetch('/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message, user_id: currentUser.uid, email: currentUser.email.toLowerCase() })
+          body: JSON.stringify({ 
+            message, 
+            email: currentUser.email.toLowerCase() 
+          })
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
@@ -856,7 +400,8 @@
       mainUI.style.display = 'none';
       chatView.classList.add('active');
       if (messagesArea.children.length === 0 && currentUser) {
-        addMessage(`Hey ${currentUser.displayName || currentUser.email.split('@')[0]}. I'm ARIA. What would you like to explore?`, 'aria');
+        const name = localStorage.getItem('displayName') || currentUser.displayName || currentUser.email.split('@')[0];
+        addMessage(`Hey ${name}. I'm ARIA. What would you like to explore?`, 'aria');
       }
       chatInput.focus();
     }
@@ -866,65 +411,16 @@
       messagesArea.innerHTML = '';
     }
 
+    // ── History ──
     async function fetchHistory() {
-    if (!currentUser) return;
-    let ariaUid = localStorage.getItem('aria_uid');
-    if (!ariaUid) {
+      if (!currentUser) return;
+      let ariaUid = localStorage.getItem('aria_uid');
+      if (!ariaUid) {
         ariaUid = await getAriaUid(currentUser.email);
         if (!ariaUid) {
-            historyContent.innerHTML = '<p>No conversation history yet.</p>';
-            return;
+          historyContent.innerHTML = '<p>No conversation history yet.</p>';
+          return;
         }
-    }
-    try {
-        const res = await fetch(`/context?uid=${encodeURIComponent(ariaUid)}`);
-        const data = await res.json();
-        if (data.context && data.context.trim()) {
-            const lines = data.context.split('\n');
-            let items = [];
-            let currentUserMsg = null;
-            let currentAriaMsg = null;
-            for (let line of lines) {
-                if (line.startsWith('User:')) {
-                    if (currentUserMsg && currentAriaMsg) {
-                        items.push({ user: currentUserMsg, aria: currentAriaMsg });
-                        currentUserMsg = null; currentAriaMsg = null;
-                    }
-                    currentUserMsg = line.substring(5).trim();
-                } else if (line.startsWith('ARIA:')) {
-                    currentAriaMsg = line.substring(5).trim();
-                }
-            }
-            if (currentUserMsg && currentAriaMsg) items.push({ user: currentUserMsg, aria: currentAriaMsg });
-            historyContent.innerHTML = '';
-            if (items.length === 0) {
-                historyContent.innerHTML = '<p>No conversation history yet.</p>';
-                return;
-            }
-            items.slice(-10).forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'history-item';
-                div.innerHTML = `<div class="history-user">🧑 ${item.user}</div><div class="history-aria">🤖 ${item.aria}</div>`;
-                historyContent.appendChild(div);
-            });
-        } else {
-            historyContent.innerHTML = '<p>No conversation history yet.</p>';
-        }
-    } catch(e) {
-        console.warn(e);
-        historyContent.innerHTML = '<p>Failed to load history.</p>';
-    }
-}`);
-          const checkData = await checkRes.json();
-          if (checkData.aria_uid) {
-            ariaUid = checkData.aria_uid;
-            localStorage.setItem('aria_uid', ariaUid);
-          }
-        } catch(e) { console.warn(e); }
-      }
-      if (!ariaUid) {
-        historyContent.innerHTML = '<p>No conversation history yet.</p>';
-        return;
       }
       try {
         const res = await fetch(`/context?uid=${encodeURIComponent(ariaUid)}`);
@@ -947,13 +443,16 @@
           }
           if (currentUserMsg && currentAriaMsg) items.push({ user: currentUserMsg, aria: currentAriaMsg });
           historyContent.innerHTML = '';
+          if (items.length === 0) {
+            historyContent.innerHTML = '<p>No conversation history yet.</p>';
+            return;
+          }
           items.slice(-10).forEach(item => {
             const div = document.createElement('div');
             div.className = 'history-item';
             div.innerHTML = `<div class="history-user">🧑 ${item.user}</div><div class="history-aria">🤖 ${item.aria}</div>`;
             historyContent.appendChild(div);
           });
-          if (items.length === 0) historyContent.innerHTML = '<p>No conversation history yet.</p>';
         } else {
           historyContent.innerHTML = '<p>No conversation history yet.</p>';
         }
@@ -965,6 +464,7 @@
     function showHistory() { fetchHistory(); historyModal.classList.add('active'); }
     function closeHistory() { historyModal.classList.remove('active'); }
 
+    // ── Event listeners ──
     document.querySelectorAll('.feature-card').forEach(card => {
       card.addEventListener('click', () => {
         openChat();
@@ -994,7 +494,7 @@
       } catch(e) { console.error(e); }
     });
 
-    // ==================== UPLOAD FUNCTION ====================
+    // ── Upload ──
     async function uploadFile(file, uid) {
       if (file.size > 25 * 1024 * 1024) {
         addMessage("❌ File too large. Max 25MB.", 'aria');
@@ -1066,83 +566,45 @@
       };
     }
 
+    // ── Auth ──
     auth.onAuthStateChanged(async (user) => {
-    if (user) {
+      if (user) {
         currentUser = user;
         setInterval(() => {
-            fetch('/health').catch(() => {});
+          fetch('/health').catch(() => {});
         }, 4 * 60 * 1000);
         const displayName = user.displayName || user.email.split('@')[0];
         userNameSpan.textContent = displayName;
+        localStorage.setItem('displayName', displayName);
         const initials = getUserInitials(user.displayName, user.email);
         userInitialsSpan.textContent = initials;
         
-        // ── Get ARIA UID and store it ──
         const ariaUid = await getAriaUid(user.email);
         if (ariaUid) {
-            localStorage.setItem('aria_uid', ariaUid);
-            console.log('[Auth] ARIA UID:', ariaUid);
-            try {
-                await fetch('/set_user_name', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        email: user.email.toLowerCase(), 
-                        name: displayName 
-                    })
-                });
-            } catch(e) { console.warn('Name save error:', e); }
+          localStorage.setItem('aria_uid', ariaUid);
+          console.log('[Auth] ARIA UID:', ariaUid);
+          try {
+            await fetch('/set_user_name', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                email: user.email.toLowerCase(), 
+                name: displayName 
+              })
+            });
+          } catch(e) { console.warn('Name save error:', e); }
         }
-    } else {
-        window.location.href = '/login.html';
-    }
-});;
-        }, 4 * 60 * 1000);
-        const displayName = user.displayName || user.email.split('@')[0];
-        userNameSpan.textContent = displayName;
-        const initials = getUserInitials(user.displayName, user.email);
-        userInitialsSpan.textContent = initials;
-        
-        // ── Get ARIA UID and store it ──
-        const ariaUid = await getAriaUid(user.email);
-        if (ariaUid) {
-            localStorage.setItem('aria_uid', ariaUid);
-            console.log('[Auth] ARIA UID:', ariaUid);
-            try {
-                await fetch('/set_user_name', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        email: user.email.toLowerCase(), 
-                        name: displayName 
-                    })
-                });
-            } catch(e) { console.warn('Name save error:', e); }
-        }
-    } else {
-        window.location.href = '/login.html';
-    }
-});;
-        }, 4 * 60 * 1000);
-        const displayName = user.displayName || user.email.split('@')[0];
-        userNameSpan.textContent = displayName;
-        const initials = getUserInitials(user.displayName, user.email);
-        userInitialsSpan.textContent = initials;
-        try {
-          const nameRes = await fetch('/set_user_name', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: user.uid, email: user.email.toLowerCase(), name: displayName })
-          });
-          const nameData = await nameRes.json();
-          if (nameData.aria_uid) {
-            localStorage.setItem('aria_uid', nameData.aria_uid);
-          }
-        } catch(e) { console.warn(e); }
       } else {
         window.location.href = '/login.html';
       }
     });
+
+    setTimeout(() => {
+      if (currentUser && userNameSpan.textContent === 'friend') {
+        const displayName = localStorage.getItem('displayName') || currentUser.displayName || currentUser.email.split('@')[0];
+        userNameSpan.textContent = displayName;
+      }
+    }, 500);
   </script>
 </body>
 </html>
