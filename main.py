@@ -138,3 +138,64 @@ async def get_context(uid: str):
         return {"context": ""}
     except Exception as e:
         return {"error": str(e), "context": ""}
+
+@app.get("/get-uid")
+async def get_uid(email: str):
+    """Return the ARIA UID for a given email."""
+    from brain import generate_aria_uid
+    result = generate_aria_uid(email)
+    return result
+
+@app.post("/set_user_name")
+async def set_user_name(request: dict):
+    """Set the user's name using email (not Firebase UID)."""
+    email = request.get("email", "").strip().lower()
+    name = request.get("name", "").strip()
+    if not email or not name:
+        raise HTTPException(400, detail="Missing email or name")
+    
+    from brain import generate_aria_uid, db
+    uid_result = generate_aria_uid(email)
+    if "error" in uid_result:
+        raise HTTPException(400, detail=uid_result["error"])
+    aria_uid = uid_result["aria_uid"]
+    
+    # Store name in Firestore facts
+    if db:
+        try:
+            fact_ref = db.collection("users").document(aria_uid).collection("facts").document("name")
+            fact_ref.set({"key": "name", "value": name})
+            return {"status": "ok", "aria_uid": aria_uid}
+        except Exception as e:
+            raise HTTPException(500, detail=str(e))
+    return {"status": "ok", "aria_uid": aria_uid}
+
+@app.get("/get-uid")
+async def get_uid(email: str):
+    """Return the ARIA UID for a given email."""
+    from brain import generate_aria_uid
+    result = generate_aria_uid(email)
+    return result
+
+@app.post("/set_user_name")
+async def set_user_name(request: dict):
+    """Set the user's name using email (not Firebase UID)."""
+    email = request.get("email", "").strip().lower()
+    name = request.get("name", "").strip()
+    if not email or not name:
+        raise HTTPException(400, detail="Missing email or name")
+    
+    from brain import generate_aria_uid, db
+    uid_result = generate_aria_uid(email)
+    if "error" in uid_result:
+        raise HTTPException(400, detail=uid_result["error"])
+    aria_uid = uid_result["aria_uid"]
+    
+    if db:
+        try:
+            fact_ref = db.collection("users").document(aria_uid).collection("facts").document("name")
+            fact_ref.set({"key": "name", "value": name})
+            return {"status": "ok", "aria_uid": aria_uid}
+        except Exception as e:
+            raise HTTPException(500, detail=str(e))
+    return {"status": "ok", "aria_uid": aria_uid}

@@ -740,6 +740,22 @@
     setupTextarea(mainInput);
     setupTextarea(chatInput);
 
+    // ── Get ARIA UID from email ──
+    async function getAriaUid(email) {
+        try {
+            const res = await fetch(`/get-uid?email=${encodeURIComponent(email)}`);
+            const data = await res.json();
+            if (data.aria_uid) {
+                localStorage.setItem('aria_uid', data.aria_uid);
+                return data.aria_uid;
+            }
+        } catch (e) {
+            console.warn('Could not fetch ARIA UID:', e);
+        }
+        return null;
+    }
+
+
     function addMessage(text, sender, showRating = false, msgId = null) {
       const div = document.createElement('div');
       div.className = `message ${sender}`;
