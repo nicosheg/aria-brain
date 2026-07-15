@@ -2548,9 +2548,46 @@ def save_memory(u, m, r):
         return
     try:
         data = {
-            "m": m,
-            "r": r,
-            "t": datetime.now().isoformat(),
+        "m": m,
+        "r": r,
+        "t": datetime.now().isoformat(),
+        # Generate embedding for the user message
+        try:
+            model = get_embedding_model()
+            emb = model.encode(m).tolist()
+            data["emb"] = emb
+            # Also save to file for fast retrieval
+            import os, json
+            emb_file = f"aria_emb_{u}.json"
+            emb_data = []
+            if os.path.exists(emb_file):
+                with open(emb_file, "r") as f:
+                    emb_data = json.load(f)
+            emb_data.append({"text": m, "response": r, "emb": emb})
+            with open(emb_file, "w") as f:
+                json.dump(emb_data, f)
+        except Exception as e:
+            print(f"Embedding storage error: {e}")
+
+        # Generate embedding for the user message
+        try:
+            model = get_embedding_model()
+            emb = model.encode(m).tolist()
+            data["emb"] = emb
+            # Also save to file for fast retrieval
+            import os, json
+            emb_file = f"aria_emb_{u}.json"
+            emb_data = []
+            if os.path.exists(emb_file):
+                with open(emb_file, "r") as f:
+                    emb_data = json.load(f)
+            emb_data.append({"text": m, "response": r, "emb": emb})
+            with open(emb_file, "w") as f:
+                json.dump(emb_data, f)
+        except Exception as e:
+            print(f"Embedding storage error: {e}")
+        # continue with the rest of the data dict
+
             "mo": detect_mode(m, u)
         }
         db.collection("users").document(u).collection("memory").add(data)
@@ -2650,6 +2687,10 @@ def save_user_fact(u, key, value):
 # ════════════════════════════════════════════════════════════════════
 import hashlib
 
+import numpy as np
+from sentence_transformers import SentenceTransformer
+
+
 def get_document_hash(text):
     """Generate SHA-256 hash of document text for deduplication."""
     return hashlib.sha256(text.encode('utf-8')).hexdigest()
@@ -2737,6 +2778,10 @@ def get_cached(message, user_id):
     """Return cached response if it exists and is under 1 hour old"""
     global cache_stats
     import hashlib
+
+import numpy as np
+from sentence_transformers import SentenceTransformer
+
     key = hashlib.md5(message.lower().strip().encode()).hexdigest()
     if key in response_cache:
         resp, ts = response_cache[key]
@@ -3617,6 +3662,85 @@ def try_all_apis_parallel(prompt, system_prompt):
         time.sleep(1.5)
     return None
 
+
+
+# ── Embedding functions for semantic retrieval ──
+_embedding_model = None
+
+def get_embedding_model():
+    global _embedding_model
+    if _embedding_model is None:
+        print("[Embedding] Loading model...")
+        _embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+        print("[Embedding] Model loaded.")
+    return _embedding_model
+
+def retrieve_similar_conversations(query, user_id, top_k=3):
+    """Retrieve semantically similar past conversations."""
+    import os, json
+    emb_file = f"aria_emb_{user_id}.json"
+    if not os.path.exists(emb_file):
+        return []
+    try:
+        with open(emb_file, 'r') as f:
+            data = json.load(f)
+    except:
+        return []
+    if not data:
+        return []
+    model = get_embedding_model()
+    query_emb = model.encode(query)
+    scores = []
+    for item in data:
+        emb = np.array(item['emb'])
+        norm = np.linalg.norm(query_emb) * np.linalg.norm(emb)
+        if norm == 0:
+            sim = 0
+        else:
+            sim = np.dot(query_emb, emb) / norm
+        scores.append((sim, item['text'], item['response']))
+    scores.sort(reverse=True, key=lambda x: x[0])
+    return scores[:top_k]
+
+
+# ── Embedding functions for semantic retrieval ──
+_embedding_model = None
+
+def get_embedding_model():
+    global _embedding_model
+    if _embedding_model is None:
+        print("[Embedding] Loading model...")
+        _embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+        print("[Embedding] Model loaded.")
+    return _embedding_model
+
+def retrieve_similar_conversations(query, user_id, top_k=3):
+    """Retrieve semantically similar past conversations."""
+    import os, json
+    emb_file = f"aria_emb_{user_id}.json"
+    if not os.path.exists(emb_file):
+        return []
+    try:
+        with open(emb_file, 'r') as f:
+            data = json.load(f)
+    except:
+        return []
+    if not data:
+        return []
+    model = get_embedding_model()
+    query_emb = model.encode(query)
+    scores = []
+    for item in data:
+        emb = np.array(item['emb'])
+        norm = np.linalg.norm(query_emb) * np.linalg.norm(emb)
+        if norm == 0:
+            sim = 0
+        else:
+            sim = np.dot(query_emb, emb) / norm
+        scores.append((sim, item['text'], item['response']))
+    scores.sort(reverse=True, key=lambda x: x[0])
+    return scores[:top_k]
+
 def ask(m, u, api, system_prompt_override=None):
     # ── 1. Rate limit ──────────────────────────────
     if not check_rate_limit(u):
@@ -3687,12 +3811,17 @@ def ask(m, u, api, system_prompt_override=None):
         return f"{prefix}\n\n{kb_result['answer']}\n\n[🧠 {kb_result['confidence']}% confidence]"
 
     # ── 7. Load conversation history ──
-    if is_new_session(u):
-        cx = get_full_history(u)
-    else:
-        cx = get_context(u)
+    cx = get_full_history(u, limit=50)
 
-    # ── 8. Load PostgreSQL facts ──
+    
+    # ── Semantic retrieval ──
+    similar = retrieve_similar_conversations(m, u, top_k=2)
+    if similar:
+        similar_text = "\n\n## SIMILAR PAST CONVERSATIONS\n"
+        for sim, user_msg, aria_resp in similar:
+            similar_text += f"User: {user_msg}\nARIA: {aria_resp}\n\n"
+        memory_section += similar_text
+# ── 8. Load PostgreSQL facts ──
     try:
         user_memory_data = load_user_memory(u)
         if user_memory_data["facts"]:

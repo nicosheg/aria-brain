@@ -263,3 +263,30 @@ async def debug_memory(email: str):
     except Exception as e:
         logger.error(f"Error fetching memories: {e}")
         return {"error": str(e)}
+
+@app.get("/debug-history")
+async def debug_history(email: str):
+    from brain import generate_aria_uid, get_full_history
+    uid_result = generate_aria_uid(email)
+    if "error" in uid_result:
+        return {"error": uid_result["error"]}
+    uid = uid_result["aria_uid"]
+    history = get_full_history(uid, limit=50)
+    return {"uid": uid, "history": history, "length": len(history)}
+
+
+@app.get("/debug-embeddings")
+async def debug_embeddings(email: str):
+    """Show stored embeddings for a user."""
+    from brain import generate_aria_uid
+    import os, json
+    uid_result = generate_aria_uid(email)
+    if "error" in uid_result:
+        return {"error": uid_result["error"]}
+    uid = uid_result["aria_uid"]
+    emb_file = f"aria_emb_{uid}.json"
+    if os.path.exists(emb_file):
+        with open(emb_file, 'r') as f:
+            data = json.load(f)
+        return {"uid": uid, "embedding_count": len(data)}
+    return {"uid": uid, "embedding_count": 0}
