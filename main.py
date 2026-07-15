@@ -233,3 +233,33 @@ async def debug_memory(email: str):
     except Exception as e:
         logger.error(f"Error fetching memories: {e}")
         return {"error": str(e)}
+
+@app.get("/debug-memory")
+async def debug_memory(email: str):
+    """Debug endpoint to check stored memories for a user."""
+    from brain import generate_aria_uid, db
+    from firebase_admin import firestore
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    uid_result = generate_aria_uid(email)
+    if "error" in uid_result:
+        logger.error(f"UID generation error: {uid_result['error']}")
+        return {"error": uid_result["error"]}
+    uid = uid_result["aria_uid"]
+    logger.info(f"Checking memory for UID: {uid}")
+    
+    try:
+        docs = db.collection("users").document(uid).collection("memory").order_by("t", direction=firestore.Query.DESCENDING).limit(20).stream()
+        memories = []
+        for doc in docs:
+            data = doc.to_dict()
+            memories.append({
+                "message": data.get("m", ""),
+                "response": data.get("r", ""),
+                "time": data.get("t", "")
+            })
+        return {"uid": uid, "count": len(memories), "memories": memories}
+    except Exception as e:
+        logger.error(f"Error fetching memories: {e}")
+        return {"error": str(e)}
