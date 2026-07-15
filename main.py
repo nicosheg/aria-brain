@@ -129,24 +129,18 @@ async def static(path: str):
 
 @app.get("/context")
 async def get_context(uid: str):
-    """Return conversation history for a user."""
     from brain import get_full_history
     import logging
     logger = logging.getLogger(__name__)
-    
-    logger.info(f"[context] Received uid: {uid}")
     if not uid.startswith('aria'):
-        logger.warning(f"[context] Invalid UID format: {uid}")
-        return {"error": "Invalid UID format, must start with 'aria'", "context": ""}
-    
+        return {"error": "Invalid UID", "context": ""}
     try:
         history = get_full_history(uid)
-        logger.info(f"[context] Found history length: {len(history) if history else 0}")
         if history:
             return {"context": history}
         return {"context": ""}
     except Exception as e:
-        logger.error(f"[context] Error: {e}")
+        logger.error(f"context error: {e}")
         return {"error": str(e), "context": ""}
 @app.get("/get-uid")
 async def get_uid(email: str):
