@@ -21,11 +21,14 @@ class ModelGateway:
         self.settings = get_settings()
 
     def text(self, system: str, user: str, max_tokens: int = 1200) -> Optional[str]:
+        openai_keys = _keys("OPENAI_KEY", 5)
+        if os.getenv("OPENAI_API_KEY", "").strip():
+            openai_keys.insert(0, os.getenv("OPENAI_API_KEY", "").strip())
         providers = [
             ("groq", _keys("GROQ_KEY"), self.settings.groq_model),
             ("deepseek", _keys("DEEPSEEK_KEY", 5), self.settings.deepseek_model),
             ("gemini", _keys("GEMINI_KEY"), self.settings.gemini_model),
-            ("openai", _keys("OPENAI_KEY", 5), self.settings.openai_model),
+            ("openai", openai_keys, self.settings.openai_model),
         ]
         for provider, keys, model in providers:
             for key in keys:
