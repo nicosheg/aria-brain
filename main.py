@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import os
 import time
@@ -102,7 +103,7 @@ async def chat(req: ChatRequest):
     started = time.perf_counter()
     try:
         user_id = user_id_from_email(req.email)
-        result = runtime.run(user_id, req.message)
+        result = await asyncio.to_thread(runtime.run, user_id, req.message)
         result["latency_ms"] = round((time.perf_counter() - started) * 1000, 1)
         return result
     except ValueError as exc:
@@ -121,7 +122,7 @@ async def agent_run(req: ChatRequest):
 async def approve(approval_id: str, email: str):
     try:
         user_id = user_id_from_email(email)
-        return runtime.approve(user_id, approval_id)
+        return await asyncio.to_thread(runtime.approve, user_id, approval_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception:
@@ -132,7 +133,7 @@ async def approve(approval_id: str, email: str):
 async def reject(approval_id: str, email: str):
     try:
         user_id = user_id_from_email(email)
-        return runtime.reject(user_id, approval_id)
+        return await asyncio.to_thread(runtime.reject, user_id, approval_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception:
