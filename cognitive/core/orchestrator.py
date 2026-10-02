@@ -1,6 +1,7 @@
 # cognitive/core/orchestrator.py
 
 from typing import Dict, Optional
+import threading
 from cognitive.memory.graph import KnowledgeGraph
 from cognitive.memory.episodic import EpisodicMemory
 from cognitive.memory.semantic import SemanticMemory
@@ -121,9 +122,11 @@ class Orchestrator:
             print(f"[Orchestrator] Save error: {e}")
 
 
-_orchestrator = None
+_orchestrators: Dict[str, Orchestrator] = {}
+_orchestrators_lock = threading.RLock()
+
 def get_orchestrator(user_id: str = "default") -> Orchestrator:
-    global _orchestrator
-    if _orchestrator is None or _orchestrator.user_id != user_id:
-        _orchestrator = Orchestrator(user_id)
-    return _orchestrator
+    with _orchestrators_lock:
+        if user_id not in _orchestrators:
+            _orchestrators[user_id] = Orchestrator(user_id)
+        return _orchestrators[user_id]
