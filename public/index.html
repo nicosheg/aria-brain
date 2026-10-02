@@ -241,17 +241,64 @@
       return { ...extra, 'Authorization': `Bearer ${token}` };
     }
 
+    function safeMarkdown(text) {
+      const raw = (window.marked && typeof marked.parse === 'function')
+        ? marked.parse(String(text ?? ''))
+        : String(text ?? '').replace(/[&<>"']/g, (ch) => ({
+            '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+          }[ch]));
+      const doc = new DOMParser().parseFromString(raw, 'text/html');
+      doc.querySelectorAll('script,style,iframe,object,embed,form,link,meta,base').forEach((node) => node.remove());
+      doc.querySelectorAll('*').forEach((el) => {
+        Array.from(el.attributes).forEach((attr) => {
+          const name = attr.name.toLowerCase();
+          const value = attr.value.trim();
+          if (name.startsWith('on') || name === 'srcdoc') {
+            el.removeAttribute(attr.name);
+            return;
+          }
+          if ((name === 'href' || name === 'src') && /^(javascript|vbscript|data):/i.test(value)) {
+            el.removeAttribute(attr.name);
+          }
+        });
+      });
+      return doc.body.innerHTML;
+    }
+
     function showApproval(runId, interruptions) {
       const div = document.createElement('div');
       div.className = 'message aria';
-      const details = (interruptions || []).map(x => `${x.tool || 'external action'}: ${x.arguments || ''}`).join('<br>');
-      div.innerHTML = `<div class="message-bubble"><strong>Approval needed</strong><div style="font-size:11px;margin-top:6px;color:#CBD5E1;">${details}</div>
-        <div style="display:flex;gap:8px;margin-top:10px;">
-          <button class="message-action approve-run">Approve</button>
-          <button class="message-action reject-run">Reject</button>
-        </div></div>`;
-      div.querySelector('.approve-run').onclick = async () => resumeApproval(runId, true, div);
-      div.querySelector('.reject-run').onclick = async () => resumeApproval(runId, false, div);
+
+      const bubble = document.createElement('div');
+      bubble.className = 'message-bubble';
+
+      const title = document.createElement('strong');
+      title.textContent = 'Approval needed';
+      bubble.appendChild(title);
+
+      (interruptions || []).forEach((item) => {
+        const detail = document.createElement('div');
+        detail.style.cssText = 'font-size:11px;margin-top:6px;color:#CBD5E1;';
+        detail.textContent = `${item.tool || 'external action'}: ${item.arguments || ''}`;
+        bubble.appendChild(detail);
+      });
+
+      const actions = document.createElement('div');
+      actions.style.cssText = 'display:flex;gap:8px;margin-top:10px;';
+
+      const approve = document.createElement('button');
+      approve.className = 'message-action';
+      approve.textContent = 'Approve';
+      approve.onclick = () => resumeApproval(runId, true, div);
+
+      const reject = document.createElement('button');
+      reject.className = 'message-action';
+      reject.textContent = 'Reject';
+      reject.onclick = () => resumeApproval(runId, false, div);
+
+      actions.append(approve, reject);
+      bubble.appendChild(actions);
+      div.appendChild(bubble);
       messagesArea.appendChild(div);
       messagesArea.scrollTop = messagesArea.scrollHeight;
     }
@@ -335,7 +382,7 @@
       div.className = `message ${sender}`;
       const bubble = document.createElement('div');
       bubble.className = 'message-bubble';
-      bubble.innerHTML = marked.parse(text);
+      bubble.innerHTML = safeMarkdown(text);
       div.appendChild(bubble);
       if (sender === 'aria') {
         const actions = document.createElement('div');
@@ -376,14 +423,18 @@
       return div;
     }
 
-    function sendRating(score, ratingDiv) {
+    async function sendRating(score, ratingDiv) {
       if (!currentUser) return;
-      fetch('/feedback', {
-        method: 'POST',
-        headers: await apiHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ score: score })
-      }).catch(e => console.warn);
-      ratingDiv.innerHTML = `<span style="font-size:11px; color:#60A5FA;">✓ Rated ${score}/5</span>`;
+      try {
+        await fetch('/feedback', {
+          method: 'POST',
+          headers: await apiHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ score: score })
+        });
+      } catch (e) {
+        console.warn('Feedback could not be sent:', e);
+      }
+      ratingDiv.textContent = `✓ Rated ${score}/5`;
     }
 
     function showTyping() {
@@ -456,7 +507,7 @@
       if (!ariaUid) {
         ariaUid = await getAriaUid(currentUser.email);
         if (!ariaUid) {
-          historyContent.innerHTML = '<p>No conversation history yet.</p>';
+          historyContent.textContent = 'No conversation history yet.';
           return;
         }
       }
@@ -482,21 +533,30 @@
           if (currentUserMsg && currentAriaMsg) items.push({ user: currentUserMsg, aria: currentAriaMsg });
           historyContent.innerHTML = '';
           if (items.length === 0) {
-            historyContent.innerHTML = '<p>No conversation history yet.</p>';
+            historyContent.textContent = 'No conversation history yet.';
             return;
           }
           items.slice(-10).forEach(item => {
             const div = document.createElement('div');
             div.className = 'history-item';
-            div.innerHTML = `<div class="history-user">🧑 ${item.user}</div><div class="history-aria">🤖 ${item.aria}</div>`;
+
+            const userLine = document.createElement('div');
+            userLine.className = 'history-user';
+            userLine.textContent = `🧑 ${item.user}`;
+
+            const ariaLine = document.createElement('div');
+            ariaLine.className = 'history-aria';
+            ariaLine.textContent = `ARIA: ${item.aria}`;
+
+            div.append(userLine, ariaLine);
             historyContent.appendChild(div);
           });
         } else {
-          historyContent.innerHTML = '<p>No conversation history yet.</p>';
+          historyContent.textContent = 'No conversation history yet.';
         }
       } catch(e) {
         console.warn(e);
-        historyContent.innerHTML = '<p>Failed to load history.</p>';
+        historyContent.textContent = 'Failed to load history.';
       }
     }
     function showHistory() { fetchHistory(); historyModal.classList.add('active'); }
