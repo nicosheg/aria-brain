@@ -1,7 +1,7 @@
 import json
 import threading
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -434,7 +434,7 @@ class AgentStore:
                     if locked_at:
                         try:
                             locked_dt = datetime.fromisoformat(locked_at.replace("Z", "+00:00"))
-                            if now - locked_dt > __import__("datetime").timedelta(seconds=settings.job_lease_seconds):
+                            if now - locked_dt > timedelta(seconds=settings.job_lease_seconds):
                                 row["status"] = "queued"
                                 row["locked_at"] = None
                         except ValueError:
