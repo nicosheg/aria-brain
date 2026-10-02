@@ -57,6 +57,15 @@ class AgentRuntimeTests(unittest.TestCase):
             self.assertEqual(completed["status"], "completed")
             self.assertEqual(execute.call_count, 1)
 
+    def test_automation_secret_and_trigger(self):
+        import hashlib
+        store = AgentStore("")
+        runtime = AgentRuntime(store)
+        created = runtime.create_automation("u3", "New lead", "lead.created", "Research and qualify this new lead")
+        self.assertTrue(created["secret"])
+        stored = store.get_automation(created["id"], "u3")
+        self.assertEqual(stored["secret_hash"], hashlib.sha256(created["secret"].encode()).hexdigest())
+
 
 if __name__ == "__main__":
     unittest.main()
