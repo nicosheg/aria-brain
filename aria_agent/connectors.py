@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from typing import Any
+import threading
 
 import requests
 
@@ -322,6 +323,8 @@ class BrowserConnector(Connector):
 class ConnectorManager:
     def __init__(self, store):
         self.store = store
+        self._instances: dict[str, Connector] = {}
+        self._locks: dict[str, threading.RLock] = {}
 
     def register(self, user_id: str, name: str, connector_type: str, base_url: str, config: dict[str, Any]) -> dict[str, Any]:
         if connector_type not in {"mcp","rest","browser"}:
@@ -342,13 +345,21 @@ class ConnectorManager:
         row = next((r for r in self._rows(user_id) if r["id"] == connector_id), None)
         if not row:
             raise KeyError("connector not found")
-        return MCPConnector(row) if row["connector_type"] == "mcp" else BrowserConnector(row) if row["connector_type"] == "browser" else RESTConnector(row)
+        if connector_id not in self._instances:
+            if row["connector_type"] == "mcp":
+                self._instances[connector_id] = MCPConnector(row)
+            elif row["connector_type"] == "browser":
+                self._instances[connector_id] = BrowserConnector(row)
+            else:
+                self._instances[connector_id] = RESTConnector(row)
+            self._locks[connector_id] = threading.RLock()
+        return self._instances[connector_id]
 
     def tools(self, user_id: str) -> list[dict[str, Any]]:
         all_tools = []
         for row in self._rows(user_id):
             try:
-                connector = MCPConnector(row) if row["connector_type"] == "mcp" else BrowserConnector(row) if row["connector_type"] == "browser" else RESTConnector(row)
+                connector = self.get(row["id"], user_id)
                 for tool in connector.list_tools():
                     item = dict(tool)
                     item["connector_id"] = row["id"]
@@ -359,4 +370,17 @@ class ConnectorManager:
         return all_tools
 
     def call(self, user_id: str, connector_id: str, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-        return self.get(connector_id, user_id).call(tool_name, arguments)
+        connector = self.get(connector_id, user_id)
+        with self._locks[connector_id]:
+            return connector.call(tool_name, arguments)
+
+    def close_all(self) -> None:
+        for connector in list(self._instances.values()):
+            close = getattr(connector, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception:
+                    pass
+        self._instances.clear()
+        self._locks.clear()
