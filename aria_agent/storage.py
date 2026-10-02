@@ -333,6 +333,31 @@ class AgentStore:
             self._write_local(data)
             return len(data["connections"]) < before
 
+    def claim_run_resume(self, user_id: str, run_id: str) -> bool:
+        """Atomically claim a pending approval run so concurrent approval requests cannot resume it twice."""
+        uid = normalize_identity(user_id)
+        if self._use_postgres:
+            rows = self._query(
+                """
+                UPDATE aria_runs
+                SET status='resuming', updated_at=NOW()
+                WHERE id=%s AND user_id=%s AND status='awaiting_approval'
+                RETURNING id
+                """,
+                (run_id, uid),
+            )
+            return bool(rows)
+
+        with self._lock:
+            data = self._read_local()
+            for row in data["runs"]:
+                if row["id"] == run_id and row["user_id"] == uid and row.get("status") == "awaiting_approval":
+                    row["status"] = "resuming"
+                    row["updated_at"] = now_iso()
+                    self._write_local(data)
+                    return True
+        return False
+
     def save_run(self, run_id: str, user_id: str, provider: str, model: str, status: str, input_text: str = "", output_text: str = "", state: str = "", metadata: Optional[dict] = None):
         uid = normalize_identity(user_id)
         cipher = self._box.encrypt(state) if state else None
