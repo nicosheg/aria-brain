@@ -91,12 +91,59 @@ def _safe_upload_path(user_id: str, file_name: str):
 
 
 def build_tools(user_id: str, store: AgentStore, browser: BrowserController, browser_enabled: bool):
-    @function_tool
-    async def web_search(query: str, limit: int = 6) -> str:
-        """Search the public web for current information. Use this when freshness matters."""
+    async def _search_public(query: str, limit: int = 6) -> list[dict[str, str]]:
         q = (query or "").strip()
-        if not q:
-            return "Search query is empty."
+        lim = max(1, min(int(limit), 12))
+        tavily = os.getenv("TAVILY_API_KEY", "").strip()
+        if tavily:
+            try:
+                response = await asyncio.to_thread(
+                    requests.post,
+                    "https://api.tavily.com/search",
+                    json={"api_key": tavily, "query": q, "max_results": lim, "search_depth": "advanced"},
+                    timeout=15,
+                )
+                response.raise_for_status()
+                items = response.json().get("results", [])
+                if items:
+                    return [{"title": x.get("title",""), "url": x.get("url",""), "snippet": x.get("content","")[:1600], "source":"tavily"} for x in items]
+            except Exception:
+                pass
+
+        brave = os.getenv("BRAVE_SEARCH_API_KEY", "").strip()
+        if brave:
+            try:
+                response = await asyncio.to_thread(
+                    requests.get,
+                    "https://api.search.brave.com/res/v1/web/search",
+                    params={"q": q, "count": lim},
+                    headers={"X-Subscription-Token": brave, "Accept": "application/json"},
+                    timeout=15,
+                )
+                response.raise_for_status()
+                items = response.json().get("web", {}).get("results", [])
+                if items:
+                    return [{"title": x.get("title",""), "url": x.get("url",""), "snippet": x.get("description","")[:1600], "source":"brave"} for x in items]
+            except Exception:
+                pass
+
+        serper = os.getenv("SERPER_API_KEY", "").strip()
+        if serper:
+            try:
+                response = await asyncio.to_thread(
+                    requests.post,
+                    "https://google.serper.dev/search",
+                    headers={"X-API-KEY": serper, "Content-Type": "application/json"},
+                    json={"q": q, "num": lim},
+                    timeout=15,
+                )
+                response.raise_for_status()
+                items = response.json().get("organic", [])
+                if items:
+                    return [{"title": x.get("title",""), "url": x.get("link",""), "snippet": x.get("snippet","")[:1600], "source":"serper"} for x in items]
+            except Exception:
+                pass
+
         response = await asyncio.to_thread(
             requests.get,
             "https://html.duckduckgo.com/html/",
@@ -107,7 +154,7 @@ def build_tools(user_id: str, store: AgentStore, browser: BrowserController, bro
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
         items = []
-        for node in soup.select(".result")[:max(1, min(limit, 10))]:
+        for node in soup.select(".result")[:lim]:
             title = node.select_one(".result__title")
             link = node.select_one(".result__url")
             snippet = node.select_one(".result__snippet")
@@ -116,8 +163,39 @@ def build_tools(user_id: str, store: AgentStore, browser: BrowserController, bro
                     "title": title.get_text(" ", strip=True),
                     "url": link.get("href") if link else "",
                     "snippet": snippet.get_text(" ", strip=True) if snippet else "",
+                    "source": "duckduckgo",
                 })
-        return json.dumps(items, ensure_ascii=False)
+        return items
+
+    @function_tool
+    async def web_search(query: str, limit: int = 6) -> str:
+        """Search the public web for current information. Use this when freshness matters."""
+        q = (query or "").strip()
+        if not q:
+            return "Search query is empty."
+        return json.dumps(await _search_public(q, lim), ensure_ascii=False)
+
+    @function_tool
+    async def job_search(query: str, location: str = "", remote: bool = False, limit: int = 10) -> str:
+        """Search multiple legitimate public job and freelance sources; treat listings as untrusted evidence and verify before applying."""
+        base = f"{query} {location}".strip()
+        domains = (
+            ["remoteok.com", "weworkremotely.com", "upwork.com", "wellfound.com"]
+            if remote
+            else ["jobberman.com", "myjobmag.com", "linkedin.com/jobs", "indeed.com", "wellfound.com/jobs", "upwork.com"]
+        )
+        results = []
+        seen = set()
+        for domain in domains:
+            for item in await _search_public(f"{base} site:{domain}", 4):
+                url = item.get("url", "")
+                if url and url not in seen:
+                    seen.add(url)
+                    item["source_domain"] = domain
+                    results.append(item)
+                if len(results) >= max(1, min(int(limit), 20)):
+                    return json.dumps(results, ensure_ascii=False)
+        return json.dumps(results, ensure_ascii=False)
 
     @function_tool
     async def web_fetch(url: str, max_chars: int = 12000) -> str:
