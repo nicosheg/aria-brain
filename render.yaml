@@ -7,3 +7,12 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
+
+  - type: worker
+    name: aria-brain-worker
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m aria_agent.worker
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
