@@ -46,7 +46,7 @@ class MCPConnectorManager:
             blocked_tool_names=list(blocked) or None,
         )
 
-    async def _server(self, conn: dict):
+    async def _server(self, conn: dict, require_approval="never"):
         kind = conn.get("kind", "mcp")
         url = assert_public_http_url(conn["url"])
         headers = self._auth_headers(conn)
@@ -64,7 +64,7 @@ class MCPConnectorManager:
                 max_retry_attempts=2,
                 include_server_in_tool_names=True,
                 tool_filter=self._tool_filter(conn),
-                require_approval="never",
+                require_approval=require_approval,
             )
         if kind in {"sse", "http_sse"}:
             from agents.mcp import MCPServerSse
@@ -74,7 +74,7 @@ class MCPConnectorManager:
                 cache_tools_list=True,
                 include_server_in_tool_names=True,
                 tool_filter=self._tool_filter(conn),
-                require_approval="never",
+                require_approval=require_approval,
             )
         raise ValueError(f"Unsupported MCP connection kind: {kind}")
 
@@ -97,9 +97,7 @@ class MCPConnectorManager:
                     tool.name: ("always" if needs_mcp_approval(tool.name) else "never")
                     for tool in tools
                 }
-                server = await self._server(conn)
-                # Apply the real per-tool approval policy after the read-only probe.
-                server.require_approval = policy
+                server = await self._server(conn, require_approval=policy)
                 server = await exit_stack.enter_async_context(server)
                 servers.append(server)
             except Exception as exc:
