@@ -15,9 +15,28 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Compile
         run: python -m compileall -q aria_agent main.py tests
       - name: Tests
         run: pytest -q tests
+      - name: Validate inline browser JavaScript
+        run: |
+          mkdir -p /tmp/aria-inline-js
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          html = Path("public/index.html").read_text(encoding="utf-8")
+          scripts = re.findall(r"<script(?:\s[^>]*)?>(.*?)</script>", html, re.S | re.I)
+          for index, script in enumerate(scripts):
+              Path(f"/tmp/aria-inline-js/script-{index}.js").write_text(script, encoding="utf-8")
+          print(f"Extracted {len(scripts)} inline script blocks")
+          PY
+          for file in /tmp/aria-inline-js/*.js; do
+            node --check "$file"
+          done
