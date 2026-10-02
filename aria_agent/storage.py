@@ -392,13 +392,13 @@ class AgentStore:
                             WHERE (
                                 status='queued' AND run_after <= NOW()
                             ) OR (
-                                status='running' AND locked_at < NOW() - INTERVAL '1 hour'
+                                status='running' AND locked_at < NOW() - (%s * INTERVAL '1 second')
                             )
                             ORDER BY created_at ASC
                             FOR UPDATE SKIP LOCKED LIMIT 1
                         )
                         RETURNING id,user_id,kind,payload,attempts
-                    """)
+                    """, (settings.job_lease_seconds,)
                     row=cur.fetchone()
                     conn.commit()
                     if not row:
@@ -409,7 +409,7 @@ class AgentStore:
         with self._lock:
             data=self._read_local()
             now = datetime.now(timezone.utc)
-            lease_seconds = 3600
+            lease_seconds = settings.job_lease_seconds
             for row in data["jobs"]:
                 if row["status"] == "running" and row.get("locked_at"):
                     try:
@@ -439,16 +439,25 @@ class AgentStore:
         return None
 
     def complete_job(self, job_id: str, result: Optional[dict]=None, error: str="") -> None:
-        status="failed" if error else "completed"
+        from .security import redact_secrets
+        status = "failed" if error else "completed"
+        safe_error = redact_secrets(error or "")
         if self._use_postgres:
-            self._query("UPDATE aria_jobs SET status=%s,result=%s,error=%s,updated_at=NOW() WHERE id=%s",
-                        (status,json.dumps(result or {}),error or None,job_id), fetch="none")
+            self._query(
+                "UPDATE aria_jobs SET status=%s,result=%s,error=%s,locked_at=NULL,updated_at=NOW() WHERE id=%s",
+                (status, json.dumps(result or {}, ensure_ascii=False), safe_error or None, job_id),
+                fetch="none",
+            )
             return
         with self._lock:
             data=self._read_local()
             for row in data["jobs"]:
                 if row["id"]==job_id:
-                    row["status"]=status; row["result"]=result; row["error"]=error or None; row["updated_at"]=now_iso()
+                    row["status"]=status
+                    row["result"]=result
+                    row["error"]=safe_error or None
+                    row["locked_at"]=None
+                    row["updated_at"]=now_iso()
             self._write_local(data)
 
     def list_jobs(self, user_id: str, limit: int=50) -> list[dict]:
