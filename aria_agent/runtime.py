@@ -9,7 +9,7 @@ from .connectors import ConnectorManager
 from .llm import ModelGateway
 from .policy import PolicyEngine, SAFE, REVIEW, SENSITIVE
 from .storage import AgentStore
-from .web_search import WebSearch, format_sources
+from .web_search import WebSearch
 from .workers import WorkerRegistry
 
 
@@ -66,7 +66,7 @@ class AgentRuntime:
         if not plan:
             plan = self._fallback_plan(message)
 
-        safe_results, pending = self._execute_plan(run_id, user_id, plan)
+        safe_results, pending = self._execute_plan(run_id, user_id, plan, original_message=message)
 
         if pending:
             response = {
@@ -99,7 +99,8 @@ class AgentRuntime:
         payload = approval["payload"]
         plan = payload.get("remaining_plan", [])
         prior_results = payload.get("results", [])
-        safe_results, pending = self._execute_plan(approval["run_id"], user_id, plan, prior_results)
+        original_message = payload.get("original_message", "")
+        safe_results, pending = self._execute_plan(approval["run_id"], user_id, plan, prior_results, original_message=original_message)
 
         if pending:
             response = {
@@ -112,7 +113,7 @@ class AgentRuntime:
             self.store.update_run(approval["run_id"], "awaiting_approval", response)
             return response
 
-        reply = self._synthesize(payload.get("original_message",""), safe_results, self.workers.choose(payload.get("original_message","")))
+        reply = self._synthesize(original_message, safe_results, self.workers.choose(original_message))
         response = {"run_id": approval["run_id"], "status": "completed", "reply": reply, "results": safe_results}
         self.store.update_run(approval["run_id"], "completed", response)
         self.store.audit(approval["run_id"], user_id, "approval.executed", {"approval_id": approval_id})
@@ -167,6 +168,7 @@ Each step: {tool, args, connector_id?, external_tool?, reason?, side_effect?}.
         user_id: str,
         plan: dict[str, Any] | list[dict[str, Any]],
         prior_results: list[dict[str, Any]] | None = None,
+        original_message: str = "",
     ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
         steps = plan if isinstance(plan, list) else plan.get("steps", [])
         results = list(prior_results or [])
@@ -177,7 +179,7 @@ Each step: {tool, args, connector_id?, external_tool?, reason?, side_effect?}.
             if not isinstance(step, dict):
                 continue
             tool = str(step.get("tool","")).strip()
-            args = step.get("args") or {}
+            args = dict(step.get("args") or {})
             if not isinstance(args, dict):
                 args = {}
             descriptor = self._descriptor_for(tool, user_id)
@@ -196,7 +198,7 @@ Each step: {tool, args, connector_id?, external_tool?, reason?, side_effect?}.
                 approval = self.store.create_approval(
                     run_id, user_id, tool, str(step.get("reason") or "External action"),
                     {
-                        "original_message": plan.get("goal","") if isinstance(plan, dict) else "",
+                        "original_message": original_message or (plan.get("goal","") if isinstance(plan, dict) else ""),
                         "remaining_plan": steps[index:],
                         "results": results,
                         "args": sanitized,
