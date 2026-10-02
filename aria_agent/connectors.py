@@ -333,10 +333,31 @@ class ConnectorManager:
             raise ValueError("name and base_url are required")
         connector_id = hashlib.sha256(f"{user_id}:{name.strip().lower()}".encode()).hexdigest()[:24]
         row = {"id":connector_id,"user_id":user_id,"name":name.strip(),"connector_type":connector_type,"base_url":base_url.strip().rstrip("/"),"config_json":protect_config(config)}
-        return self.store.upsert_connector(row)
+        saved = self.store.upsert_connector(row)
+        old = self._instances.pop(saved["id"], None)
+        self._locks.pop(saved["id"], None)
+        if old:
+            close = getattr(old, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception:
+                    pass
+        return saved
 
     def delete(self, connector_id: str, user_id: str) -> bool:
-        return self.store.delete_connector(connector_id, user_id)
+        deleted = self.store.delete_connector(connector_id, user_id)
+        if deleted:
+            old = self._instances.pop(connector_id, None)
+            self._locks.pop(connector_id, None)
+            if old:
+                close = getattr(old, "close", None)
+                if callable(close):
+                    try:
+                        close()
+                    except Exception:
+                        pass
+        return deleted
 
     def _rows(self, user_id: str) -> list[dict[str, Any]]:
         return self.store.list_connectors(user_id)
