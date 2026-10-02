@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import re
+import secrets
 from typing import Any
 
 from .config import get_settings
@@ -141,6 +142,15 @@ class AgentRuntime:
         self.store.update_run(approval["run_id"], "rejected", {"approval_id": approval_id})
         self.store.audit(approval["run_id"], user_id, "approval.rejected", {"approval_id": approval_id})
         return {"run_id": approval["run_id"], "status": "rejected", "reply": "I stopped before the external action was executed."}
+
+    def create_automation(self, user_id: str, name: str, trigger_name: str, prompt: str) -> dict[str, Any]:
+        secret = secrets.token_urlsafe(32)
+        secret_hash = hashlib.sha256(secret.encode("utf-8")).hexdigest()
+        row = self.store.create_automation(user_id, name, trigger_name, prompt, secret_hash)
+        return {
+            "id": row["id"], "name": row["name"], "trigger_name": row["trigger_name"],
+            "enabled": row["enabled"], "secret": secret,
+        }
 
     def trigger_automation(self, automation_id: str, secret: str, event_payload: dict[str, Any]) -> dict[str, Any]:
         automation = self.store.get_automation(automation_id)
