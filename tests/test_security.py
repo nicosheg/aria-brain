@@ -29,3 +29,10 @@ def test_mcp_approval_policy_has_explicit_safe_and_risky_values():
     assert needs_mcp_approval("read_calendar") is False
     assert needs_mcp_approval("create_event") is True
     assert needs_mcp_approval("submit_application") is True
+
+
+def test_secret_redaction_covers_bare_tokens():
+    from aria_agent.security import redact_secrets
+    result = redact_secrets("temporary token=abcdefghijklmnop")
+    assert "abcdefghijklmnop" not in result
+    assert "[REDACTED]" in result
