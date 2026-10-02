@@ -5,7 +5,6 @@ import hashlib
 import json
 import os
 import re
-from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any, Optional
 
@@ -17,6 +16,7 @@ from pydantic import BaseModel, Field
 from aria_agent.config import settings
 from aria_agent.runtime import AriaRuntime
 from aria_agent.storage import store
+from aria_agent.security import assert_public_http_url
 
 app = FastAPI(title="ARIA", version="4.0.0")
 
@@ -136,11 +136,11 @@ def _public_aria_uid(user_id: str) -> str:
     return "aria-" + hashlib.sha256(user_id.encode("utf-8")).hexdigest()[:24]
 
 
-def _require_https_url(url: str) -> None:
-    if not (url.startswith("https://") or url.startswith("http://")):
-        raise HTTPException(400, detail="Connection URLs must use HTTP or HTTPS.")
-    if len(url) > 1000:
-        raise HTTPException(400, detail="Connection URL is too long.")
+def _require_https_url(url: str) -> str:
+    try:
+        return assert_public_http_url(url)
+    except ValueError as exc:
+        raise HTTPException(400, detail=str(exc)) from exc
 
 
 def _safe_filename(name: str) -> str:
@@ -150,12 +150,17 @@ def _safe_filename(name: str) -> str:
 @app.get("/health")
 async def health():
     providers = [(p, m) for p, m, _ in runtime.provider_candidates()]
+    database_ready = bool(settings.database_url)
+    healthy = bool(providers) and (database_ready or not settings.require_database)
     return {
-        "status": "ok" if providers else "degraded",
+        "status": "ok" if healthy else "degraded",
         "service": "aria-brain",
         "version": "4.0.0",
         "providers": [{"provider": p, "model": m} for p, m in providers],
-        "storage": "postgres" if settings.database_url else "local",
+        "storage": "postgres" if database_ready else "local",
+        "queue_shared": database_ready,
+        "database_required": settings.require_database,
+        "browser_enabled": settings.browser_enabled,
         "firebase_configured": bool(os.getenv("FIREBASE_CREDENTIALS")),
         "encryption_configured": bool(settings.encryption_key or os.getenv("ARIA_APP_SECRET")),
     }
@@ -247,12 +252,12 @@ async def debug_memory(authorization: Optional[str] = Header(default=None)):
 @app.post("/connections")
 async def add_connection(req: ConnectionRequest, authorization: Optional[str] = Header(default=None)):
     identity = _identity_from_request(authorization)
-    _require_https_url(req.url)
+    safe_url = _require_https_url(req.url)
     kind = req.kind.strip().lower()
-    if kind not in {"mcp", "streamable_http", "http"}:
-        raise HTTPException(400, detail="Only MCP/Streamable HTTP connections are currently supported.")
+    if kind not in {"mcp", "streamable_http", "http", "sse", "http_sse"}:
+        raise HTTPException(400, detail="Unsupported MCP connection transport.")
     result = store.save_connection(
-        identity["user_id"], req.name.strip(), kind, req.url.strip(), req.token.strip(), req.metadata
+        identity["user_id"], req.name.strip(), kind, safe_url, req.token.strip(), req.metadata
     )
     return {"status": "connected", "connection": result}
 
@@ -275,15 +280,11 @@ async def test_connection(connection_id: str, authorization: Optional[str] = Hea
     conn = store.get_connection(identity["user_id"], connection_id)
     if not conn:
         raise HTTPException(404, detail="Connection not found.")
-    async with AsyncExitStack() as stack:
-        from aria_agent.connectors import MCPConnectorManager
-        manager = MCPConnectorManager()
-        servers = await manager.open_for_user(identity["user_id"], store, stack)
-        for server in servers:
-            if getattr(server, "name", "") == conn["name"]:
-                tools = await server.list_tools()
-                return {"status": "ok", "name": conn["name"], "tools": [t.name for t in tools]}
-    raise HTTPException(502, detail="The app connector could not be reached.")
+    try:
+        tools = await runtime.connectors.test_connection(identity["user_id"], connection_id, store)
+        return {"status": "ok", "name": conn["name"], "tools": tools}
+    except Exception as exc:
+        raise HTTPException(502, detail=f"Connector test failed: {type(exc).__name__}.") from exc
 
 
 @app.get("/jobs")
@@ -292,8 +293,16 @@ async def list_jobs(authorization: Optional[str] = Header(default=None)):
     return {"jobs": store.list_jobs(identity["user_id"], limit=100)}
 
 
+@app.post("/jobs/{job_id}/cancel")
+async def cancel_job(job_id: str, authorization: Optional[str] = Header(default=None)):
+    identity = _identity_from_request(authorization)
+    return {"cancelled": store.cancel_job(identity["user_id"], job_id)}
+
+
 @app.post("/jobs")
 async def create_job(req: JobRequest, authorization: Optional[str] = Header(default=None)):
+    if settings.require_database and not settings.database_url:
+        raise HTTPException(503, detail="Durable background jobs require a database-backed queue.")
     identity = _identity_from_request(authorization)
     payload = dict(req.payload)
     payload["goal"] = req.goal
