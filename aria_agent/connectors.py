@@ -76,7 +76,6 @@ class MCPConnectorManager:
                 name=conn["name"],
                 params={"url": url, "headers": headers, "timeout": 20},
                 cache_tools_list=True,
-                include_server_in_tool_names=True,
                 tool_filter=self._tool_filter(conn),
                 require_approval=require_approval,
             )
