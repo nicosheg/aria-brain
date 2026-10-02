@@ -173,7 +173,7 @@ def build_tools(user_id: str, store: AgentStore, browser: BrowserController, bro
         q = (query or "").strip()
         if not q:
             return "Search query is empty."
-        return json.dumps(await _search_public(q, lim), ensure_ascii=False)
+        return json.dumps(await _search_public(q, max(1, min(int(limit), 12))), ensure_ascii=False)
 
     @function_tool
     async def job_search(query: str, location: str = "", remote: bool = False, limit: int = 10) -> str:
