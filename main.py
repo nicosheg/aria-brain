@@ -41,6 +41,17 @@ class ConnectorRequest(BaseModel):
     config: dict = Field(default_factory=dict)
 
 
+class AutomationRequest(BaseModel):
+    email: str
+    name: str = Field(min_length=1, max_length=100)
+    trigger_name: str = Field(min_length=1, max_length=120)
+    prompt: str = Field(min_length=1, max_length=8000)
+
+
+class AutomationEvent(BaseModel):
+    payload: dict = Field(default_factory=dict)
+
+
 app = FastAPI(
     title="ARIA Agent Runtime",
     version=settings.app_version,
@@ -139,6 +150,79 @@ async def reject(approval_id: str, email: str):
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception:
         raise HTTPException(status_code=500, detail="ARIA could not reject the action safely.")
+
+
+@app.get("/automations")
+async def list_automations(email: str):
+    try:
+        user_id = user_id_from_email(email)
+        rows = store.list_automations(user_id)
+        return {"automations": rows}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/automations")
+async def create_automation(req: AutomationRequest):
+    try:
+        user_id = user_id_from_email(req.email)
+        return await asyncio.to_thread(
+            runtime.create_automation, user_id, req.name, req.trigger_name, req.prompt
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/automations/{automation_id}/enable")
+async def enable_automation(automation_id: str, email: str):
+    try:
+        user_id = user_id_from_email(email)
+        if not store.set_automation_enabled(automation_id, user_id, True):
+            raise HTTPException(status_code=404, detail="automation not found")
+        return {"id": automation_id, "enabled": True}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/automations/{automation_id}/disable")
+async def disable_automation(automation_id: str, email: str):
+    try:
+        user_id = user_id_from_email(email)
+        if not store.set_automation_enabled(automation_id, user_id, False):
+            raise HTTPException(status_code=404, detail="automation not found")
+        return {"id": automation_id, "enabled": False}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.delete("/automations/{automation_id}")
+async def delete_automation(automation_id: str, email: str):
+    try:
+        user_id = user_id_from_email(email)
+        if not store.delete_automation(automation_id, user_id):
+            raise HTTPException(status_code=404, detail="automation not found")
+        return {"deleted": True, "id": automation_id}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/hooks/automations/{automation_id}")
+async def automation_hook(automation_id: str, event: AutomationEvent, x_aria_automation_secret: str = ""):
+    if not x_aria_automation_secret:
+        raise HTTPException(status_code=401, detail="automation secret required")
+    try:
+        return await asyncio.to_thread(
+            runtime.trigger_automation,
+            automation_id,
+            x_aria_automation_secret,
+            event.payload,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="invalid automation secret")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Automation could not be executed safely.")
 
 
 @app.get("/connectors")
