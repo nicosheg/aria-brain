@@ -48,7 +48,7 @@ class AgentStore:
         if self._pool is None:
             import psycopg2
             from psycopg2 import pool
-            self._pool = pool.SimpleConnectionPool(1, 10, settings.database_url)
+            self._pool = pool.ThreadedConnectionPool(1, 10, settings.database_url)
         conn = self._pool.getconn()
         if not self._schema_ready:
             try:
