@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from .config import settings
-from .security import SecretBox, normalize_identity
+from .security import SecretBox, assert_public_http_url, normalize_identity, redact_secrets
 
 
 def now_iso() -> str:
@@ -380,11 +380,23 @@ class AgentStore:
         return jid
 
     def claim_job(self) -> Optional[dict]:
+        """Atomically claim one due job and recover abandoned leases."""
         if self._use_postgres:
             conn = self._postgres_conn()
             try:
                 with conn.cursor() as cur:
-                    cur.execute("""
+                    cur.execute(
+                        """
+                        UPDATE aria_jobs
+                        SET status='queued', locked_at=NULL, updated_at=NOW()
+                        WHERE status='running'
+                          AND locked_at IS NOT NULL
+                          AND locked_at < NOW() - (%s * INTERVAL '1 second')
+                        """,
+                        (settings.job_lease_seconds,),
+                    )
+                    cur.execute(
+                        """
                         UPDATE aria_jobs
                         SET status='running', attempts=attempts+1, locked_at=NOW(), updated_at=NOW()
                         WHERE id = (
@@ -394,35 +406,138 @@ class AgentStore:
                             FOR UPDATE SKIP LOCKED LIMIT 1
                         )
                         RETURNING id,user_id,kind,payload,attempts
-                    """)
-                    row=cur.fetchone()
+                        """
+                    )
+                    row = cur.fetchone()
                     conn.commit()
                     if not row:
                         return None
-                    return {"id":row[0],"user_id":row[1],"kind":row[2],"payload":row[3],"attempts":row[4]}
+                    return {
+                        "id": row[0],
+                        "user_id": row[1],
+                        "kind": row[2],
+                        "payload": row[3],
+                        "attempts": row[4],
+                    }
+            except Exception:
+                conn.rollback()
+                raise
             finally:
                 self._release(conn)
+
         with self._lock:
-            data=self._read_local()
-            for row in sorted(data["jobs"], key=lambda x:x.get("created_at","")):
-                if row["status"]=="queued":
-                    row["status"]="running"; row["attempts"]+=1; row["updated_at"]=now_iso()
-                    self._write_local(data)
-                    return dict(row)
+            data = self._read_local()
+            now = datetime.now(timezone.utc)
+            for row in data["jobs"]:
+                if row.get("status") == "running":
+                    locked_at = row.get("locked_at")
+                    if locked_at:
+                        try:
+                            locked_dt = datetime.fromisoformat(locked_at.replace("Z", "+00:00"))
+                            if now - locked_dt > __import__("datetime").timedelta(seconds=settings.job_lease_seconds):
+                                row["status"] = "queued"
+                                row["locked_at"] = None
+                        except ValueError:
+                            row["status"] = "queued"
+                            row["locked_at"] = None
+
+            for row in sorted(data["jobs"], key=lambda x: x.get("created_at", "")):
+                if row.get("status") != "queued":
+                    continue
+                run_after = row.get("run_after")
+                if run_after:
+                    try:
+                        due = datetime.fromisoformat(run_after.replace("Z", "+00:00"))
+                        if due > now:
+                            continue
+                    except ValueError:
+                        pass
+                row["status"] = "running"
+                row["attempts"] = int(row.get("attempts", 0)) + 1
+                row["locked_at"] = now.isoformat()
+                row["updated_at"] = now.isoformat()
+                self._write_local(data)
+                return dict(row)
         return None
 
-    def complete_job(self, job_id: str, result: Optional[dict]=None, error: str="") -> None:
-        status="failed" if error else "completed"
+    def complete_job(self, job_id: str, result: Optional[dict] = None, error: str = "") -> None:
+        status = "failed" if error else "completed"
+        safe_error = redact_secrets(error or "")
         if self._use_postgres:
-            self._query("UPDATE aria_jobs SET status=%s,result=%s,error=%s,updated_at=NOW() WHERE id=%s",
-                        (status,json.dumps(result or {}),error or None,job_id), fetch="none")
+            self._query(
+                "UPDATE aria_jobs SET status=%s,result=%s,error=%s,locked_at=NULL,updated_at=NOW() WHERE id=%s",
+                (status, json.dumps(result or {}), safe_error or None, job_id),
+                fetch="none",
+            )
             return
         with self._lock:
-            data=self._read_local()
+            data = self._read_local()
             for row in data["jobs"]:
-                if row["id"]==job_id:
-                    row["status"]=status; row["result"]=result; row["error"]=error or None; row["updated_at"]=now_iso()
+                if row["id"] == job_id:
+                    row["status"] = status
+                    row["result"] = result
+                    row["error"] = safe_error or None
+                    row["locked_at"] = None
+                    row["updated_at"] = now_iso()
             self._write_local(data)
+
+    def retry_job(self, job_id: str, attempts: int, error: str) -> bool:
+        """Retry a failed job with exponential backoff, or fail permanently."""
+        safe_error = redact_secrets(error or "")
+        if attempts >= settings.job_max_attempts:
+            self.complete_job(job_id, error=safe_error or "Maximum attempts reached.")
+            return False
+
+        delay = min(300, 2 ** max(0, attempts - 1))
+        run_after = datetime.now(timezone.utc).timestamp() + delay
+
+        if self._use_postgres:
+            self._query(
+                """
+                UPDATE aria_jobs
+                SET status='queued',
+                    run_after=to_timestamp(%s),
+                    locked_at=NULL,
+                    error=%s,
+                    updated_at=NOW()
+                WHERE id=%s
+                """,
+                (run_after, safe_error or None, job_id),
+                fetch="none",
+            )
+            return True
+
+        with self._lock:
+            data = self._read_local()
+            for row in data["jobs"]:
+                if row["id"] == job_id:
+                    row["status"] = "queued"
+                    row["run_after"] = datetime.fromtimestamp(run_after, timezone.utc).isoformat()
+                    row["locked_at"] = None
+                    row["error"] = safe_error or None
+                    row["updated_at"] = now_iso()
+                    self._write_local(data)
+                    return True
+        return False
+
+    def cancel_job(self, user_id: str, job_id: str) -> bool:
+        uid = normalize_identity(user_id)
+        if self._use_postgres:
+            rows = self._query(
+                "UPDATE aria_jobs SET status='cancelled',locked_at=NULL,updated_at=NOW() WHERE id=%s AND user_id=%s AND status IN ('queued','running') RETURNING id",
+                (job_id, uid),
+            )
+            return bool(rows)
+        with self._lock:
+            data = self._read_local()
+            for row in data["jobs"]:
+                if row["id"] == job_id and row["user_id"] == uid and row.get("status") in {"queued", "running"}:
+                    row["status"] = "cancelled"
+                    row["locked_at"] = None
+                    row["updated_at"] = now_iso()
+                    self._write_local(data)
+                    return True
+        return False
 
     def list_jobs(self, user_id: str, limit: int=50) -> list[dict]:
         uid=normalize_identity(user_id)
