@@ -22,6 +22,8 @@ services:
         sync: false
       - key: FIREBASE_CREDENTIALS
         sync: false
+      - key: ARIA_ALLOWED_ORIGINS
+        sync: false
 
   - type: worker
     name: aria-agent-worker
@@ -44,4 +46,6 @@ services:
       - key: SUPABASE_DB_URL
         sync: false
       - key: FIREBASE_CREDENTIALS
+        sync: false
+      - key: ARIA_ALLOWED_ORIGINS
         sync: false
