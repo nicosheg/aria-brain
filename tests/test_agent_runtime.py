@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from aria_agent.policy import PolicyEngine, SAFE, SENSITIVE
 from aria_agent.storage import AgentStore
@@ -37,6 +38,24 @@ class AgentRuntimeTests(unittest.TestCase):
         runtime = AgentRuntime(AgentStore(""))
         plan = runtime._fallback_plan("Find me a software internship in Nigeria")
         self.assertEqual(plan["steps"][0]["tool"], "jobs.search")
+
+    def test_approval_executes_exact_step_once(self):
+        runtime = AgentRuntime(AgentStore(""))
+        plan = {
+            "goal": "Create a record",
+            "steps": [
+                {"tool": "app.write", "args": {"name": "Nicholas"}, "reason": "Create the requested record"}
+            ],
+        }
+        with patch.object(runtime, "_plan", return_value=plan), patch.object(
+            runtime, "_execute_tool", return_value={"created": True}
+        ) as execute:
+            paused = runtime.run("u2", "Create a record for Nicholas")
+            self.assertEqual(paused["status"], "approval_required")
+            approval_id = paused["approval"]["id"]
+            completed = runtime.approve("u2", approval_id)
+            self.assertEqual(completed["status"], "completed")
+            self.assertEqual(execute.call_count, 1)
 
 
 if __name__ == "__main__":
