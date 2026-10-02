@@ -130,6 +130,7 @@ def build_tools(user_id: str, store: AgentStore, browser: BrowserController, bro
                 headers={"User-Agent": "Mozilla/5.0 ARIA-Agent/1.0"},
                 timeout=20,
                 allow_redirects=False,
+                stream=True,
             )
             if r.is_redirect or r.is_permanent_redirect:
                 location = r.headers.get("Location", "").strip()
@@ -138,11 +139,21 @@ def build_tools(user_id: str, store: AgentStore, browser: BrowserController, bro
                 current_url = _assert_public_url(urljoin(current_url, location))
                 continue
             r.raise_for_status()
+            chunks = []
+            total = 0
+            for chunk in r.iter_content(chunk_size=64 * 1024):
+                if not chunk:
+                    continue
+                total += len(chunk)
+                if total > 5 * 1024 * 1024:
+                    raise ValueError("Fetched page is larger than 5MB.")
+                chunks.append(chunk)
+            raw_body = b"".join(chunks)
             break
         else:
             raise ValueError("Too many redirects.")
 
-        soup = BeautifulSoup(r.text, "html.parser")
+        soup = BeautifulSoup(raw_body, "html.parser")
         for tag in soup(["script", "style", "noscript"]):
             tag.decompose()
         text = " ".join(soup.get_text(" ", strip=True).split())
@@ -182,6 +193,8 @@ def build_tools(user_id: str, store: AgentStore, browser: BrowserController, bro
             raise FileNotFoundError("Uploaded file not found.")
         suffix = candidate.suffix.lower()
         if suffix in {".png", ".jpg", ".jpeg", ".webp", ".gif"} and ToolOutputImage is not None:
+            if candidate.stat().st_size > 8 * 1024 * 1024:
+                raise ValueError("Image is larger than 8MB; upload a smaller image for visual analysis.")
             encoded = base64.b64encode(candidate.read_bytes()).decode("ascii")
             mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "webp": "image/webp", "gif": "image/gif"}[suffix.lstrip(".")]
             return ToolOutputImage(image_url=f"data:{mime};base64,{encoded}", detail="high")
@@ -264,13 +277,13 @@ def build_tools(user_id: str, store: AgentStore, browser: BrowserController, bro
         await _browser_ready()
         return await browser.click_ref(user_id, ref)
 
-    @function_tool
+    @function_tool(needs_approval=_browser_ref_needs_approval_for_user)
     async def browser_fill_ref(ref: str, value: str) -> str:
         """Fill a text field by its ARIA browser reference."""
         await _browser_ready()
         return await browser.fill_ref(user_id, ref, value)
 
-    @function_tool
+    @function_tool(needs_approval=_browser_ref_needs_approval_for_user)
     async def browser_select_ref(ref: str, value: str) -> str:
         """Select an option in a select element by its ARIA browser reference."""
         await _browser_ready()
@@ -310,7 +323,7 @@ def build_tools(user_id: str, store: AgentStore, browser: BrowserController, bro
         await _browser_ready()
         return await browser.fill(user_id, selector, value)
 
-    @function_tool
+    @function_tool(needs_approval=_browser_fill_needs_approval)
     async def browser_press(selector: str, key: str) -> str:
         """Press a keyboard key on a selected form control."""
         await _browser_ready()
