@@ -20,7 +20,7 @@ class Settings:
     max_turns: int = int(os.getenv("ARIA_MAX_TURNS", "24"))
     max_message_chars: int = int(os.getenv("ARIA_MAX_MESSAGE_CHARS", "12000"))
     memory_results: int = int(os.getenv("ARIA_MEMORY_RESULTS", "12"))
-    data_dir: Path = Path(os.getenv("ARIA_DATA_DIR", "/data/aria"))
+    data_dir: Path = Path(os.getenv("ARIA_DATA_DIR", "/tmp/aria"))
     allow_email_identity: bool = _bool("ARIA_ALLOW_EMAIL_IDENTITY", False)
     browser_enabled: bool = _bool("ARIA_BROWSER_ENABLED", True)
     computer_enabled: bool = _bool("ARIA_COMPUTER_ENABLED", False)
