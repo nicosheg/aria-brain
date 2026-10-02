@@ -27,6 +27,7 @@ class Settings:
     allow_browser: bool = os.getenv("ARIA_BROWSER_ENABLED", "false").lower() == "true"
     connector_encryption_key: str = os.getenv("ARIA_CONNECTOR_ENCRYPTION_KEY", "")
     public_base_url: str = os.getenv("ARIA_PUBLIC_BASE_URL", "")
+    data_dir: Path = Path(os.getenv("ARIA_DATA_DIR", "/tmp/aria"))
     default_model: str = os.getenv("ARIA_MODEL", "llama-3.3-70b-versatile")
     groq_model: str = os.getenv("GROQ_MODEL", os.getenv("ARIA_MODEL", "llama-3.3-70b-versatile"))
     deepseek_model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
