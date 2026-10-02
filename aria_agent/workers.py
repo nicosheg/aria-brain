@@ -43,6 +43,7 @@ WORKERS: tuple[Worker, ...] = (
     _w("finance_planning", "Plan budgets, pricing and financial choices without independently moving money.", "budget|save|spend|price|financial plan", ("research.summarize","app.read")),
     _w("admin_ops", "Handle repetitive operational tasks, records, checklists and coordination.", "admin|operations|ops|records|coordination|routine task", ("app.read","app.write")),
     _w("reviewer", "Verify source quality, action completion and uncertainty before reporting success.", "verify|check|review|confirm|did it work", ("app.read","research.summarize")),
+    _w("automation", "Translate repeatable business or personal processes into safe event-driven workflows.", "automate|automation|when this happens|trigger|workflow", ("app.inspect","app.read","app.write","app.send","app.delete")),
 )
 
 
