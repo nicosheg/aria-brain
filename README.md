@@ -58,4 +58,6 @@ For production, keep ARIA_ALLOW_EMAIL_IDENTITY=false and provide a durable datab
 
 Run locally with: pip install -r requirements.txt; playwright install chromium; uvicorn main:app --reload
 
+This branch is CI-gated before merge.
+
 Validate with: pytest -q; python -m compileall -q aria_agent main.py tests
