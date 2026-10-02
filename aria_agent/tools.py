@@ -414,7 +414,7 @@ def build_tools(user_id: str, store: AgentStore, browser: BrowserController, bro
         return await browser.submit(user_id, selector)
 
     return [
-        web_search, web_fetch, calculator, remember, search_memory, enqueue_background_job, list_uploaded_files, read_uploaded_file,
+        web_search, job_search, web_fetch, calculator, remember, search_memory, enqueue_background_job, list_uploaded_files, read_uploaded_file,
         browser_open, browser_inspect, browser_inspect_elements, browser_screenshot,
         browser_click, browser_click_ref, browser_fill, browser_fill_ref, browser_select_ref,
         browser_press, browser_submit, browser_upload_ref,
