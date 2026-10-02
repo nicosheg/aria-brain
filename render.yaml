@@ -10,6 +10,8 @@ services:
         value: 3.13.5
       - key: ARIA_BROWSER_ENABLED
         value: "true"
+      - key: ARIA_DATA_DIR
+        value: "/data/aria"
       - key: ARIA_ALLOW_EMAIL_IDENTITY
         value: "false"
       - key: OPENAI_API_KEY
