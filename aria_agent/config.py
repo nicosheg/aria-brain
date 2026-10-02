@@ -13,7 +13,7 @@ def _bool(name: str, default: bool = False) -> bool:
 @dataclass(frozen=True)
 class Settings:
     app_name: str = os.getenv("ARIA_APP_NAME", "ARIA")
-    model: str = os.getenv("ARIA_MODEL", os.getenv("OPENAI_DEFAULT_MODEL", "gpt-5.6"))
+    model: str = os.getenv("ARIA_MODEL", os.getenv("OPENAI_DEFAULT_MODEL", "gpt-5"))
     groq_model: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
     deepseek_model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
@@ -25,7 +25,7 @@ class Settings:
     browser_enabled: bool = _bool("ARIA_BROWSER_ENABLED", True)
     computer_enabled: bool = _bool("ARIA_COMPUTER_ENABLED", False)
     encryption_key: str = os.getenv("ARIA_ENCRYPTION_KEY", "")
-    app_secret: str = os.getenv("ARIA_APP_SECRET", "change-me-in-production")
+    app_secret: str = os.getenv("ARIA_APP_SECRET", "")
     database_url: str = os.getenv("SUPABASE_DB_URL", os.getenv("DATABASE_URL", ""))
 
     @property
