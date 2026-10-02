@@ -8,10 +8,10 @@ The live FastAPI service no longer imports the legacy monolithic brain.py reques
 
 - durable memory in PostgreSQL/Supabase, with a local JSON fallback for development
 - resumable human approval for side-effectful tool calls
-- Streamable HTTP MCP connections for external software
-- browser automation for websites that do not expose an API/MCP server
-- a durable background-job queue and a separate Render worker
-- 22 specialist workers covering jobs, income, sales, communication, learning, research, resource use and execution
+- Streamable HTTP MCP connections for external software, with legacy SSE support and per-tool approval policies
+- browser automation for websites that do not expose an API/MCP server, including live page inspection, stable element references, form filling, uploads and approved submissions
+- a durable background-job queue with scheduling, leases, retries, cancellation and a separate Render worker
+- 38 specialist workers covering opportunity discovery, jobs, applications, freelancing, services, sales, communication, learning, research, resource use, automation and execution
 - provider fallback across OpenAI and OpenAI-compatible endpoints
 
 ## Connected apps
@@ -57,3 +57,13 @@ uvicorn main:app --reload
 Then run:
 pytest -q
 python -m compileall -q aria_agent main.py tests
+
+## Production boundary
+
+For production, set `ARIA_REQUIRE_DATABASE=true` and provide `SUPABASE_DB_URL`. This keeps job claims, approval state, memory and connected-app configuration shared across Render web/worker processes. Local JSON remains a development fallback.
+
+The agent uses explicit human approval for side-effectful browser/MCP actions. External web content is treated as untrusted input. Connection URLs are checked against public-network SSRF constraints, and stored connection secrets are encrypted.
+
+## Current scope
+
+ARIA is designed as a general agent runtime rather than a single-purpose NYEOCARE bot. It can research current opportunities, delegate specialist work, remember useful context, run background goals, connect to software through MCP, operate websites through a controlled browser, and pause for human approval before consequential external actions.
