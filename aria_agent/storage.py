@@ -18,7 +18,7 @@ class AgentStore:
         self.database_url = database_url
         self._pool = None
         self._lock = threading.RLock()
-        self._memory = {"runs": {}, "approvals": {}, "connectors": {}, "memory": {}, "automations": {}, "audit": []}
+        self._memory = {"runs": {}, "approvals": {}, "connectors": {}, "memory": {}, "automations": {}, "jobs": {}, "audit": []}
         if database_url:
             self._connect()
 
@@ -86,6 +86,22 @@ class AgentStore:
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     UNIQUE(user_id,name)
                 );
+                CREATE TABLE IF NOT EXISTS aria_agent_jobs (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    kind TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'queued',
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    run_after TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    locked_at TIMESTAMPTZ,
+                    result_json TEXT,
+                    error TEXT,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+                CREATE INDEX IF NOT EXISTS aria_agent_jobs_queue_idx
+                  ON aria_agent_jobs(status, run_after, created_at);
                 CREATE INDEX IF NOT EXISTS aria_agent_automations_user_idx
                   ON aria_agent_automations(user_id, enabled);
                 CREATE INDEX IF NOT EXISTS aria_agent_approvals_user_idx
@@ -425,6 +441,139 @@ class AgentStore:
             deleted = cur.rowcount > 0
             conn.commit()
             return deleted
+        finally:
+            self._release(conn)
+
+    def enqueue_job(self, user_id: str, kind: str, payload: dict[str, Any], run_after: str | None = None) -> str:
+        job_id = str(uuid.uuid4())
+        due = run_after or now_iso()
+        row = {
+            "id": job_id, "user_id": user_id, "kind": kind,
+            "payload": payload, "status": "queued", "attempts": 0,
+            "run_after": due, "created_at": now_iso(), "updated_at": now_iso(),
+        }
+        if not self._pool:
+            with self._lock:
+                self._memory["jobs"][job_id] = row
+            return job_id
+        conn = self._connection()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO aria_agent_jobs(id,user_id,kind,payload_json,run_after) VALUES(%s,%s,%s,%s,COALESCE(%s::timestamptz,NOW()))",
+                (job_id, user_id, kind, json.dumps(payload, ensure_ascii=False, default=str), run_after),
+            )
+            conn.commit()
+        finally:
+            self._release(conn)
+        return job_id
+
+    def claim_job(self) -> Optional[dict[str, Any]]:
+        if not self._pool:
+            with self._lock:
+                now = datetime.now(timezone.utc)
+                queued = []
+                for row in self._memory["jobs"].values():
+                    if row["status"] == "queued":
+                        try:
+                            due = datetime.fromisoformat(row["run_after"].replace("Z", "+00:00"))
+                        except Exception:
+                            due = now
+                        if due <= now:
+                            queued.append(row)
+                if not queued:
+                    return None
+                row = sorted(queued, key=lambda x: x.get("created_at", ""))[0]
+                row["status"] = "running"
+                row["attempts"] += 1
+                row["locked_at"] = now_iso()
+                row["updated_at"] = now_iso()
+                return dict(row)
+        conn = self._connection()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """UPDATE aria_agent_jobs
+                   SET status='running', attempts=attempts+1, locked_at=NOW(), updated_at=NOW()
+                   WHERE id=(
+                     SELECT id FROM aria_agent_jobs
+                     WHERE status='queued' AND run_after <= NOW()
+                     ORDER BY created_at ASC
+                     FOR UPDATE SKIP LOCKED LIMIT 1
+                   )
+                   RETURNING id,user_id,kind,payload_json,attempts""",
+            )
+            row = cur.fetchone()
+            conn.commit()
+            if not row:
+                return None
+            return {
+                "id": row[0], "user_id": row[1], "kind": row[2],
+                "payload": json.loads(row[3] or "{}"), "attempts": row[4],
+            }
+        finally:
+            self._release(conn)
+
+    def complete_job(self, job_id: str, result: Any = None, error: str = "") -> bool:
+        status = "failed" if error else "completed"
+        if not self._pool:
+            with self._lock:
+                row = self._memory["jobs"].get(job_id)
+                if not row:
+                    return False
+                row.update({"status": status, "result": result, "error": error or None, "updated_at": now_iso()})
+                return True
+        conn = self._connection()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "UPDATE aria_agent_jobs SET status=%s,result_json=%s,error=%s,updated_at=NOW() WHERE id=%s",
+                (status, json.dumps(result, ensure_ascii=False, default=str), error or None, job_id),
+            )
+            changed = cur.rowcount > 0
+            conn.commit()
+            return changed
+        finally:
+            self._release(conn)
+
+    def list_jobs(self, user_id: str, limit: int = 100) -> list[dict[str, Any]]:
+        limit = max(1, min(limit, 200))
+        if not self._pool:
+            rows = [dict(v) for v in self._memory["jobs"].values() if v["user_id"] == user_id]
+            return sorted(rows, key=lambda x: x.get("created_at", ""), reverse=True)[:limit]
+        conn = self._connection()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """SELECT id,kind,payload_json,status,attempts,result_json,error,created_at,updated_at
+                   FROM aria_agent_jobs WHERE user_id=%s ORDER BY created_at DESC LIMIT %s""",
+                (user_id, limit),
+            )
+            return [
+                {"id":r[0],"kind":r[1],"payload":json.loads(r[2] or "{}"),"status":r[3],"attempts":r[4],
+                 "result":json.loads(r[5] or "null"),"error":r[6],"created_at":str(r[7]),"updated_at":str(r[8])}
+                for r in cur.fetchall()
+            ]
+        finally:
+            self._release(conn)
+
+    def list_runs(self, user_id: str, limit: int = 50) -> list[dict[str, Any]]:
+        limit = max(1, min(limit, 100))
+        if not self._pool:
+            rows = [dict(v) for v in self._memory["runs"].values() if v["user_id"] == user_id]
+            return sorted(rows, key=lambda x: x.get("created_at", ""), reverse=True)[:limit]
+        conn = self._connection()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT id,status,input_text,output_text,worker_names,created_at,updated_at FROM aria_agent_runs WHERE user_id=%s ORDER BY created_at DESC LIMIT %s",
+                (user_id, limit),
+            )
+            return [
+                {"id":r[0],"status":r[1],"input":r[2],"output":r[3],"workers":json.loads(r[4] or "[]"),
+                 "created_at":str(r[5]),"updated_at":str(r[6])}
+                for r in cur.fetchall()
+            ]
         finally:
             self._release(conn)
 
