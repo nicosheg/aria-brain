@@ -6,6 +6,7 @@
   <title>ARIA — Your AI. Your Life. Your Future.</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <style>
@@ -244,14 +245,36 @@
     function showApproval(runId, interruptions) {
       const div = document.createElement('div');
       div.className = 'message aria';
-      const details = (interruptions || []).map(x => `${x.tool || 'external action'}: ${x.arguments || ''}`).join('<br>');
-      div.innerHTML = `<div class="message-bubble"><strong>Approval needed</strong><div style="font-size:11px;margin-top:6px;color:#CBD5E1;">${details}</div>
-        <div style="display:flex;gap:8px;margin-top:10px;">
-          <button class="message-action approve-run">Approve</button>
-          <button class="message-action reject-run">Reject</button>
-        </div></div>`;
-      div.querySelector('.approve-run').onclick = async () => resumeApproval(runId, true, div);
-      div.querySelector('.reject-run').onclick = async () => resumeApproval(runId, false, div);
+      const bubble = document.createElement('div');
+      bubble.className = 'message-bubble';
+
+      const title = document.createElement('strong');
+      title.textContent = 'Approval needed';
+      bubble.appendChild(title);
+
+      const details = document.createElement('div');
+      details.style.cssText = 'font-size:11px;margin-top:6px;color:#CBD5E1;white-space:pre-wrap;';
+      details.textContent = (interruptions || []).map(x => {
+        const tool = String(x.tool || 'external action');
+        const args = String(x.arguments || '');
+        return tool + (args ? ': ' + args : '');
+      }).join('\n');
+      bubble.appendChild(details);
+
+      const actions = document.createElement('div');
+      actions.style.cssText = 'display:flex;gap:8px;margin-top:10px;';
+      const approve = document.createElement('button');
+      approve.className = 'message-action approve-run';
+      approve.textContent = 'Approve';
+      const reject = document.createElement('button');
+      reject.className = 'message-action reject-run';
+      reject.textContent = 'Reject';
+      actions.append(approve, reject);
+      bubble.appendChild(actions);
+
+      approve.onclick = async () => resumeApproval(runId, true, div);
+      reject.onclick = async () => resumeApproval(runId, false, div);
+      div.appendChild(bubble);
       messagesArea.appendChild(div);
       messagesArea.scrollTop = messagesArea.scrollHeight;
     }
@@ -330,12 +353,23 @@
     }
 
     // ── Chat functions ──
-    function addMessage(text, sender, showRating = false, msgId = null) {
+    function safeMarkdown(text) {
+      const rendered = marked.parse(String(text ?? ''), { gfm: true, breaks: true });
+      return window.DOMPurify
+        ? DOMPurify.sanitize(rendered, {
+            USE_PROFILES: { html: true },
+            FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form', 'input', 'button'],
+            FORBID_ATTR: ['srcdoc']
+          })
+        : rendered.replace(/<[^>]+>/g, '');
+    }
+
+    function addMessage(text, sender, showRating = false, msgId = null)
       const div = document.createElement('div');
       div.className = `message ${sender}`;
       const bubble = document.createElement('div');
       bubble.className = 'message-bubble';
-      bubble.innerHTML = marked.parse(text);
+      bubble.innerHTML = safeMarkdown(text);
       div.appendChild(bubble);
       if (sender === 'aria') {
         const actions = document.createElement('div');
@@ -376,14 +410,18 @@
       return div;
     }
 
-    function sendRating(score, ratingDiv) {
+    async function sendRating(score, ratingDiv) {
       if (!currentUser) return;
-      fetch('/feedback', {
-        method: 'POST',
-        headers: await apiHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ score: score })
-      }).catch(e => console.warn);
-      ratingDiv.innerHTML = `<span style="font-size:11px; color:#60A5FA;">✓ Rated ${score}/5</span>`;
+      try {
+        await fetch('/feedback', {
+          method: 'POST',
+          headers: await apiHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ score: score })
+        });
+        ratingDiv.textContent = '✓ Rated ' + score + '/5';
+      } catch (e) {
+        console.warn('Rating failed:', e);
+      }
     }
 
     function showTyping() {
