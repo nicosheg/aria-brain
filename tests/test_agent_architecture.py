@@ -70,8 +70,15 @@ def test_job_queue_respects_schedule_and_recovers(tmp_path):
     assert claimed["id"] == job_id
     assert claimed["attempts"] == 1
 
-    retried = s.retry_job(job_id, 1, "temporary token=do-not-store")
+    retried = s.retry_job(job_id, 1, "temporary token=abcdefghijklmnop")
     assert retried
     saved = s._read_local()["jobs"][0]
     assert saved["status"] == "queued"
-    assert "do-not-store" not in saved["error"]
+    assert "abcdefghijklmnop" not in saved["error"]
+
+
+def test_frontend_had_no_await_in_non_async_rating_handler():
+    source = Path("public/index.html").read_text("utf-8")
+    assert "async function sendRating" in source
+    assert "function sendRating(score, ratingDiv)" not in source
+    assert "safeMarkdown(text)" in source
