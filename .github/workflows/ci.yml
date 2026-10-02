@@ -20,4 +20,4 @@ jobs:
       - name: Compile
         run: python -m compileall -q aria_agent main.py tests
       - name: Tests
-        run: pytest -q
+        run: pytest -q tests
