@@ -82,3 +82,16 @@ def test_frontend_had_no_await_in_non_async_rating_handler():
     assert "async function sendRating" in source
     assert "\n    function sendRating(score, ratingDiv)" not in source
     assert "safeMarkdown(text)" in source
+
+
+def test_approval_run_can_only_be_claimed_once(tmp_path):
+    from aria_agent.storage import AgentStore
+
+    s = AgentStore()
+    s._use_postgres = False
+    from pathlib import Path
+    s._path = Path(tmp_path) / "jobs.json"
+    s._write_local(s._empty_local())
+    s.save_run("run-1", "u", "openai", "gpt-test", "awaiting_approval", "in", "out", "state", {})
+    assert s.claim_run_resume("u", "run-1") is True
+    assert s.claim_run_resume("u", "run-1") is False
