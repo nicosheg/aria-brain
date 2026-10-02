@@ -13,11 +13,11 @@ def _bool(name: str, default: bool = False) -> bool:
 @dataclass(frozen=True)
 class Settings:
     app_name: str = os.getenv("ARIA_APP_NAME", "ARIA")
-    model: str = os.getenv("ARIA_MODEL", os.getenv("OPENAI_DEFAULT_MODEL", "gpt-5"))
+    model: str = os.getenv("ARIA_MODEL", os.getenv("OPENAI_DEFAULT_MODEL", "gpt-5.6-luna"))
     groq_model: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
     deepseek_model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-    max_turns: int = int(os.getenv("ARIA_MAX_TURNS", "24"))
+    max_turns: int = int(os.getenv("ARIA_MAX_TURNS", "32"))
     max_message_chars: int = int(os.getenv("ARIA_MAX_MESSAGE_CHARS", "12000"))
     memory_results: int = int(os.getenv("ARIA_MEMORY_RESULTS", "12"))
     data_dir: Path = Path(os.getenv("ARIA_DATA_DIR", "/tmp/aria"))
@@ -27,6 +27,10 @@ class Settings:
     encryption_key: str = os.getenv("ARIA_ENCRYPTION_KEY", "")
     app_secret: str = os.getenv("ARIA_APP_SECRET", "")
     database_url: str = os.getenv("SUPABASE_DB_URL", os.getenv("DATABASE_URL", ""))
+    require_database: bool = _bool("ARIA_REQUIRE_DATABASE", False)
+    worker_concurrency: int = max(1, min(int(os.getenv("ARIA_WORKER_CONCURRENCY", "2")), 16))
+    job_max_attempts: int = max(1, min(int(os.getenv("ARIA_JOB_MAX_ATTEMPTS", "4")), 10))
+    job_lease_seconds: int = max(30, min(int(os.getenv("ARIA_JOB_LEASE_SECONDS", "900")), 86400))
 
     @property
     def has_openai(self) -> bool:
