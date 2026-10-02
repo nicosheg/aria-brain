@@ -28,6 +28,7 @@ class Settings:
     default_model: str = os.getenv("ARIA_MODEL", "llama-3.3-70b-versatile")
     groq_model: str = os.getenv("GROQ_MODEL", os.getenv("ARIA_MODEL", "llama-3.3-70b-versatile"))
     deepseek_model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-6-luna")
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
     search_provider: str = os.getenv("ARIA_SEARCH_PROVIDER", "auto").lower()
     allowed_external_domains: tuple[str, ...] = field(
