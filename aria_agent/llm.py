@@ -40,6 +40,77 @@ class ModelGateway:
                     print(f"[ModelGateway] {provider} failed: {exc}")
         return None
 
+    def image_to_text(
+        self,
+        prompt: str,
+        image_base64: str,
+        mime_type: str = "image/jpeg",
+        max_tokens: int = 1800,
+    ) -> Optional[str]:
+        """Read an image using a provider with native vision support."""
+        data_url = f"data:{mime_type};base64,{image_base64}"
+        openai_keys = _keys("OPENAI_KEY", 5)
+        if os.getenv("OPENAI_API_KEY", "").strip():
+            openai_keys.insert(0, os.getenv("OPENAI_API_KEY", "").strip())
+        for key in openai_keys:
+            try:
+                response = requests.post(
+                    "https://api.openai.com/v1/responses",
+                    headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                    json={
+                        "model": self.settings.openai_model,
+                        "instructions": "Read the supplied image carefully. Extract only information visible in the image. Never invent missing digits or text.",
+                        "input": [{
+                            "role": "user",
+                            "content": [
+                                {"type": "input_text", "text": prompt},
+                                {"type": "input_image", "image_url": data_url},
+                            ],
+                        }],
+                        "max_output_tokens": max_tokens,
+                    },
+                    timeout=self.settings.llm_timeout_seconds,
+                )
+                response.raise_for_status()
+                output = response.json().get("output", [])
+                texts = []
+                for item in output:
+                    for content in item.get("content", []):
+                        if content.get("type") in {"output_text", "text"} and content.get("text"):
+                            texts.append(content["text"])
+                if texts:
+                    return "\n".join(texts)
+            except Exception as exc:
+                print(f"[ModelGateway] OpenAI vision failed: {exc}")
+
+        for key in _keys("GEMINI_KEY"):
+            try:
+                endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{self.settings.gemini_model}:generateContent"
+                response = requests.post(
+                    endpoint,
+                    params={"key": key},
+                    json={
+                        "system_instruction": {"parts": [{"text": "Read only what is visibly present in the image. Do not guess."}]},
+                        "contents": [{
+                            "role": "user",
+                            "parts": [
+                                {"text": prompt},
+                                {"inline_data": {"mime_type": mime_type, "data": image_base64}},
+                            ],
+                        }],
+                        "generationConfig": {"temperature": 0.1, "maxOutputTokens": max_tokens},
+                    },
+                    timeout=self.settings.llm_timeout_seconds,
+                )
+                response.raise_for_status()
+                parts = response.json().get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                text = "\n".join(p.get("text", "") for p in parts if p.get("text"))
+                if text:
+                    return text
+            except Exception as exc:
+                print(f"[ModelGateway] Gemini vision failed: {exc}")
+        return None
+
     def json(self, system: str, user: str, max_tokens: int = 1600) -> Optional[dict[str, Any]]:
         raw = self.text(system, user + "\n\nReturn ONLY valid JSON. No markdown.", max_tokens=max_tokens)
         if not raw:
