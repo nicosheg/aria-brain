@@ -26,11 +26,25 @@ def _fernet():
         return None
 
 
+def _contains_secret(value: Any, key_name: str = "") -> bool:
+    sensitive = {
+        "token","access_token","refresh_token","password","api_key","client_secret",
+        "authorization","cookie","cookies","secret","cdp_url","webhook_secret",
+    }
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key.lower() in sensitive or _contains_secret(child, key):
+                return True
+        return False
+    if isinstance(value, list):
+        return any(_contains_secret(child, key_name) for child in value)
+    return key_name.lower() in sensitive
+
+
 def protect_config(config: dict[str, Any]) -> dict[str, Any]:
     f = _fernet()
-    secret_names = {"token","access_token","refresh_token","password","api_key"}
     if not f:
-        if any(k.lower() in secret_names for k in config):
+        if _contains_secret(config):
             raise RuntimeError("ARIA_CONNECTOR_ENCRYPTION_KEY is required to store connector secrets.")
         return config
     return {"encrypted": True, "value": f.encrypt(json.dumps(config).encode()).decode()}
