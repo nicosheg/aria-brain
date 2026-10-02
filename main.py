@@ -33,6 +33,11 @@ runtime = AriaRuntime(store)
 PUBLIC_ROOT = Path("public").resolve()
 
 
+@app.on_event("shutdown")
+async def shutdown():
+    await runtime.close()
+
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=settings.max_message_chars)
     email: Optional[str] = None
