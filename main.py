@@ -1,292 +1,207 @@
+from __future__ import annotations
+
+import hashlib
+import os
+import time
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
-import os
-import json
-import firebase_admin
-from firebase_admin import credentials, firestore
+from pydantic import BaseModel, Field
 
-# ── Initialize Firestore ──
-if not firebase_admin._apps:
-    cred_json = os.environ.get("FIREBASE_CREDENTIALS")
-    if cred_json:
-        cred = credentials.Certificate(json.loads(cred_json))
-        firebase_admin.initialize_app(cred)
-        db = firestore.client()
-        print("✅ Firestore initialized in main")
-    else:
-        print("❌ FIREBASE_CREDENTIALS not found")
-        db = None
-else:
-    db = firestore.client()
-    print("✅ Firestore already initialized")
+from aria_agent.config import get_settings
+from aria_agent.runtime import AgentRuntime
+from aria_agent.storage import AgentStore
 
-# ── Import brain and initialize PostgreSQL ──
-from brain import ask, generate_aria_uid, init_postgres
 
-print("🔧 Initializing PostgreSQL pool...")
-init_postgres()
-print("✅ PostgreSQL pool initialized")
+settings = get_settings()
+store = AgentStore(settings.database_url)
+runtime = AgentRuntime(store)
 
-app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+def user_id_from_email(email: str) -> str:
+    normalized = email.strip().lower()
+    if not normalized or "@" not in normalized:
+        raise ValueError("valid email is required")
+    return "aria_" + hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
+
 
 class ChatRequest(BaseModel):
-    message: str
+    message: str = Field(min_length=1, max_length=12000)
+    email: str = Field(min_length=3, max_length=320)
+
+
+class ConnectorRequest(BaseModel):
     email: str
+    name: str = Field(min_length=1, max_length=100)
+    connector_type: str = Field(pattern="^(mcp|rest)$")
+    base_url: str = Field(min_length=1, max_length=2000)
+    config: dict = Field(default_factory=dict)
 
-class ChatResponse(BaseModel):
-    reply: str
 
-# ─── SPECIFIC ROUTES (in order of priority) ─────────────────
+app = FastAPI(
+    title="ARIA Agent Runtime",
+    version=settings.app_version,
+    description="Agentic runtime for research, work, income, communication, software and connected-app automation.",
+)
+
+cors_raw = os.getenv("ARIA_CORS_ORIGINS", "").strip()
+origins = [x.strip() for x in cors_raw.split(",") if x.strip()] or ["*"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=origins != ["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    configured = {
+        "groq": bool(os.getenv("GROQ_KEY_1")),
+        "deepseek": bool(os.getenv("DEEPSEEK_KEY_1")),
+        "gemini": bool(os.getenv("GEMINI_KEY_1")),
+        "search": any(os.getenv(k) for k in ("TAVILY_API_KEY", "BRAVE_SEARCH_API_KEY", "SERPER_API_KEY")),
+    }
+    return {
+        "status": "ok",
+        "service": "aria-agent-runtime",
+        "version": settings.app_version,
+        "autonomy": settings.autonomy_level,
+        "durable_store": store.durable,
+        "providers_configured": configured,
+        "workers": len(runtime.workers.all()),
+        "connector_types": ["mcp", "rest"],
+        "browser_control": settings.allow_browser,
+    }
+
 
 @app.get("/ping")
 async def ping():
     return {"pong": "ok"}
 
-@app.post("/chat", response_model=ChatResponse)
+
+@app.get("/workers")
+async def workers():
+    return {"workers": runtime.workers.manifest()}
+
+
+@app.get("/capabilities")
+async def capabilities(email: str):
+    try:
+        user_id = user_id_from_email(email)
+        return runtime.capability_manifest(user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/chat")
 async def chat(req: ChatRequest):
+    started = time.perf_counter()
     try:
-        uid_result = generate_aria_uid(req.email.lower())
-        user_id = uid_result["aria_uid"]
-        reply = ask(req.message, user_id, None)
-        return ChatResponse(reply=reply)
-    except Exception as e:
-        raise HTTPException(500, detail=str(e))
+        user_id = user_id_from_email(req.email)
+        result = runtime.run(user_id, req.message)
+        result["latency_ms"] = round((time.perf_counter() - started) * 1000, 1)
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        runtime.store.audit(None, None, "request.failed", {"type": type(exc).__name__})
+        raise HTTPException(status_code=500, detail="ARIA could not complete the request safely.")
 
-@app.get("/debug-uid")
-async def debug_uid(email: str):
-    from brain import generate_aria_uid
-    result = generate_aria_uid(email)
-    return result
 
-@app.get("/debug-db")
-async def debug_db():
-    from brain import _postgres_pool
-    if _postgres_pool is None:
-        return {"error": "PostgreSQL pool is None"}
+@app.post("/agent/run")
+async def agent_run(req: ChatRequest):
+    return await chat(req)
+
+
+@app.post("/agent/approvals/{approval_id}/approve")
+async def approve(approval_id: str, email: str):
     try:
-        conn = _postgres_pool.getconn()
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM users")
-        count = cur.fetchone()[0]
-        _postgres_pool.putconn(conn)
-        return {"connected": True, "user_count": count}
-    except Exception as e:
-        return {"error": str(e)}
+        user_id = user_id_from_email(email)
+        return runtime.approve(user_id, approval_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception:
+        raise HTTPException(status_code=500, detail="ARIA could not resume the approved action safely.")
 
-@app.get("/check-db")
-async def check_db():
-    """Check if users table exists and count rows."""
-    from brain import _postgres_pool
-    if _postgres_pool is None:
-        return {"error": "PostgreSQL pool is None"}
-    conn = None
+
+@app.post("/agent/approvals/{approval_id}/reject")
+async def reject(approval_id: str, email: str):
     try:
-        conn = _postgres_pool.getconn()
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables
-                WHERE table_name = 'users'
-            );
-        """)
-        table_exists = cur.fetchone()[0]
-        if not table_exists:
-            return {"table_exists": False, "message": "users table does not exist"}
-        cur.execute("SELECT COUNT(*) FROM users")
-        count = cur.fetchone()[0]
-        cur.execute("SELECT aria_uid, email FROM users LIMIT 5")
-        rows = cur.fetchall()
-        _postgres_pool.putconn(conn)
+        user_id = user_id_from_email(email)
+        return runtime.reject(user_id, approval_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception:
+        raise HTTPException(status_code=500, detail="ARIA could not reject the action safely.")
+
+
+@app.get("/connectors")
+async def list_connectors(email: str):
+    try:
+        user_id = user_id_from_email(email)
+        rows = runtime.store.list_connectors(user_id)
         return {
-            "table_exists": True,
-            "row_count": count,
-            "sample_rows": [{"aria_uid": r[0], "email": r[1]} for r in rows]
+            "connectors": [
+                {"id": r["id"], "name": r["name"], "connector_type": r["connector_type"], "base_url": r.get("base_url")}
+                for r in rows
+            ]
         }
-    except Exception as e:
-        if conn:
-            _postgres_pool.putconn(conn)
-        return {"error": str(e)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/connectors")
+async def register_connector(req: ConnectorRequest):
+    try:
+        user_id = user_id_from_email(req.email)
+        row = runtime.connectors.register(
+            user_id, req.name, req.connector_type, req.base_url, req.config
+        )
+        return {
+            "id": row["id"],
+            "name": row["name"],
+            "connector_type": row["connector_type"],
+            "base_url": row["base_url"],
+        }
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/connectors/{connector_id}/tools")
+async def connector_tools(connector_id: str, email: str):
+    try:
+        user_id = user_id_from_email(email)
+        return runtime.inspect_connector(user_id, connector_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.delete("/connectors/{connector_id}")
+async def delete_connector(connector_id: str, email: str):
+    try:
+        user_id = user_id_from_email(email)
+        if not runtime.connectors.delete(connector_id, user_id):
+            raise HTTPException(status_code=404, detail="connector not found")
+        return {"deleted": True, "id": connector_id}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
 
 @app.get("/")
 async def index():
-    return FileResponse("public/index.html")
+    path = Path("public/index.html")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="frontend not found")
+    return FileResponse(path)
 
-# ─── CATCH‑ALL ROUTE (MUST BE LAST) ──────────────────────────
 
 @app.get("/{path:path}")
 async def static(path: str):
-    full_path = f"public/{path}"
-    if os.path.exists(full_path):
+    full_path = Path("public") / path
+    if full_path.is_file():
         return FileResponse(full_path)
-    raise HTTPException(404, detail="Not found")
-
-@app.get("/context")
-async def get_context(uid: str):
-    from brain import get_full_history
-    import logging
-    logger = logging.getLogger(__name__)
-    if not uid.startswith('aria'):
-        return {"error": "Invalid UID", "context": ""}
-    try:
-        history = get_full_history(uid)
-        if history:
-            return {"context": history}
-        return {"context": ""}
-    except Exception as e:
-        logger.error(f"context error: {e}")
-        return {"error": str(e), "context": ""}
-@app.get("/get-uid")
-async def get_uid(email: str):
-    """Return the ARIA UID for a given email."""
-    from brain import generate_aria_uid
-    result = generate_aria_uid(email)
-    return result
-
-@app.post("/set_user_name")
-async def set_user_name(request: dict):
-    """Set the user's name using email (not Firebase UID)."""
-    email = request.get("email", "").strip().lower()
-    name = request.get("name", "").strip()
-    if not email or not name:
-        raise HTTPException(400, detail="Missing email or name")
-    
-    from brain import generate_aria_uid, db
-    uid_result = generate_aria_uid(email)
-    if "error" in uid_result:
-        raise HTTPException(400, detail=uid_result["error"])
-    aria_uid = uid_result["aria_uid"]
-    
-    # Store name in Firestore facts
-    if db:
-        try:
-            fact_ref = db.collection("users").document(aria_uid).collection("facts").document("name")
-            fact_ref.set({"key": "name", "value": name})
-            return {"status": "ok", "aria_uid": aria_uid}
-        except Exception as e:
-            raise HTTPException(500, detail=str(e))
-    return {"status": "ok", "aria_uid": aria_uid}
-
-@app.get("/get-uid")
-async def get_uid(email: str):
-    """Return the ARIA UID for a given email."""
-    from brain import generate_aria_uid
-    result = generate_aria_uid(email)
-    return result
-
-@app.post("/set_user_name")
-async def set_user_name(request: dict):
-    """Set the user's name using email (not Firebase UID)."""
-    email = request.get("email", "").strip().lower()
-    name = request.get("name", "").strip()
-    if not email or not name:
-        raise HTTPException(400, detail="Missing email or name")
-    
-    from brain import generate_aria_uid, db
-    uid_result = generate_aria_uid(email)
-    if "error" in uid_result:
-        raise HTTPException(400, detail=uid_result["error"])
-    aria_uid = uid_result["aria_uid"]
-    
-    if db:
-        try:
-            fact_ref = db.collection("users").document(aria_uid).collection("facts").document("name")
-            fact_ref.set({"key": "name", "value": name})
-            return {"status": "ok", "aria_uid": aria_uid}
-        except Exception as e:
-            raise HTTPException(500, detail=str(e))
-    return {"status": "ok", "aria_uid": aria_uid}
-
-
-@app.get("/debug-memory")
-async def debug_memory(email: str):
-    """Debug endpoint to check stored memories for a user."""
-    from brain import generate_aria_uid, db
-    from firebase_admin import firestore
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    uid_result = generate_aria_uid(email)
-    if "error" in uid_result:
-        logger.error(f"UID generation error: {uid_result['error']}")
-        return {"error": uid_result["error"]}
-    uid = uid_result["aria_uid"]
-    logger.info(f"Checking memory for UID: {uid}")
-    
-    try:
-        docs = db.collection("users").document(uid).collection("memory").order_by("t", direction=firestore.Query.DESCENDING).limit(20).stream()
-        memories = []
-        for doc in docs:
-            data = doc.to_dict()
-            memories.append({
-                "message": data.get("m", ""),
-                "response": data.get("r", ""),
-                "time": data.get("t", "")
-            })
-        return {"uid": uid, "count": len(memories), "memories": memories}
-    except Exception as e:
-        logger.error(f"Error fetching memories: {e}")
-        return {"error": str(e)}
-
-@app.get("/debug-memory")
-async def debug_memory(email: str):
-    """Debug endpoint to check stored memories for a user."""
-    from brain import generate_aria_uid, db
-    from firebase_admin import firestore
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    uid_result = generate_aria_uid(email)
-    if "error" in uid_result:
-        logger.error(f"UID generation error: {uid_result['error']}")
-        return {"error": uid_result["error"]}
-    uid = uid_result["aria_uid"]
-    logger.info(f"Checking memory for UID: {uid}")
-    
-    try:
-        docs = db.collection("users").document(uid).collection("memory").order_by("t", direction=firestore.Query.DESCENDING).limit(20).stream()
-        memories = []
-        for doc in docs:
-            data = doc.to_dict()
-            memories.append({
-                "message": data.get("m", ""),
-                "response": data.get("r", ""),
-                "time": data.get("t", "")
-            })
-        return {"uid": uid, "count": len(memories), "memories": memories}
-    except Exception as e:
-        logger.error(f"Error fetching memories: {e}")
-        return {"error": str(e)}
-
-@app.get("/debug-history")
-async def debug_history(email: str):
-    from brain import generate_aria_uid, get_full_history
-    uid_result = generate_aria_uid(email)
-    if "error" in uid_result:
-        return {"error": uid_result["error"]}
-    uid = uid_result["aria_uid"]
-    history = get_full_history(uid, limit=50)
-    return {"uid": uid, "history": history, "length": len(history)}
-
-
-@app.get("/debug-embeddings")
-async def debug_embeddings(email: str):
-    """Show stored embeddings for a user."""
-    from brain import generate_aria_uid
-    import os, json
-    uid_result = generate_aria_uid(email)
-    if "error" in uid_result:
-        return {"error": uid_result["error"]}
-    uid = uid_result["aria_uid"]
-    emb_file = f"aria_emb_{uid}.json"
-    if os.path.exists(emb_file):
-        with open(emb_file, 'r') as f:
-            data = json.load(f)
-        return {"uid": uid, "embedding_count": len(data)}
-    return {"uid": uid, "embedding_count": 0}
+    raise HTTPException(status_code=404, detail="not found")
