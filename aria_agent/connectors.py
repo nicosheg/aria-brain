@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from contextlib import AsyncExitStack
 
 from .security import assert_public_http_url
@@ -18,8 +19,8 @@ DANGEROUS_WORDS = {
 
 
 def needs_mcp_approval(tool_name: str) -> bool:
-    lowered = tool_name.lower().replace("-", "_")
-    tokens = set(lowered.split("_"))
+    lowered = re.sub(r"(?<!^)([A-Z])", r"_\1", tool_name).lower().replace("-", "_")
+    tokens = {token for token in re.split(r"[^a-z0-9]+", lowered) if token}
     return bool(tokens & DANGEROUS_WORDS)
 
 
