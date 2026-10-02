@@ -265,11 +265,33 @@ Each step: {tool, args, connector_id?, external_tool?, reason?, side_effect?}.
         if tool == "web.search":
             return self.search.search(str(args.get("query","")), int(args.get("limit",8)))
         if tool == "jobs.search":
-            query = str(args.get("query",""))
-            suffix = args.get("location") or ""
-            q = f"{query} {suffix}".strip()
-            results = self.search.search(q, int(args.get("limit",8)))
-            return [{"title":r["title"],"url":r["url"],"snippet":r.get("snippet","")} for r in results]
+            query = str(args.get("query","")).strip()
+            location = str(args.get("location","")).strip()
+            base = f"{query} {location}".strip()
+            domains = [
+                "jobberman.com", "linkedin.com/jobs", "indeed.com",
+                "wellfound.com/jobs", "upwork.com", "remoteok.com",
+                "weworkremotely.com",
+            ]
+            if "remote" in base.lower():
+                domains = ["remoteok.com", "weworkremotely.com", "upwork.com", "wellfound.com/jobs", "linkedin.com/jobs"]
+            merged = []
+            seen = set()
+            for domain in domains[:5]:
+                search_query = f"{base} site:{domain}".strip()
+                for item in self.search.search(search_query, 4):
+                    url = item.get("url", "")
+                    if url and url not in seen:
+                        seen.add(url)
+                        merged.append({
+                            "title": item.get("title",""),
+                            "url": url,
+                            "snippet": item.get("snippet",""),
+                            "source": domain,
+                        })
+                    if len(merged) >= int(args.get("limit",8)):
+                        return merged
+            return merged
         if tool == "research.summarize":
             sources = args.get("sources", [])
             question = str(args.get("question") or args.get("query") or "Summarize the evidence.")
