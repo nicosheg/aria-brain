@@ -96,7 +96,7 @@ def redact_secrets(text: str) -> str:
 
     patterns = [
         r"(?i)\b(password|passwd|passcode|client_secret|secret)\s*[:=]\s*\S+",
-        r"(?i)\b(api[_ -]?key|access[_ -]?token|refresh[_ -]?token|authorization)\s*[:=]\s*[A-Za-z0-9_.\-/+=]{12,}",
+        r"(?i)\b(api[_ -]?key|access[_ -]?token|refresh[_ -]?token|auth[_ -]?token|authorization|token)\s*[:=]\s*[A-Za-z0-9_.\-/+=]{12,}",
         r"(?i)\bBearer\s+[A-Za-z0-9._\-]{20,}\b",
         r"\bsk-[A-Za-z0-9_-]{16,}\b",
         r"\b(?:ghp|github_pat)_[A-Za-z0-9_]{20,}\b",
