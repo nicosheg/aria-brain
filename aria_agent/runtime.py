@@ -84,6 +84,7 @@ Operating rules:
             model=model,
             tools=tools + worker_tools,
             mcp_servers=servers or [],
+            mcp_config={"include_server_in_tool_names": True},
         )
 
     def _select_provider(self, candidates, previous=None):
