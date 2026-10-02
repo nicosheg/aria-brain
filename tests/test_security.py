@@ -22,3 +22,10 @@ def test_mcp_side_effect_words_require_approval():
     assert needs_mcp_approval("delete_record")
     assert needs_mcp_approval("execute_sql")
     assert not needs_mcp_approval("search_records")
+
+
+def test_mcp_approval_policy_has_explicit_safe_and_risky_values():
+    from aria_agent.connectors import needs_mcp_approval
+    assert needs_mcp_approval("read_calendar") is False
+    assert needs_mcp_approval("create_event") is True
+    assert needs_mcp_approval("submit_application") is True
