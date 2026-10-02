@@ -12,18 +12,13 @@ def now_iso() -> str:
 
 
 class AgentStore:
-    """Durable Postgres store with an in-memory fallback for local/dev use."""
+    """Durable Postgres state with a safe in-memory fallback for development."""
 
-    def __init__(self, database_url: str):
+    def __init__(self, database_url: str = ""):
         self.database_url = database_url
         self._pool = None
         self._lock = threading.RLock()
-        self._memory = {
-            "runs": {},
-            "approvals": {},
-            "connectors": {},
-            "audit": [],
-        }
+        self._memory = {"runs": {}, "approvals": {}, "connectors": {}, "memory": {}, "audit": []}
         if database_url:
             self._connect()
 
@@ -38,13 +33,11 @@ class AgentStore:
             self._pool = pool.SimpleConnectionPool(1, 10, self.database_url)
             self._ensure_schema()
         except Exception as exc:
-            print(f"[AgentStore] Postgres unavailable; using memory store: {exc}")
+            print(f"[AgentStore] Postgres unavailable; memory fallback active: {exc}")
             self._pool = None
 
     def _connection(self):
-        if not self._pool:
-            return None
-        return self._pool.getconn()
+        return self._pool.getconn() if self._pool else None
 
     def _release(self, conn) -> None:
         if conn and self._pool:
@@ -58,52 +51,40 @@ class AgentStore:
             cur = conn.cursor()
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS aria_agent_runs (
-                    id TEXT PRIMARY KEY,
-                    user_id TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    input_text TEXT NOT NULL,
-                    output_text TEXT,
+                    id TEXT PRIMARY KEY, user_id TEXT NOT NULL, status TEXT NOT NULL,
+                    input_text TEXT NOT NULL, output_text TEXT,
                     worker_names TEXT NOT NULL DEFAULT '[]',
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 );
                 CREATE TABLE IF NOT EXISTS aria_agent_approvals (
-                    id TEXT PRIMARY KEY,
-                    run_id TEXT NOT NULL,
-                    user_id TEXT NOT NULL,
-                    tool_name TEXT NOT NULL,
-                    action TEXT NOT NULL,
-                    payload_json TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'pending',
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    decided_at TIMESTAMPTZ,
-                    expires_at TIMESTAMPTZ NOT NULL
+                    id TEXT PRIMARY KEY, run_id TEXT NOT NULL, user_id TEXT NOT NULL,
+                    tool_name TEXT NOT NULL, action TEXT NOT NULL, payload_json TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    decided_at TIMESTAMPTZ, expires_at TIMESTAMPTZ NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS aria_agent_connectors (
-                    id TEXT PRIMARY KEY,
-                    user_id TEXT NOT NULL,
-                    name TEXT NOT NULL,
-                    connector_type TEXT NOT NULL,
-                    base_url TEXT,
-                    config_json TEXT NOT NULL,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL,
+                    connector_type TEXT NOT NULL, base_url TEXT, config_json TEXT NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     UNIQUE(user_id, name)
                 );
+                CREATE TABLE IF NOT EXISTS aria_agent_memory (
+                    user_id TEXT NOT NULL, key TEXT NOT NULL, content TEXT NOT NULL,
+                    importance DOUBLE PRECISION NOT NULL DEFAULT 0.5,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    PRIMARY KEY(user_id, key)
+                );
                 CREATE TABLE IF NOT EXISTS aria_agent_audit (
-                    id BIGSERIAL PRIMARY KEY,
-                    run_id TEXT,
-                    user_id TEXT,
-                    event_type TEXT NOT NULL,
-                    payload_json TEXT NOT NULL,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    id BIGSERIAL PRIMARY KEY, run_id TEXT, user_id TEXT, event_type TEXT NOT NULL,
+                    payload_json TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 );
                 CREATE INDEX IF NOT EXISTS aria_agent_approvals_user_idx
-                    ON aria_agent_approvals(user_id, status, expires_at);
+                  ON aria_agent_approvals(user_id,status,expires_at);
                 CREATE INDEX IF NOT EXISTS aria_agent_runs_user_idx
-                    ON aria_agent_runs(user_id, created_at DESC);
+                  ON aria_agent_runs(user_id,created_at DESC);
                 CREATE INDEX IF NOT EXISTS aria_agent_audit_run_idx
-                    ON aria_agent_audit(run_id, created_at DESC);
+                  ON aria_agent_audit(run_id,created_at DESC);
             """)
             conn.commit()
         finally:
@@ -111,16 +92,8 @@ class AgentStore:
 
     def create_run(self, user_id: str, input_text: str, workers: list[str]) -> dict[str, Any]:
         run_id = str(uuid.uuid4())
-        row = {
-            "id": run_id,
-            "user_id": user_id,
-            "status": "running",
-            "input": input_text,
-            "output": None,
-            "workers": workers,
-            "created_at": now_iso(),
-            "updated_at": now_iso(),
-        }
+        row = {"id": run_id, "user_id": user_id, "status": "running", "input": input_text,
+               "output": None, "workers": workers, "created_at": now_iso(), "updated_at": now_iso()}
         if not self._pool:
             with self._lock:
                 self._memory["runs"][run_id] = row
@@ -142,44 +115,24 @@ class AgentStore:
         if not self._pool:
             with self._lock:
                 if run_id in self._memory["runs"]:
-                    self._memory["runs"][run_id]["status"] = status
-                    self._memory["runs"][run_id]["output"] = output
-                    self._memory["runs"][run_id]["updated_at"] = now_iso()
+                    self._memory["runs"][run_id].update(status=status, output=output, updated_at=now_iso())
             return
         conn = self._connection()
         try:
             cur = conn.cursor()
-            cur.execute(
-                "UPDATE aria_agent_runs SET status=%s, output_text=%s, updated_at=NOW() WHERE id=%s",
-                (status, serialized, run_id),
-            )
+            cur.execute("UPDATE aria_agent_runs SET status=%s,output_text=%s,updated_at=NOW() WHERE id=%s",
+                        (status, serialized, run_id))
             conn.commit()
         finally:
             self._release(conn)
 
-    def create_approval(
-        self,
-        run_id: str,
-        user_id: str,
-        tool_name: str,
-        action: str,
-        payload: dict[str, Any],
-        ttl_seconds: int,
-    ) -> dict[str, Any]:
+    def create_approval(self, run_id: str, user_id: str, tool_name: str, action: str,
+                        payload: dict[str, Any], ttl_seconds: int) -> dict[str, Any]:
         approval_id = str(uuid.uuid4())
-        created = now_iso()
         expires = (datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)).isoformat()
-        row = {
-            "id": approval_id,
-            "run_id": run_id,
-            "user_id": user_id,
-            "tool_name": tool_name,
-            "action": action,
-            "payload": payload,
-            "status": "pending",
-            "created_at": created,
-            "expires_at": expires,
-        }
+        row = {"id": approval_id, "run_id": run_id, "user_id": user_id, "tool_name": tool_name,
+               "action": action, "payload": payload, "status": "pending",
+               "created_at": now_iso(), "expires_at": expires}
         if not self._pool:
             with self._lock:
                 self._memory["approvals"][approval_id] = row
@@ -188,11 +141,7 @@ class AgentStore:
         try:
             cur = conn.cursor()
             cur.execute(
-                """
-                INSERT INTO aria_agent_approvals
-                (id,run_id,user_id,tool_name,action,payload_json,expires_at)
-                VALUES(%s,%s,%s,%s,%s,%s,%s)
-                """,
+                "INSERT INTO aria_agent_approvals(id,run_id,user_id,tool_name,action,payload_json,expires_at) VALUES(%s,%s,%s,%s,%s,%s,%s)",
                 (approval_id, run_id, user_id, tool_name, action, json.dumps(payload, default=str), expires),
             )
             conn.commit()
@@ -203,42 +152,34 @@ class AgentStore:
     def get_approval(self, approval_id: str, user_id: str | None = None) -> Optional[dict[str, Any]]:
         if not self._pool:
             row = self._memory["approvals"].get(approval_id)
-            if row and (user_id is None or row["user_id"] == user_id):
-                return dict(row)
-            return None
+            return dict(row) if row and (user_id is None or row["user_id"] == user_id) else None
         conn = self._connection()
         try:
             cur = conn.cursor()
+            query = "SELECT id,run_id,user_id,tool_name,action,payload_json,status,created_at,expires_at FROM aria_agent_approvals WHERE id=%s"
+            params: list[Any] = [approval_id]
             if user_id:
-                cur.execute(
-                    "SELECT id,run_id,user_id,tool_name,action,payload_json,status,created_at,expires_at FROM aria_agent_approvals WHERE id=%s AND user_id=%s",
-                    (approval_id, user_id),
-                )
-            else:
-                cur.execute(
-                    "SELECT id,run_id,user_id,tool_name,action,payload_json,status,created_at,expires_at FROM aria_agent_approvals WHERE id=%s",
-                    (approval_id,),
-                )
+                query += " AND user_id=%s"
+                params.append(user_id)
+            cur.execute(query, params)
             r = cur.fetchone()
             if not r:
                 return None
-            return {
-                "id": r[0], "run_id": r[1], "user_id": r[2], "tool_name": r[3], "action": r[4],
-                "payload": json.loads(r[5]), "status": r[6], "created_at": str(r[7]),
-                "expires_at": str(r[8]),
-            }
+            return {"id": r[0], "run_id": r[1], "user_id": r[2], "tool_name": r[3], "action": r[4],
+                    "payload": json.loads(r[5]), "status": r[6], "created_at": str(r[7]), "expires_at": str(r[8])}
         finally:
             self._release(conn)
 
     def decide_approval(self, approval_id: str, user_id: str, decision: str) -> Optional[dict[str, Any]]:
         if decision not in {"approved", "rejected"}:
-            raise ValueError("decision must be approved or rejected")
+            raise ValueError("invalid approval decision")
         row = self.get_approval(approval_id, user_id)
         if not row:
             return None
         if row["status"] != "pending":
             return row
-        if datetime.fromisoformat(row["expires_at"].replace("Z", "+00:00")) < datetime.now(timezone.utc):
+        expires = datetime.fromisoformat(row["expires_at"].replace("Z", "+00:00"))
+        if expires < datetime.now(timezone.utc):
             decision = "expired"
         if not self._pool:
             with self._lock:
@@ -249,7 +190,7 @@ class AgentStore:
         try:
             cur = conn.cursor()
             cur.execute(
-                "UPDATE aria_agent_approvals SET status=%s, decided_at=NOW() WHERE id=%s AND user_id=%s AND status='pending'",
+                "UPDATE aria_agent_approvals SET status=%s,decided_at=NOW() WHERE id=%s AND user_id=%s AND status='pending'",
                 (decision, approval_id, user_id),
             )
             conn.commit()
@@ -269,38 +210,37 @@ class AgentStore:
                 (user_id,),
             )
             rows = cur.fetchall()
-            return [
-                {"id":r[0],"user_id":r[1],"name":r[2],"connector_type":r[3],"base_url":r[4],
-                 "config_json":json.loads(r[5]),"created_at":str(r[6]),"updated_at":str(r[7])}
-                for r in rows
-            ]
+            return [{"id": r[0], "user_id": r[1], "name": r[2], "connector_type": r[3],
+                     "base_url": r[4], "config_json": json.loads(r[5]), "created_at": str(r[6]), "updated_at": str(r[7])}
+                    for r in rows]
         finally:
             self._release(conn)
 
     def upsert_connector(self, row: dict[str, Any]) -> dict[str, Any]:
         if not self._pool:
             with self._lock:
+                existing = next((k for k, v in self._memory["connectors"].items()
+                                 if v["user_id"] == row["user_id"] and v["name"].lower() == row["name"].lower()), None)
+                if existing:
+                    row["id"] = existing
                 self._memory["connectors"][row["id"]] = dict(row)
             return row
         conn = self._connection()
         try:
             cur = conn.cursor()
             cur.execute(
-                """
-                INSERT INTO aria_agent_connectors(id,user_id,name,connector_type,base_url,config_json)
-                VALUES(%s,%s,%s,%s,%s,%s)
-                ON CONFLICT(user_id,name) DO UPDATE SET
-                    connector_type=EXCLUDED.connector_type,
-                    base_url=EXCLUDED.base_url,
-                    config_json=EXCLUDED.config_json,
-                    updated_at=NOW()
-                """,
-                (
-                    row["id"], row["user_id"], row["name"], row["connector_type"], row.get("base_url"),
-                    json.dumps(row.get("config_json", {}), default=str)
-                ),
+                """INSERT INTO aria_agent_connectors(id,user_id,name,connector_type,base_url,config_json)
+                   VALUES(%s,%s,%s,%s,%s,%s)
+                   ON CONFLICT(user_id,name) DO UPDATE SET
+                     connector_type=EXCLUDED.connector_type, base_url=EXCLUDED.base_url,
+                     config_json=EXCLUDED.config_json, updated_at=NOW()
+                   RETURNING id""",
+                (row["id"], row["user_id"], row["name"], row["connector_type"], row.get("base_url"),
+                 json.dumps(row.get("config_json", {}), default=str)),
             )
+            actual_id = cur.fetchone()[0]
             conn.commit()
+            row["id"] = actual_id
         finally:
             self._release(conn)
         return row
@@ -322,21 +262,61 @@ class AgentStore:
         finally:
             self._release(conn)
 
-    def audit(self, run_id: str | None, user_id: str | None, event_type: str, payload: dict[str, Any]) -> None:
-        safe = json.dumps(payload, ensure_ascii=False, default=str)
+    def write_memory(self, user_id: str, key: str, content: str, importance: float = 0.5) -> dict[str, Any]:
+        key, content = (key or "").strip(), (content or "").strip()
+        if not key or not content:
+            raise ValueError("memory key and content are required")
+        importance = max(0.0, min(1.0, float(importance)))
+        row = {"key": key, "content": content, "importance": importance, "updated_at": now_iso()}
         if not self._pool:
             with self._lock:
-                self._memory["audit"].append({
-                    "run_id": run_id, "user_id": user_id, "event_type": event_type,
-                    "payload": payload, "created_at": now_iso()
-                })
+                self._memory["memory"][(user_id, key)] = row
+            return row
+        conn = self._connection()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """INSERT INTO aria_agent_memory(user_id,key,content,importance)
+                   VALUES(%s,%s,%s,%s)
+                   ON CONFLICT(user_id,key) DO UPDATE SET
+                     content=EXCLUDED.content, importance=EXCLUDED.importance, updated_at=NOW()""",
+                (user_id, key, content, importance),
+            )
+            conn.commit()
+        finally:
+            self._release(conn)
+        return row
+
+    def read_memory(self, user_id: str, key: str = "", limit: int = 20) -> list[dict[str, Any]]:
+        if not self._pool:
+            items = [v for (uid, _), v in self._memory["memory"].items()
+                     if uid == user_id and (not key or key.lower() in v["key"].lower())]
+            return items[:limit]
+        conn = self._connection()
+        try:
+            cur = conn.cursor()
+            if key:
+                cur.execute("SELECT key,content,importance,updated_at FROM aria_agent_memory WHERE user_id=%s AND key ILIKE %s ORDER BY importance DESC,updated_at DESC LIMIT %s",
+                            (user_id, f"%{key}%", limit))
+            else:
+                cur.execute("SELECT key,content,importance,updated_at FROM aria_agent_memory WHERE user_id=%s ORDER BY importance DESC,updated_at DESC LIMIT %s",
+                            (user_id, limit))
+            return [{"key": r[0], "content": r[1], "importance": r[2], "updated_at": str(r[3])} for r in cur.fetchall()]
+        finally:
+            self._release(conn)
+
+    def audit(self, run_id: str | None, user_id: str | None, event_type: str, payload: dict[str, Any]) -> None:
+        if not self._pool:
+            with self._lock:
+                self._memory["audit"].append({"run_id": run_id, "user_id": user_id, "event_type": event_type,
+                                              "payload": payload, "created_at": now_iso()})
             return
         conn = self._connection()
         try:
             cur = conn.cursor()
             cur.execute(
                 "INSERT INTO aria_agent_audit(run_id,user_id,event_type,payload_json) VALUES(%s,%s,%s,%s)",
-                (run_id, user_id, event_type, safe),
+                (run_id, user_id, event_type, json.dumps(payload, ensure_ascii=False, default=str)),
             )
             conn.commit()
         finally:
