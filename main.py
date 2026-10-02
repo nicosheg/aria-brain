@@ -66,7 +66,7 @@ class FeedbackRequest(BaseModel):
 
 
 class UploadRequest(BaseModel):
-    file_base64: str = Field(min_length=1)
+    file_base64: str = Field(min_length=1, max_length=35_000_000)
     file_name: str = Field(min_length=1, max_length=240)
     file_type: str = "file"
     mime_type: str = ""
@@ -311,6 +311,8 @@ async def create_job(req: JobRequest, authorization: Optional[str] = Header(defa
     identity = _identity_from_request(authorization)
     payload = dict(req.payload)
     payload["goal"] = req.goal
+    if len(json.dumps(payload, ensure_ascii=False)) > 50_000:
+        raise HTTPException(413, detail="Job payload is too large.")
     job_id = store.enqueue_job(identity["user_id"], req.kind, payload)
     return {"status": "queued", "job_id": job_id}
 
