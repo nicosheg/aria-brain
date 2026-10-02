@@ -38,3 +38,40 @@ def test_api_routes_are_not_shadowed():
     assert paths.index("/chat") < paths.index("/{path:path}")
     assert paths.index("/context") < paths.index("/{path:path}")
     assert paths.index("/get-uid") < paths.index("/{path:path}")
+
+
+def test_browser_tools_are_exposed():
+    from aria_agent.tools import build_tools
+    from aria_agent.storage import AgentStore
+    from aria_agent.browser import BrowserController
+
+    tools = build_tools("u", AgentStore(), BrowserController(enabled=False), False)
+    names = {tool.name for tool in tools}
+    assert {"browser_inspect_elements", "browser_click_ref", "browser_fill_ref", "browser_select_ref", "browser_upload_ref"} <= names
+
+
+def test_job_queue_respects_schedule_and_recovers(tmp_path):
+    from aria_agent.storage import AgentStore
+    from datetime import datetime, timedelta, timezone
+    from pathlib import Path
+
+    s = AgentStore()
+    s._use_postgres = False
+    s._path = Path(tmp_path) / "jobs.json"
+    s._write_local(s._empty_local())
+    future = (datetime.now(timezone.utc) + timedelta(seconds=60)).isoformat()
+    job_id = s.enqueue_job("u", "test", {"goal": "later"}, run_after=future)
+    assert s.claim_job() is None
+
+    row = s._read_local()["jobs"][0]
+    row["run_after"] = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+    s._write_local({"memory": [], "connections": [], "runs": [], "jobs": [row], "users": [], "feedback": []})
+    claimed = s.claim_job()
+    assert claimed["id"] == job_id
+    assert claimed["attempts"] == 1
+
+    retried = s.retry_job(job_id, 1, "temporary token=do-not-store")
+    assert retried
+    saved = s._read_local()["jobs"][0]
+    assert saved["status"] == "queued"
+    assert "do-not-store" not in saved["error"]
