@@ -18,7 +18,7 @@ class AgentStore:
         self.database_url = database_url
         self._pool = None
         self._lock = threading.RLock()
-        self._memory = {"runs": {}, "approvals": {}, "connectors": {}, "memory": {}, "audit": []}
+        self._memory = {"runs": {}, "approvals": {}, "connectors": {}, "memory": {}, "automations": {}, "audit": []}
         if database_url:
             self._connect()
 
@@ -79,6 +79,15 @@ class AgentStore:
                     id BIGSERIAL PRIMARY KEY, run_id TEXT, user_id TEXT, event_type TEXT NOT NULL,
                     payload_json TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 );
+                CREATE TABLE IF NOT EXISTS aria_agent_automations (
+                    id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL,
+                    trigger_name TEXT NOT NULL, prompt TEXT NOT NULL, secret_hash TEXT NOT NULL,
+                    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE(user_id,name)
+                );
+                CREATE INDEX IF NOT EXISTS aria_agent_automations_user_idx
+                  ON aria_agent_automations(user_id, enabled);
                 CREATE INDEX IF NOT EXISTS aria_agent_approvals_user_idx
                   ON aria_agent_approvals(user_id,status,expires_at);
                 CREATE INDEX IF NOT EXISTS aria_agent_runs_user_idx
@@ -302,6 +311,120 @@ class AgentStore:
                 cur.execute("SELECT key,content,importance,updated_at FROM aria_agent_memory WHERE user_id=%s ORDER BY importance DESC,updated_at DESC LIMIT %s",
                             (user_id, limit))
             return [{"key": r[0], "content": r[1], "importance": r[2], "updated_at": str(r[3])} for r in cur.fetchall()]
+        finally:
+            self._release(conn)
+
+    def create_automation(self, user_id: str, name: str, trigger_name: str, prompt: str, secret_hash: str) -> dict[str, Any]:
+        automation_id = uuid.uuid4().hex
+        row = {
+            "id": automation_id, "user_id": user_id, "name": name.strip(),
+            "trigger_name": trigger_name.strip(), "prompt": prompt.strip(),
+            "secret_hash": secret_hash, "enabled": True, "created_at": now_iso(),
+        }
+        if not self._pool:
+            with self._lock:
+                existing = next((v for v in self._memory["automations"].values()
+                                 if v["user_id"] == user_id and v["name"].lower() == row["name"].lower()), None)
+                if existing:
+                    row["id"] = existing["id"]
+                self._memory["automations"][row["id"]] = row
+            return row
+        conn = self._connection()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """INSERT INTO aria_agent_automations(id,user_id,name,trigger_name,prompt,secret_hash)
+                   VALUES(%s,%s,%s,%s,%s,%s)
+                   ON CONFLICT(user_id,name) DO UPDATE SET
+                     trigger_name=EXCLUDED.trigger_name,prompt=EXCLUDED.prompt,secret_hash=EXCLUDED.secret_hash,
+                     enabled=TRUE,updated_at=NOW()
+                   RETURNING id""",
+                (row["id"], user_id, row["name"], row["trigger_name"], row["prompt"], row["secret_hash"]),
+            )
+            row["id"] = cur.fetchone()[0]
+            conn.commit()
+        finally:
+            self._release(conn)
+        return row
+
+    def get_automation(self, automation_id: str, user_id: str | None = None) -> Optional[dict[str, Any]]:
+        if not self._pool:
+            row = self._memory["automations"].get(automation_id)
+            if row and (user_id is None or row["user_id"] == user_id):
+                return dict(row)
+            return None
+        conn = self._connection()
+        try:
+            cur = conn.cursor()
+            query = "SELECT id,user_id,name,trigger_name,prompt,secret_hash,enabled,created_at,updated_at FROM aria_agent_automations WHERE id=%s"
+            params: list[Any] = [automation_id]
+            if user_id:
+                query += " AND user_id=%s"
+                params.append(user_id)
+            cur.execute(query, params)
+            row = cur.fetchone()
+            if not row:
+                return None
+            return {
+                "id":row[0],"user_id":row[1],"name":row[2],"trigger_name":row[3],
+                "prompt":row[4],"secret_hash":row[5],"enabled":row[6],
+                "created_at":str(row[7]),"updated_at":str(row[8]),
+            }
+        finally:
+            self._release(conn)
+
+    def list_automations(self, user_id: str) -> list[dict[str, Any]]:
+        if not self._pool:
+            return [dict(v) for v in self._memory["automations"].values() if v["user_id"] == user_id]
+        conn = self._connection()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT id,user_id,name,trigger_name,prompt,enabled,created_at,updated_at FROM aria_agent_automations WHERE user_id=%s ORDER BY name",
+                (user_id,),
+            )
+            return [
+                {"id":r[0],"user_id":r[1],"name":r[2],"trigger_name":r[3],"prompt":r[4],
+                 "enabled":r[5],"created_at":str(r[6]),"updated_at":str(r[7])}
+                for r in cur.fetchall()
+            ]
+        finally:
+            self._release(conn)
+
+    def set_automation_enabled(self, automation_id: str, user_id: str, enabled: bool) -> bool:
+        if not self._pool:
+            row = self._memory["automations"].get(automation_id)
+            if not row or row["user_id"] != user_id:
+                return False
+            row["enabled"] = bool(enabled)
+            return True
+        conn = self._connection()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "UPDATE aria_agent_automations SET enabled=%s,updated_at=NOW() WHERE id=%s AND user_id=%s",
+                (bool(enabled), automation_id, user_id),
+            )
+            changed = cur.rowcount > 0
+            conn.commit()
+            return changed
+        finally:
+            self._release(conn)
+
+    def delete_automation(self, automation_id: str, user_id: str) -> bool:
+        if not self._pool:
+            row = self._memory["automations"].get(automation_id)
+            if row and row["user_id"] == user_id:
+                del self._memory["automations"][automation_id]
+                return True
+            return False
+        conn = self._connection()
+        try:
+            cur = conn.cursor()
+            cur.execute("DELETE FROM aria_agent_automations WHERE id=%s AND user_id=%s", (automation_id, user_id))
+            deleted = cur.rowcount > 0
+            conn.commit()
+            return deleted
         finally:
             self._release(conn)
 
