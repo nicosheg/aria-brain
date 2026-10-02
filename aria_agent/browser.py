@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import ipaddress
+import socket
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 
 @dataclass
@@ -10,6 +13,29 @@ class BrowserPage:
     page: object
     context: object
 
+
+
+
+def _assert_public_url(url: str) -> None:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("Only public HTTP(S) URLs are allowed.")
+    if parsed.username or parsed.password:
+        raise ValueError("Credentials in URLs are not allowed.")
+    hostname = parsed.hostname.strip().lower()
+    if hostname in {"localhost", "localhost.localdomain", "metadata.google.internal", "metadata.google.internal."} or hostname.endswith(".local") or hostname.endswith(".internal"):
+        raise ValueError("Private or local network targets are blocked.")
+    try:
+        direct = ipaddress.ip_address(hostname)
+        addresses = [direct]
+    except ValueError:
+        try:
+            addresses = [ipaddress.ip_address(info[4][0]) for info in socket.getaddrinfo(hostname, parsed.port or (443 if parsed.scheme == "https" else 80), type=socket.SOCK_STREAM)]
+        except OSError as exc:
+            raise ValueError("The target host could not be resolved.") from exc
+    for address in addresses:
+        if address.is_private or address.is_loopback or address.is_link_local or address.is_multicast or address.is_reserved or address.is_unspecified:
+            raise ValueError("Private or local network targets are blocked.")
 
 class BrowserController:
     """Persistent per-user browser sessions for UI-level automation."""
@@ -45,8 +71,7 @@ class BrowserController:
         return self._pages[user_id].page
 
     async def navigate(self, user_id: str, url: str) -> str:
-        if not (url.startswith("https://") or url.startswith("http://")):
-            raise ValueError("Only http(s) URLs are allowed.")
+        _assert_public_url(url)
         page = await self.page_for(user_id)
         await page.goto(url, wait_until="domcontentloaded", timeout=30000)
         return await self.snapshot(user_id)
