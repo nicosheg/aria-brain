@@ -316,8 +316,8 @@ class AgentStore:
     def delete_connection(self, user_id: str, connection_id: str) -> bool:
         uid = normalize_identity(user_id)
         if self._use_postgres:
-            self._query("DELETE FROM aria_connections WHERE id=%s AND user_id=%s", (connection_id, uid), fetch="none")
-            return True
+            rows = self._query("DELETE FROM aria_connections WHERE id=%s AND user_id=%s RETURNING id", (connection_id, uid))
+            return bool(rows)
         with self._lock:
             data = self._read_local()
             before = len(data["connections"])
@@ -389,7 +389,11 @@ class AgentStore:
                         SET status='running', attempts=attempts+1, locked_at=NOW(), updated_at=NOW()
                         WHERE id = (
                             SELECT id FROM aria_jobs
-                            WHERE status='queued' AND run_after <= NOW()
+                            WHERE (
+                                status='queued' AND run_after <= NOW()
+                            ) OR (
+                                status='running' AND locked_at < NOW() - INTERVAL '1 hour'
+                            )
                             ORDER BY created_at ASC
                             FOR UPDATE SKIP LOCKED LIMIT 1
                         )
@@ -404,11 +408,34 @@ class AgentStore:
                 self._release(conn)
         with self._lock:
             data=self._read_local()
-            for row in sorted(data["jobs"], key=lambda x:x.get("created_at","")):
-                if row["status"]=="queued":
-                    row["status"]="running"; row["attempts"]+=1; row["updated_at"]=now_iso()
-                    self._write_local(data)
-                    return dict(row)
+            now = datetime.now(timezone.utc)
+            lease_seconds = 3600
+            for row in data["jobs"]:
+                if row["status"] == "running" and row.get("locked_at"):
+                    try:
+                        locked = datetime.fromisoformat(row["locked_at"].replace("Z", "+00:00"))
+                        if (now - locked).total_seconds() > lease_seconds:
+                            row["status"] = "queued"
+                    except Exception:
+                        row["status"] = "queued"
+            due = []
+            for row in data["jobs"]:
+                if row["status"] != "queued":
+                    continue
+                try:
+                    run_after = datetime.fromisoformat((row.get("run_after") or now_iso()).replace("Z", "+00:00"))
+                except Exception:
+                    run_after = now
+                if run_after <= now:
+                    due.append(row)
+            for row in sorted(due, key=lambda x:x.get("created_at","")):
+                row["status"]="running"
+                row["attempts"]+=1
+                row["locked_at"]=now_iso()
+                row["updated_at"]=now_iso()
+                self._write_local(data)
+                return dict(row)
+            self._write_local(data)
         return None
 
     def complete_job(self, job_id: str, result: Optional[dict]=None, error: str="") -> None:
