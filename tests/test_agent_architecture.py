@@ -57,5 +57,5 @@ def test_api_routes_are_not_shadowed():
 
 def test_frontend_has_no_non_async_rating_handler():
     source = Path("public/index.html").read_text("utf-8")
-    assert "function sendRating(score, ratingDiv)" not in source
     assert "async function sendRating(score, ratingDiv)" in source
+    assert "function sendRating(score, ratingDiv)" not in source.replace("async function sendRating(score, ratingDiv)", "")
