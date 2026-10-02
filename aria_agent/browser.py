@@ -145,7 +145,9 @@ class BrowserController:
         risky = (
             "submit", "delete", "remove", "pay", "purchase", "checkout", "send",
             "publish", "confirm", "save", "invite", "follow", "apply", "transfer",
-            "withdraw", "buy", "post", "cancel",
+            "withdraw", "buy", "post", "cancel", "password", "secret", "token",
+            "otp", "one-time", "credit card", "debit card", "cvv", "bank",
+            "login", "log in", "sign in",
         )
         return any(word in blob for word in risky)
 
