@@ -262,6 +262,11 @@ class AgentStore:
         return sorted(rows, key=lambda x: x.get("created_at", ""), reverse=True)[:limit]
 
     def save_connection(self, user_id: str, name: str, kind: str, url: str, secret: str = "", metadata: Optional[dict] = None, connection_id: str = "") -> dict:
+        url = assert_public_http_url(url)
+        if len(json.dumps(metadata or {}, ensure_ascii=False)) > 20000:
+            raise ValueError("Connection metadata is too large.")
+        if len(secret) > 4000:
+            raise ValueError("Connection secret is too large.")
         cid = connection_id or str(uuid.uuid4())
         uid = normalize_identity(user_id)
         cipher = self._box.encrypt(secret) if secret else None
@@ -316,8 +321,11 @@ class AgentStore:
     def delete_connection(self, user_id: str, connection_id: str) -> bool:
         uid = normalize_identity(user_id)
         if self._use_postgres:
-            self._query("DELETE FROM aria_connections WHERE id=%s AND user_id=%s", (connection_id, uid), fetch="none")
-            return True
+            rows = self._query(
+                "DELETE FROM aria_connections WHERE id=%s AND user_id=%s RETURNING id",
+                (connection_id, uid),
+            )
+            return bool(rows)
         with self._lock:
             data = self._read_local()
             before = len(data["connections"])
