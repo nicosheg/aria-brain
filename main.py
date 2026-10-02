@@ -530,13 +530,22 @@ async def _upload_file(req: UploadRequest, authorization: Optional[str]):
 
     extracted = ""
     file_type = (req.file_type or "").lower()
-    if file_type == "pdf" or (req.mime_type or "").lower() == "application/pdf":
+    mime_type = (req.mime_type or "").lower()
+
+    if file_type == "pdf" or mime_type == "application/pdf":
         try:
             from pypdf import PdfReader
             reader = PdfReader(str(path))
             extracted = "\n".join((page.extract_text() or "") for page in reader.pages)[:30000]
         except Exception:
             extracted = ""
+    elif mime_type.startswith("image/") or file_type in {"image", "ocr", "photo"}:
+        extracted = runtime.models.image_to_text(
+            "Extract all useful text and structured facts visible in this image. Preserve names, numbers, dates and table rows exactly when legible.",
+            base64.b64encode(raw).decode("ascii"),
+            mime_type or "image/jpeg",
+            max_tokens=4000,
+        ) or ""
 
     store.write_memory(
         identity["user_id"],
@@ -546,7 +555,8 @@ async def _upload_file(req: UploadRequest, authorization: Optional[str]):
     )
 
     if extracted:
-        return {"status": "PDF processed", "file_name": req.file_name, "full_length": len(extracted), "text": extracted}
+        status = "PDF processed" if (file_type == "pdf" or mime_type == "application/pdf") else "OCR processed"
+        return {"status": status, "file_name": req.file_name, "full_length": len(extracted), "text": extracted}
     return {
         "status": "uploaded",
         "file_name": req.file_name,
