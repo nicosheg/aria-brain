@@ -186,12 +186,21 @@ def build_tools(user_id: str, store: AgentStore, browser: BrowserController, bro
     def enqueue_background_job(
         kind: str,
         goal: str,
-        payload: dict | None = None,
+        payload_json: str = "{}",
         delay_seconds: int = 0,
         repeat_seconds: int = 0,
     ) -> str:
         """Queue a long-running goal; optionally delay or repeat it after successful completion."""
-        body = {k: redact_secrets(str(v)) if isinstance(v, str) else v for k, v in dict(payload or {}).items()}
+        try:
+            parsed_payload = json.loads(payload_json or "{}")
+        except json.JSONDecodeError as exc:
+            raise ValueError("payload_json must be valid JSON.") from exc
+        if not isinstance(parsed_payload, dict):
+            raise ValueError("payload_json must decode to an object.")
+        body = {
+            k: redact_secrets(str(v)) if isinstance(v, str) else v
+            for k, v in parsed_payload.items()
+        }
         body["goal"] = redact_secrets(goal)
         if repeat_seconds > 0:
             body["repeat_seconds"] = int(min(repeat_seconds, 31 * 24 * 3600))
