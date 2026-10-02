@@ -14,6 +14,8 @@ from .policy import PolicyEngine, SAFE, REVIEW, SENSITIVE
 from .storage import AgentStore
 from .web_search import WebSearch
 from .workers import WorkerRegistry
+from .worker_engine import WorkerEngine
+from .security import redact_secrets
 
 
 class AgentRuntime:
@@ -31,6 +33,7 @@ class AgentRuntime:
         self.workers = WorkerRegistry()
         self.policy = PolicyEngine(self.settings.autonomy_level)
         self.connectors = ConnectorManager(self.store)
+        self.worker_engine = WorkerEngine(self.models, max_workers=5)
 
     def capability_manifest(self, user_id: str) -> dict[str, Any]:
         return {
@@ -65,7 +68,8 @@ class AgentRuntime:
         run_id = run["id"]
         self.store.audit(run_id, user_id, "run.started", {"workers": worker_names, "message_length": len(message)})
 
-        plan = self._plan(user_id, message, selected_workers)
+        worker_briefs = self.worker_engine.analyze(message, selected_workers)
+        plan = self._plan(user_id, message, selected_workers, worker_briefs)
         if not plan:
             plan = self._fallback_plan(message)
 
@@ -84,12 +88,16 @@ class AgentRuntime:
             self.store.audit(run_id, user_id, "run.paused_for_approval", {
                 "approval_id": pending["id"], "tool": pending["tool_name"]
             })
+            self.store.write_memory(user_id, f"conversation:{run_id}:user", redact_secrets(message), 0.3)
+            self.store.write_memory(user_id, f"conversation:{run_id}:aria", redact_secrets(response["reply"]), 0.3)
             return response
 
         reply = self._synthesize(message, safe_results, selected_workers)
         response = {"run_id": run_id, "status": "completed", "reply": reply, "workers": worker_names, "results": safe_results}
         self.store.update_run(run_id, "completed", response)
         self.store.audit(run_id, user_id, "run.completed", {"result_count": len(safe_results)})
+        self.store.write_memory(user_id, f"conversation:{run_id}:user", redact_secrets(message), 0.3)
+        self.store.write_memory(user_id, f"conversation:{run_id}:aria", redact_secrets(reply), 0.3)
         return response
 
     def approve(self, user_id: str, approval_id: str) -> dict[str, Any]:
@@ -133,6 +141,7 @@ class AgentRuntime:
         response = {"run_id": approval["run_id"], "status": "completed", "reply": reply, "results": safe_results}
         self.store.update_run(approval["run_id"], "completed", response)
         self.store.audit(approval["run_id"], user_id, "approval.executed", {"approval_id": approval_id})
+        self.store.write_memory(user_id, f"conversation:{approval['run_id']}:aria", redact_secrets(reply), 0.3)
         return response
 
     def reject(self, user_id: str, approval_id: str) -> dict[str, Any]:
@@ -175,9 +184,7 @@ class AgentRuntime:
         tools = self.connectors.tools(user_id)
         return {"connector_id": connector_id, "tools": [t for t in tools if t.get("connector_id") == connector_id]}
 
-    def _plan(self, user_id: str, message: str, selected_workers: list) -> dict[str, Any] | None:
-        workers = self.workers.manifest([w.name for w in selected_workers])
-        connectors = self.connectors.tools(user_id)
+    def _plan(\n        self,\n        user_id: str,\n        message: str,\n        selected_workers: list,\n        worker_briefs: list[dict[str, Any]] | None = None,\n    ) -> dict[str, Any] | None:\n        workers = self.workers.manifest([w.name for w in selected_workers])\n        connectors = self.connectors.tools(user_id)
         system = """You are ARIA's planning controller.
 Create a small, verifiable execution plan from the user's request.
 Rules:
@@ -194,6 +201,7 @@ Each step: {tool, args, connector_id?, external_tool?, reason?, side_effect?}.
         user = json.dumps({
             "request": message,
             "workers": workers,
+            "worker_briefs": worker_briefs or [],
             "connected_tools": self._relevant_tools(message, connectors, limit=100),
             "builtins": self.capability_manifest(user_id)["builtin_tools"],
         }, ensure_ascii=False)
