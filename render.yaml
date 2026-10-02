@@ -16,6 +16,18 @@ services:
         value: "false"
       - key: OPENAI_API_KEY
         sync: false
+      - key: ARIA_MODEL
+        value: "gpt-6-luna"
+      - key: ARIA_MAX_PROVIDER_ATTEMPTS
+        value: "10"
+      - key: GROQ_KEY_1
+        sync: false
+      - key: DEEPSEEK_KEY_1
+        sync: false
+      - key: GEMINI_KEY_1
+        sync: false
+      - key: ARIA_ALLOW_INSECURE_HTTP
+        value: "false"
       - key: ARIA_APP_SECRET
         sync: false
       - key: ARIA_ENCRYPTION_KEY
@@ -37,10 +49,25 @@ services:
         value: 3.13.5
       - key: ARIA_BROWSER_ENABLED
         value: "true"
+      - key: ARIA_DATA_DIR
+        value: "/data/aria"
       - key: ARIA_ALLOW_EMAIL_IDENTITY
         value: "false"
       - key: OPENAI_API_KEY
         sync: false
+
+      - key: ARIA_MODEL
+        value: "gpt-6-luna"
+      - key: ARIA_MAX_PROVIDER_ATTEMPTS
+        value: "10"
+      - key: GROQ_KEY_1
+        sync: false
+      - key: DEEPSEEK_KEY_1
+        sync: false
+      - key: GEMINI_KEY_1
+        sync: false
+      - key: ARIA_ALLOW_INSECURE_HTTP
+        value: "false"
       - key: ARIA_APP_SECRET
         sync: false
       - key: ARIA_ENCRYPTION_KEY
