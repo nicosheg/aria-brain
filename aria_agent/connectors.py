@@ -183,7 +183,7 @@ class MCPConnector(Connector):
         if method == "tools/call":
             headers["Mcp-Name"] = params.get("name", "")
         response = requests.post(
-            self.base_url,
+            _validate_public_url(self.base_url, self.allowed_domains or None),
             headers=headers,
             json={"jsonrpc":"2.0","id":1,"method":method,"params":params},
             timeout=get_settings().search_timeout_seconds,
@@ -206,14 +206,14 @@ class MCPConnector(Connector):
         headers = self._auth_headers()
         if self._legacy_session:
             headers["Mcp-Session-Id"] = self._legacy_session
-        requests.post(self.base_url, headers=headers, json={"jsonrpc":"2.0","method":"notifications/initialized"}, timeout=get_settings().search_timeout_seconds)
+        requests.post(_validate_public_url(self.base_url, self.allowed_domains or None), headers=headers, json={"jsonrpc":"2.0","method":"notifications/initialized"}, timeout=get_settings().search_timeout_seconds)
 
     def _legacy(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         if not self._legacy_session:
             self._legacy_init()
         headers = self._auth_headers()
         headers["Mcp-Session-Id"] = self._legacy_session
-        response = requests.post(self.base_url, headers=headers, json={"jsonrpc":"2.0","id":2,"method":method,"params":params}, timeout=get_settings().search_timeout_seconds)
+        response = requests.post(_validate_public_url(self.base_url, self.allowed_domains or None), headers=headers, json={"jsonrpc":"2.0","id":2,"method":method,"params":params}, timeout=get_settings().search_timeout_seconds)
         response.raise_for_status()
         return self._decode(response)
 
