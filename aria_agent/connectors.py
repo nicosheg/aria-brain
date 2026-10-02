@@ -53,9 +53,7 @@ class MCPConnectorManager:
                 probe = await self._server(conn, require_approval="never")
                 async with probe:
                     tools = await probe.list_tools()
-                dangerous = [tool.name for tool in tools if needs_mcp_approval(tool.name)]
-                safe = [tool.name for tool in tools if tool.name not in dangerous]
-                policy = {"always": {"tool_names": dangerous}, "never": {"tool_names": safe}}
+                policy = {tool.name: needs_mcp_approval(tool.name) for tool in tools}
                 server = await self._server(conn, require_approval=policy)
                 server = await exit_stack.enter_async_context(server)
                 servers.append(server)
