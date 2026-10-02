@@ -121,6 +121,10 @@ Operating rules:
         previous = self.store.get_run(user_id, resume_run_id) if resume_run_id else None
         if resume_run_id and not previous:
             raise ValueError("The requested run does not exist for this user.")
+        if resume_run_id:
+            if not self.store.claim_run_resume(user_id, resume_run_id):
+                raise RuntimeError("This approval is already being processed or is no longer pending.")
+            previous = self.store.get_run(user_id, resume_run_id) or previous
 
         provider, model_name, model = self._select_provider(candidates, previous)
         run_id = resume_run_id or str(uuid.uuid4())
