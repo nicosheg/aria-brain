@@ -25,6 +25,7 @@ class ModelGateway:
             ("groq", _keys("GROQ_KEY"), self.settings.groq_model),
             ("deepseek", _keys("DEEPSEEK_KEY", 5), self.settings.deepseek_model),
             ("gemini", _keys("GEMINI_KEY"), self.settings.gemini_model),
+            ("openai", _keys("OPENAI_KEY", 5), self.settings.openai_model),
         ]
         for provider, keys, model in providers:
             for key in keys:
@@ -73,6 +74,29 @@ class ModelGateway:
             )
             response.raise_for_status()
             return response.json()["choices"][0]["message"]["content"]
+
+        if provider == "openai":
+            response = requests.post(
+                "https://api.openai.com/v1/responses",
+                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                json={
+                    "model": model,
+                    "instructions": system,
+                    "input": user,
+                    "temperature": 0.2,
+                    "max_output_tokens": max_tokens,
+                },
+                timeout=timeout,
+            )
+            response.raise_for_status()
+            data = response.json()
+            outputs = data.get("output", [])
+            texts = []
+            for item in outputs:
+                for content in item.get("content", []):
+                    if content.get("type") in {"output_text", "text"} and content.get("text"):
+                        texts.append(content["text"])
+            return "\n".join(texts) or None
 
         endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
         response = requests.post(
