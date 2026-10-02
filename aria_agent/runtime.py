@@ -98,13 +98,26 @@ Operating rules:
         if resume_run_id and not previous:
             raise ValueError("The requested run does not exist for this user.")
 
-        ordered = candidates
+        groups = {}
+        for candidate in candidates:
+            groups.setdefault(candidate[0], []).append(candidate)
+        ordered = []
+        for index in range(max((len(v) for v in groups.values()), default=0)):
+            for provider_name in ("openai", "groq", "deepseek", "gemini"):
+                items = groups.get(provider_name, [])
+                if index < len(items):
+                    ordered.append(items[index])
+
         if previous:
-            preferred = [c for c in candidates if c[0] == previous["provider"] and c[1] == previous["model"]]
-            ordered = preferred + [c for c in candidates if c not in preferred]
+            preferred = [c for c in ordered if c[0] == previous["provider"] and c[1] == previous["model"]]
+            ordered = preferred + [c for c in ordered if c not in preferred]
 
         last_error = None
-        for provider, model_name, model in ordered[:4]:
+        attempts = 0
+        for provider, model_name, model in ordered:
+            if attempts >= settings.max_provider_attempts:
+                break
+            attempts += 1
             run_id = resume_run_id or str(uuid.uuid4())
             try:
                 async with AsyncExitStack() as stack:
