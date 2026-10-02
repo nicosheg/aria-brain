@@ -170,6 +170,13 @@ Operating rules:
                     }
             except Exception as exc:
                 last_error = exc
+                error_name = type(exc).__name__.lower()
+                retryable = (
+                    any(token in error_name for token in ("api", "timeout", "connection", "ratelimit", "model"))
+                    and not any(token in error_name for token in ("tool", "guardrail", "approval"))
+                )
+                if not retryable or (previous and approve is not None):
+                    raise RuntimeError(f"ARIA execution failed without safe failover: {type(exc).__name__}: {exc}") from exc
                 continue
 
         raise RuntimeError(f"ARIA model execution failed: {type(last_error).__name__}: {last_error}")
