@@ -398,7 +398,7 @@ class AgentStore:
                             FOR UPDATE SKIP LOCKED LIMIT 1
                         )
                         RETURNING id,user_id,kind,payload,attempts
-                    """, (settings.job_lease_seconds,)
+                    """, (settings.job_lease_seconds,))
                     row=cur.fetchone()
                     conn.commit()
                     if not row:
