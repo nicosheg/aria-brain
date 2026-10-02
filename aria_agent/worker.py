@@ -1,24 +1,64 @@
-import asyncio
+from __future__ import annotations
 
+import asyncio
+import logging
+
+from .config import settings
 from .runtime import AriaRuntime
 from .storage import store
 
+logger = logging.getLogger("aria.worker")
 
-async def main():
-    runtime = AriaRuntime(store)
+
+async def worker_loop(runtime: AriaRuntime, worker_index: int) -> None:
     while True:
-        job = store.claim_job()
-        if not job:
-            await asyncio.sleep(2)
+        try:
+            job = await asyncio.to_thread(store.claim_job)
+        except Exception:
+            logger.exception("Worker %s could not claim a job", worker_index)
+            await asyncio.sleep(3)
             continue
+
+        if not job:
+            await asyncio.sleep(1.5)
+            continue
+
+        job_id = job["id"]
         try:
             payload = job.get("payload") or {}
             goal = payload.get("goal") or payload.get("message") or str(payload)
             result = await runtime.run(job["user_id"], goal)
-            store.complete_job(job["id"], result=result)
+            await asyncio.to_thread(store.complete_job, job_id, result)
+
+            repeat_seconds = int(payload.get("repeat_seconds") or 0)
+            if repeat_seconds > 0:
+                next_payload = dict(payload)
+                next_id = await asyncio.to_thread(
+                    store.enqueue_job,
+                    job["user_id"],
+                    job["kind"],
+                    next_payload,
+                    (await asyncio.to_thread(store.now_for_schedule, repeat_seconds)),
+                )
+                logger.info("Scheduled recurring job %s from %s", next_id, job_id)
         except Exception as exc:
-            store.complete_job(job["id"], error=str(exc))
+            logger.exception("Job %s failed", job_id)
+            retried = await asyncio.to_thread(
+                store.retry_job,
+                job_id,
+                int(job.get("attempts") or 1),
+                str(exc),
+            )
+            if not retried:
+                logger.error("Job %s permanently failed after %s attempts", job_id, job.get("attempts"))
+
+
+async def main():
+    runtimes = [AriaRuntime(store) for _ in range(settings.worker_concurrency)]
+    await asyncio.gather(
+        *(worker_loop(runtime, index + 1) for index, runtime in enumerate(runtimes))
+    )
 
 
 if __name__ == "__main__":
-    asyncio.run(main)
+    asyncio.run(main())
