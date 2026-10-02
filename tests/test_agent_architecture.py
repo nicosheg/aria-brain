@@ -80,5 +80,5 @@ def test_job_queue_respects_schedule_and_recovers(tmp_path):
 def test_frontend_had_no_await_in_non_async_rating_handler():
     source = Path("public/index.html").read_text("utf-8")
     assert "async function sendRating" in source
-    assert "function sendRating(score, ratingDiv)" not in source
+    assert "\n    function sendRating(score, ratingDiv)" not in source
     assert "safeMarkdown(text)" in source
