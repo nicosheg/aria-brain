@@ -69,7 +69,7 @@ Operating rules:
 
     async def _build_agent(self, user_id: str, model, servers=None):
         tools = build_tools(user_id, self.store, self.browser, settings.browser_enabled)
-        research_tools = [tools[0], tools[1], tools[2], tools[4]]
+        research_tools = [tools[0], tools[1], tools[2], tools[3]]
         workers = build_workers(model, research_tools)
         worker_tools = [
             w.as_tool(
