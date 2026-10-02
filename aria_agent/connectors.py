@@ -173,14 +173,160 @@ class MCPConnector(Connector):
             return self._legacy("tools/call", {"name":tool_name,"arguments":arguments})
 
 
+class BrowserConnector(Connector):
+    """Optional Playwright browser bridge with explicit domain allow-listing."""
+
+    def _allowed(self, url: str) -> bool:
+        from urllib.parse import urlparse
+        host = (urlparse(url).hostname or "").lower()
+        allowed = [str(x).lower().lstrip(".") for x in self.config.get("allowed_domains", [])]
+        return bool(host and allowed and any(host == d or host.endswith("." + d) for d in allowed))
+
+    def _page(self):
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError as exc:
+            raise RuntimeError("Playwright is not installed.") from exc
+        if not hasattr(self, "_pw"):
+            self._pw = sync_playwright().start()
+            cdp_url = self.config.get("cdp_url")
+            if cdp_url:
+                self._browser = self._pw.chromium.connect_over_cdp(cdp_url)
+                contexts = self._browser.contexts or [self._browser.new_context()]
+                self._context = contexts[0]
+                pages = self._context.pages
+                self._page_obj = pages[0] if pages else self._context.new_page()
+            else:
+                self._browser = self._pw.chromium.launch(headless=bool(self.config.get("headless", True)))
+                self._context = self._browser.new_context()
+                self._page_obj = self._context.new_page()
+        return self._page_obj
+
+    def _check_current_url(self, page) -> None:
+        if page.url.startswith(("about:", "data:")):
+            return
+        if not self._allowed(page.url):
+            try:
+                page.go_back(wait_until="domcontentloaded", timeout=3000)
+            except Exception:
+                pass
+            raise PermissionError("Browser navigation left ARIA's allowed domain set.")
+
+    def list_tools(self) -> list[dict[str, Any]]:
+        return [
+            {"name":"browser.snapshot","description":"Inspect the current page, forms, links and controls.","risk":"safe","inputSchema":{"type":"object"}},
+            {"name":"browser.navigate","description":"Open an allowed URL.","risk":"review","inputSchema":{"type":"object","properties":{"url":{"type":"string"}},"required":["url"]}},
+            {"name":"browser.click","description":"Click a button, link or element.","risk":"review","inputSchema":{"type":"object","properties":{"selector":{"type":"string"},"text":{"type":"string"}}}},
+            {"name":"browser.fill","description":"Fill a text input or textarea.","risk":"review","inputSchema":{"type":"object","properties":{"selector":{"type":"string"},"label":{"type":"string"},"value":{"type":"string"}},"required":["value"]}},
+            {"name":"browser.select","description":"Select a form option.","risk":"review","inputSchema":{"type":"object","properties":{"selector":{"type":"string"},"label":{"type":"string"},"value":{"type":"string"}},"required":["value"]}},
+            {"name":"browser.press","description":"Press a keyboard key.","risk":"review","inputSchema":{"type":"object","properties":{"selector":{"type":"string"},"key":{"type":"string"}},"required":["key"]}},
+            {"name":"browser.back","description":"Go back one page.","risk":"review","inputSchema":{"type":"object"}},
+        ]
+
+    def _locator(self, page, arguments: dict[str, Any]):
+        if arguments.get("selector"):
+            return page.locator(arguments["selector"]).first
+        if arguments.get("text"):
+            return page.get_by_text(arguments["text"], exact=True).first
+        if arguments.get("label"):
+            return page.get_by_label(arguments["label"], exact=True).first
+        return None
+
+    def call(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        page = self._page()
+        self._check_current_url(page)
+
+        if tool_name == "browser.snapshot":
+            return {
+                "url": page.url,
+                "title": page.title(),
+                "content_is_untrusted": True,
+                "text": page.locator("body").inner_text(timeout=5000)[:12000],
+                "forms": page.locator("input,textarea,select").evaluate_all(
+                    "els => els.slice(0, 60).map(e => ({tag:e.tagName.toLowerCase(),name:e.name||'',id:e.id||'',type:e.type||'',placeholder:e.placeholder||'',aria:e.getAttribute('aria-label')||''}))"
+                ),
+                "links": page.locator("a").evaluate_all(
+                    "els => els.slice(0, 80).map(e => ({text:(e.innerText||'').trim().slice(0,160),href:e.href||''}))"
+                ),
+                "buttons": page.locator("button,[role=button]").evaluate_all(
+                    "els => els.slice(0, 60).map(e => (e.innerText||e.getAttribute('aria-label')||'').trim().slice(0,160)).filter(Boolean)"
+                ),
+            }
+
+        if tool_name == "browser.navigate":
+            url = str(arguments.get("url", "")).strip()
+            if not self._allowed(url):
+                raise PermissionError("Target URL is outside the connector allowed domains.")
+            page.goto(url, wait_until="domcontentloaded", timeout=15000)
+            self._check_current_url(page)
+            return {"url":page.url,"title":page.title()}
+
+        if tool_name == "browser.click":
+            loc = self._locator(page, arguments)
+            if not loc:
+                raise ValueError("click requires selector, text, or label")
+            loc.click(timeout=10000)
+            try:
+                page.wait_for_load_state("domcontentloaded", timeout=5000)
+            except Exception:
+                pass
+            self._check_current_url(page)
+            return {"url":page.url,"title":page.title()}
+
+        if tool_name == "browser.fill":
+            loc = self._locator(page, arguments)
+            if not loc:
+                raise ValueError("fill requires selector, text, or label")
+            loc.fill(str(arguments.get("value","")), timeout=10000)
+            return {"filled":True,"field":arguments.get("selector") or arguments.get("label") or arguments.get("text")}
+
+        if tool_name == "browser.select":
+            loc = self._locator(page, arguments)
+            if not loc:
+                raise ValueError("select requires selector or label")
+            loc.select_option(str(arguments.get("value","")), timeout=10000)
+            return {"selected":True}
+
+        if tool_name == "browser.press":
+            loc = self._locator(page, arguments) or page.locator("body")
+            loc.press(str(arguments.get("key","Enter")), timeout=10000)
+            try:
+                page.wait_for_load_state("domcontentloaded", timeout=5000)
+            except Exception:
+                pass
+            self._check_current_url(page)
+            return {"pressed":arguments.get("key"),"url":page.url}
+
+        if tool_name == "browser.back":
+            page.go_back(wait_until="domcontentloaded", timeout=10000)
+            self._check_current_url(page)
+            return {"url":page.url,"title":page.title()}
+
+        raise KeyError(f"Browser tool not found: {tool_name}")
+
+    def close(self) -> None:
+        browser = getattr(self, "_browser", None)
+        playwright = getattr(self, "_pw", None)
+        if browser:
+            try:
+                browser.close()
+            except Exception:
+                pass
+        if playwright:
+            try:
+                playwright.stop()
+            except Exception:
+                pass
+
+
 class ConnectorManager:
     def __init__(self, store):
         self.store = store
 
     def register(self, user_id: str, name: str, connector_type: str, base_url: str, config: dict[str, Any]) -> dict[str, Any]:
-        if connector_type not in {"mcp","rest"}:
+        if connector_type not in {"mcp","rest","browser"}:
             raise ValueError("connector_type must be mcp or rest")
-        if not name.strip() or not base_url.strip():
+        if not name.strip() or (connector_type != "browser" and not base_url.strip()):
             raise ValueError("name and base_url are required")
         connector_id = hashlib.sha256(f"{user_id}:{name.strip().lower()}".encode()).hexdigest()[:24]
         row = {"id":connector_id,"user_id":user_id,"name":name.strip(),"connector_type":connector_type,"base_url":base_url.strip().rstrip("/"),"config_json":protect_config(config)}
@@ -196,13 +342,13 @@ class ConnectorManager:
         row = next((r for r in self._rows(user_id) if r["id"] == connector_id), None)
         if not row:
             raise KeyError("connector not found")
-        return MCPConnector(row) if row["connector_type"] == "mcp" else RESTConnector(row)
+        return MCPConnector(row) if row["connector_type"] == "mcp" else BrowserConnector(row) if row["connector_type"] == "browser" else RESTConnector(row)
 
     def tools(self, user_id: str) -> list[dict[str, Any]]:
         all_tools = []
         for row in self._rows(user_id):
             try:
-                connector = MCPConnector(row) if row["connector_type"] == "mcp" else RESTConnector(row)
+                connector = MCPConnector(row) if row["connector_type"] == "mcp" else BrowserConnector(row) if row["connector_type"] == "browser" else RESTConnector(row)
                 for tool in connector.list_tools():
                     item = dict(tool)
                     item["connector_id"] = row["id"]
