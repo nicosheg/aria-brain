@@ -4,7 +4,7 @@ import os
 import uuid
 from contextlib import AsyncExitStack
 
-from agents import Agent, Runner, RunState, AsyncOpenAI, OpenAIChatCompletionsModel, set_tracing_disabled
+from agents import Agent, Runner, RunConfig, RunState, AsyncOpenAI, OpenAIChatCompletionsModel, set_tracing_disabled
 
 from .browser import BrowserController
 from .config import settings
@@ -87,9 +87,27 @@ Operating rules:
             mcp_servers=servers or [],
         )
 
+    def _select_provider(self, candidates, previous=None):
+        if previous:
+            matches = [c for c in candidates if c[0] == previous.get("provider") and c[1] == previous.get("model")]
+            if not matches:
+                raise RuntimeError(
+                    f"The provider/model used by run {previous.get('id')} is no longer configured. "
+                    "Keep that provider available to resume the pending action."
+                )
+            return matches[0]
+        preferred = os.getenv("ARIA_PROVIDER", "").strip().lower()
+        if preferred:
+            matches = [c for c in candidates if c[0] == preferred]
+            if not matches:
+                raise RuntimeError(f"ARIA_PROVIDER={preferred!r} is not configured.")
+            return matches[0]
+        return candidates[0]
+
     async def run(self, user_id: str, message: str, resume_run_id: str | None = None, approve: bool | None = None) -> dict:
         if len(message) > settings.max_message_chars:
             raise ValueError(f"Message exceeds {settings.max_message_chars} characters.")
+
         candidates = self.provider_candidates()
         if not candidates:
             raise RuntimeError("No LLM provider configured.")
@@ -98,65 +116,106 @@ Operating rules:
         if resume_run_id and not previous:
             raise ValueError("The requested run does not exist for this user.")
 
-        ordered = candidates
-        if previous:
-            preferred = [c for c in candidates if c[0] == previous["provider"] and c[1] == previous["model"]]
-            ordered = preferred + [c for c in candidates if c not in preferred]
+        provider, model_name, model = self._select_provider(candidates, previous)
+        run_id = resume_run_id or str(uuid.uuid4())
 
-        last_error = None
-        for provider, model_name, model in ordered[:4]:
-            run_id = resume_run_id or str(uuid.uuid4())
-            try:
-                async with AsyncExitStack() as stack:
-                    servers = await self.connectors.open_for_user(user_id, self.store, stack)
-                    agent = await self._build_agent(user_id, model, servers)
+        async with AsyncExitStack() as stack:
+            servers = await self.connectors.open_for_user(user_id, self.store, stack)
+            agent = await self._build_agent(user_id, model, servers)
 
-                    if previous and previous.get("state"):
-                        state = await RunState.from_string(agent, previous["state"])
-                        for interruption in state.get_interruptions():
-                            if approve is True:
-                                state.approve(interruption)
-                            elif approve is False:
-                                state.reject(interruption, rejection_message="The user rejected this action.")
-                            else:
-                                raise ValueError("Approval decision is required.")
-                        result = await Runner.run(agent, state, max_turns=settings.max_turns)
+            if previous and previous.get("state"):
+                state = await RunState.from_string(agent, previous["state"])
+                for interruption in state.get_interruptions():
+                    if approve is True:
+                        state.approve(interruption)
+                    elif approve is False:
+                        state.reject(
+                            interruption,
+                            rejection_message="The user rejected this action.",
+                        )
                     else:
-                        recent = self.store.recent_memory(user_id, 12)
-                        context = "\n".join(f"{x['kind']}: {x['content']}" for x in reversed(recent))
-                        prompt = f"Recent memory:\n{context}\n\nUser request:\n{message}" if context else message
-                        result = await Runner.run(agent, prompt, max_turns=settings.max_turns)
+                        raise ValueError("Approval decision is required.")
+                result = await Runner.run(
+                    agent,
+                    state,
+                    max_turns=settings.max_turns,
+                    run_config=RunConfig(tool_not_found_behavior="return_error_to_model"),
+                )
+            else:
+                recent = self.store.recent_memory(user_id, 12)
+                context = "\n".join(
+                    f"{x['kind']}: {x['content']}" for x in reversed(recent)
+                )
+                prompt = (
+                    f"Recent memory:\n{context}\n\nUser request:\n{message}"
+                    if context
+                    else message
+                )
+                result = await Runner.run(
+                    agent,
+                    prompt,
+                    max_turns=settings.max_turns,
+                    run_config=RunConfig(tool_not_found_behavior="return_error_to_model"),
+                )
 
-                    interruptions = result.interruptions or []
-                    state_text = result.to_state().to_string() if interruptions else ""
-                    status = "awaiting_approval" if interruptions else "completed"
-                    output = result.final_output if not interruptions else "I prepared the next action and need your approval before I continue."
-                    safe_input = redact_secrets(message)
-                    safe_output = redact_secrets(output or "")
-                    self.store.save_run(
-                        run_id, user_id, provider, model_name, status, safe_input, safe_output, state_text,
-                        {"interruptions": [
-                            {"tool_name": getattr(i, "name", "unknown"), "arguments": getattr(i, "arguments", "")}
-                            for i in interruptions
-                        ]},
-                    )
-                    self.store.add_memory(user_id, "conversation_user", safe_input, importance=0.35)
-                    if safe_output:
-                        self.store.add_memory(user_id, "conversation_assistant", safe_output, importance=0.35)
-                    return {
-                        "run_id": run_id,
-                        "status": status,
-                        "reply": output,
-                        "provider": provider,
-                        "model": model_name,
-                        "approval_required": bool(interruptions),
-                        "interruptions": [
-                            {"index": idx, "tool": getattr(item, "name", "unknown"), "arguments": getattr(item, "arguments", "")}
-                            for idx, item in enumerate(interruptions)
-                        ],
+            interruptions = result.interruptions or []
+            state_text = result.to_state().to_string() if interruptions else ""
+            status = "awaiting_approval" if interruptions else "completed"
+            output = (
+                result.final_output
+                if not interruptions
+                else "I prepared the next action and need your approval before I continue."
+            )
+
+            safe_input = redact_secrets(message)
+            safe_output = redact_secrets(output or "")
+            safe_interruptions = [
+                {
+                    "tool_name": redact_secrets(str(getattr(item, "name", "unknown"))),
+                    "arguments": redact_secrets(str(getattr(item, "arguments", ""))),
+                }
+                for item in interruptions
+            ]
+
+            self.store.save_run(
+                run_id,
+                user_id,
+                provider,
+                model_name,
+                status,
+                safe_input,
+                safe_output,
+                state_text,
+                {"interruptions": safe_interruptions},
+            )
+
+            self.store.add_memory(
+                user_id,
+                "conversation_user",
+                safe_input,
+                importance=0.35,
+            )
+            if safe_output:
+                self.store.add_memory(
+                    user_id,
+                    "conversation_assistant",
+                    safe_output,
+                    importance=0.35,
+                )
+
+            return {
+                "run_id": run_id,
+                "status": status,
+                "reply": output,
+                "provider": provider,
+                "model": model_name,
+                "approval_required": bool(interruptions),
+                "interruptions": [
+                    {
+                        "index": idx,
+                        "tool": redact_secrets(str(getattr(item, "name", "unknown"))),
+                        "arguments": redact_secrets(str(getattr(item, "arguments", ""))),
                     }
-            except Exception as exc:
-                last_error = exc
-                continue
-
-        raise RuntimeError(f"ARIA model execution failed: {type(last_error).__name__}: {last_error}")
+                    for idx, item in enumerate(interruptions)
+                ],
+            }
