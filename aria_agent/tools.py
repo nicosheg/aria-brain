@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import base64
 import ipaddress
 import json
 import math
@@ -199,7 +200,7 @@ def build_tools(user_id: str, store: AgentStore, browser: BrowserController, bro
         return await browser.submit(user_id, selector)
 
     return [
-        web_search, web_fetch, calculator, remember, search_memory, enqueue_background_job,
+        web_search, web_fetch, calculator, remember, search_memory, enqueue_background_job, list_uploaded_files, read_uploaded_file,
         browser_open, browser_inspect, browser_screenshot, browser_click, browser_fill,
         browser_press, browser_submit,
     ]
