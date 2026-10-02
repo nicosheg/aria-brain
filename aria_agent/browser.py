@@ -118,6 +118,11 @@ class BrowserController:
     async def snapshot(self, user_id: str) -> str:
         return await self.inspect(user_id)
 
+    async def screenshot(self, user_id: str) -> str:
+        page = await self.page_for(user_id)
+        data = await page.screenshot(type="png")
+        return base64.b64encode(data).decode("ascii")
+
     async def element_info(self, user_id: str, ref: str) -> dict:
         await self._elements(user_id)
         page = await self.page_for(user_id)
