@@ -2,8 +2,52 @@ services:
   - type: web
     name: aria-brain
     runtime: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && playwright install --with-deps chromium
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: 3.13.5
+      - key: ARIA_BROWSER_ENABLED
+        value: "true"
+      - key: ARIA_DATA_DIR
+        value: "/data/aria"
+      - key: ARIA_ALLOW_EMAIL_IDENTITY
+        value: "false"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ARIA_APP_SECRET
+        sync: false
+      - key: ARIA_ENCRYPTION_KEY
+        sync: false
+      - key: SUPABASE_DB_URL
+        sync: false
+      - key: FIREBASE_CREDENTIALS
+        sync: false
+      - key: ARIA_ALLOWED_ORIGINS
+        sync: false
+
+  - type: worker
+    name: aria-agent-worker
+    runtime: python
+    buildCommand: pip install -r requirements.txt && playwright install --with-deps chromium
+    startCommand: python -m aria_agent.worker
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.5
+      - key: ARIA_BROWSER_ENABLED
+        value: "true"
+      - key: ARIA_ALLOW_EMAIL_IDENTITY
+        value: "false"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ARIA_APP_SECRET
+        sync: false
+      - key: ARIA_ENCRYPTION_KEY
+        sync: false
+      - key: SUPABASE_DB_URL
+        sync: false
+      - key: FIREBASE_CREDENTIALS
+        sync: false
+      - key: ARIA_ALLOWED_ORIGINS
+        sync: false
