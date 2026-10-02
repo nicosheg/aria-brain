@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import uuid
-from contextlib import AsyncExitStack
 
 from agents import Agent, Runner, RunConfig, RunState, AsyncOpenAI, OpenAIChatCompletionsModel, set_tracing_disabled
 
@@ -119,11 +118,10 @@ Operating rules:
         provider, model_name, model = self._select_provider(candidates, previous)
         run_id = resume_run_id or str(uuid.uuid4())
 
-        async with AsyncExitStack() as stack:
-            servers = await self.connectors.open_for_user(user_id, self.store, stack)
-            agent = await self._build_agent(user_id, model, servers)
+        servers = await self.connectors.ensure_for_user(user_id, self.store)
+        agent = await self._build_agent(user_id, model, servers)
 
-            if previous and previous.get("state"):
+        if previous and previous.get("state"):
                 state = await RunState.from_string(agent, previous["state"])
                 for interruption in state.get_interruptions():
                     if approve is True:
@@ -135,28 +133,28 @@ Operating rules:
                         )
                     else:
                         raise ValueError("Approval decision is required.")
-                result = await Runner.run(
+            result = await Runner.run(
                     agent,
                     state,
                     max_turns=settings.max_turns,
                     run_config=RunConfig(tool_not_found_behavior="return_error_to_model"),
                 )
-            else:
-                recent = self.store.recent_memory(user_id, 12)
+        else:
+            recent = self.store.recent_memory(user_id, 12)
                 context = "\n".join(
                     f"{x['kind']}: {x['content']}" for x in reversed(recent)
-                )
-                prompt = (
+            )
+            prompt = (
                     f"Recent memory:\n{context}\n\nUser request:\n{message}"
                     if context
                     else message
                 )
                 result = await Runner.run(
-                    agent,
-                    prompt,
-                    max_turns=settings.max_turns,
-                    run_config=RunConfig(tool_not_found_behavior="return_error_to_model"),
-                )
+                agent,
+                prompt,
+                max_turns=settings.max_turns,
+                run_config=RunConfig(tool_not_found_behavior="return_error_to_model"),
+            )
 
             interruptions = result.interruptions or []
             state_text = result.to_state().to_string() if interruptions else ""
@@ -219,3 +217,8 @@ Operating rules:
                     for idx, item in enumerate(interruptions)
                 ],
             }
+
+
+    async def close(self) -> None:
+        await self.connectors.close_all()
+        await self.browser.close()
