@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timedelta, timezone
 
 from .config import settings
 from .runtime import AriaRuntime
@@ -38,7 +39,7 @@ async def worker_loop(runtime: AriaRuntime, worker_index: int) -> None:
                     job["user_id"],
                     job["kind"],
                     next_payload,
-                    (await asyncio.to_thread(store.now_for_schedule, repeat_seconds)),
+                    (datetime.now(timezone.utc) + timedelta(seconds=repeat_seconds)).isoformat(),
                 )
                 logger.info("Scheduled recurring job %s from %s", next_id, job_id)
         except Exception as exc:
