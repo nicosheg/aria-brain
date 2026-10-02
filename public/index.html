@@ -234,6 +234,19 @@
     let currentUser = null;
     let lastAriaMessage = null;
 
+    async function authenticatedHeaders(extra = {}) {
+      const headers = { ...extra };
+      if (currentUser) {
+        try {
+          const token = await currentUser.getIdToken();
+          headers['Authorization'] = 'Bearer ' + token;
+        } catch (e) {
+          console.warn('[Auth] Could not get ID token:', e);
+        }
+      }
+      return headers;
+    }
+
     function updateTimestamp() {
       const now = new Date();
       const timeStr = now.toLocaleTimeString('en-NG', { hour:'2-digit', minute:'2-digit', timeZone:'Africa/Lagos' });
@@ -276,7 +289,9 @@
     // ── Get ARIA UID ──
     async function getAriaUid(email) {
       try {
-        const res = await fetch(`/get-uid?email=${encodeURIComponent(email)}`);
+        const res = await fetch(`/get-uid?email=${encodeURIComponent(email)}`, {
+        headers: await authenticatedHeaders()
+      });
         const data = await res.json();
         if (data.aria_uid) {
           localStorage.setItem('aria_uid', data.aria_uid);
@@ -378,7 +393,7 @@
       try {
         const res = await fetch('/chat', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: await authenticatedHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({ 
             message, 
             email: currentUser.email.toLowerCase() 
@@ -423,7 +438,9 @@
         }
       }
       try {
-        const res = await fetch(`/context?uid=${encodeURIComponent(ariaUid)}`);
+        const res = await fetch('/context', {
+          headers: await authenticatedHeaders()
+        });
         const data = await res.json();
         if (data.context && data.context.trim()) {
           const lines = data.context.split('\n');
@@ -531,8 +548,10 @@
             addMessage(`📄 PDF processed for "${file.name}". Extracted ${data.full_length} characters. Preview: ${data.text.substring(0, 100)}...`, 'aria');
           } else if (data.status === 'Upload received (debug)') {
             addMessage(`📄 Uploaded "${file.name}" (metadata only). OCR not applied.`, 'aria');
+          } else if (data.status === 'uploaded') {
+            addMessage(`Uploaded "${file.name}" successfully. ARIA saved it to your private workspace.`, 'aria');
           } else {
-            addMessage(`Upload failed: ${data.error || 'Unknown'}`, 'aria');
+            addMessage(`Upload failed: ${data.error || data.detail || 'Unknown'}`, 'aria');
           }
         } catch (err) {
           addMessage(`Upload error: ${err.message}`, 'aria');
@@ -586,7 +605,7 @@
           try {
             await fetch('/set_user_name', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: await authenticatedHeaders({ 'Content-Type': 'application/json' }),
               body: JSON.stringify({ 
                 email: user.email.toLowerCase(), 
                 name: displayName 
