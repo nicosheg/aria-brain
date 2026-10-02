@@ -30,6 +30,7 @@ class Settings:
 
     encryption_key: str = os.getenv("ARIA_ENCRYPTION_KEY", "")
     app_secret: str = os.getenv("ARIA_APP_SECRET", "")
+    allow_insecure_http: bool = _bool("ARIA_ALLOW_INSECURE_HTTP", False)
     database_url: str = os.getenv("SUPABASE_DB_URL", os.getenv("DATABASE_URL", ""))
     require_database: bool = _bool("ARIA_REQUIRE_DATABASE", False)
 
