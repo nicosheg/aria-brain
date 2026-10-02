@@ -5,7 +5,10 @@ import hashlib
 import json
 import os
 from typing import Any
+import ipaddress
+import socket
 import threading
+from urllib.parse import urlparse
 
 import requests
 
@@ -59,6 +62,39 @@ def reveal_config(config: dict[str, Any]) -> dict[str, Any]:
     return json.loads(f.decrypt(config["value"].encode()).decode())
 
 
+
+def _is_private_host(hostname: str) -> bool:
+    host = (hostname or "").strip().lower()
+    if not host or host == "localhost" or host.endswith(".localhost"):
+        return True
+    try:
+        addresses = {item[4][0] for item in socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)}
+    except Exception:
+        return True
+    for address in addresses:
+        try:
+            ip = ipaddress.ip_address(address)
+        except ValueError:
+            return True
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified:
+            return True
+    return False
+
+
+def _validate_public_url(url: str, allowed_domains: list[str] | None = None) -> str:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise PermissionError("connector target must be an HTTP(S) URL")
+    hostname = parsed.hostname.lower()
+    if allowed_domains:
+        domains = [str(x).lower().lstrip(".") for x in allowed_domains]
+        if not any(hostname == d or hostname.endswith("." + d) for d in domains):
+            raise PermissionError("connector target is outside the configured domain allow-list")
+    if _is_private_host(hostname) and not get_settings().allow_private_connectors:
+        raise PermissionError("connector target resolves to a private or local network address")
+    return url
+
+
 class Connector:
     def __init__(self, row: dict[str, Any]):
         self.row = row
@@ -87,6 +123,13 @@ class RESTConnector(Connector):
         method = action.get("method", "GET").upper()
         path = action.get("path", "/")
         url = path if path.startswith("http") else f"{self.base_url}/{path.lstrip('/')}"
+        if path.startswith("http"):
+            base_host = (urlparse(self.base_url).hostname or "").lower()
+            target_host = (urlparse(url).hostname or "").lower()
+            allowed = {str(x).lower().lstrip(".") for x in self.allowed_domains}
+            if base_host and target_host != base_host and target_host not in allowed:
+                raise PermissionError("REST action target is outside its connector domain")
+        url = _validate_public_url(url, self.allowed_domains or None)
         headers = dict(action.get("headers", {}))
         auth_env = action.get("auth_env")
         if auth_env:
@@ -151,7 +194,7 @@ class MCPConnector(Connector):
 
     def _legacy_init(self) -> None:
         response = requests.post(
-            self.base_url,
+            _validate_public_url(self.base_url, self.allowed_domains or None),
             headers=self._auth_headers(),
             json={"jsonrpc":"2.0","id":1,"method":"initialize","params":{
                 "protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"ARIA","version":"4.0.0"}}},
