@@ -17,6 +17,8 @@ class Settings:
     app_version: str = os.getenv("ARIA_APP_VERSION", "4.0.0")
     database_url: str = os.getenv("SUPABASE_DB_URL", "")
     autonomy_level: str = os.getenv("ARIA_AUTONOMY_LEVEL", "supervised").lower()
+    allow_email_identity: bool = os.getenv("ARIA_ALLOW_EMAIL_IDENTITY", "false").lower() in {"1","true","yes","on"}
+    firebase_credentials: str = os.getenv("FIREBASE_CREDENTIALS", "")
     max_steps_per_run: int = _int("ARIA_MAX_STEPS", 12)
     max_tool_output_chars: int = _int("ARIA_MAX_TOOL_OUTPUT_CHARS", 12000)
     approval_ttl_seconds: int = _int("ARIA_APPROVAL_TTL_SECONDS", 1800)
