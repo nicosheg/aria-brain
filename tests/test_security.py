@@ -36,3 +36,9 @@ def test_secret_redaction_covers_bare_tokens():
     result = redact_secrets("temporary token=abcdefghijklmnop")
     assert "abcdefghijklmnop" not in result
     assert "[REDACTED]" in result
+
+
+def test_mcp_approval_detects_camel_case_side_effects():
+    from aria_agent.connectors import needs_mcp_approval
+    assert needs_mcp_approval("createCalendarEvent") is True
+    assert needs_mcp_approval("readCalendar") is False
