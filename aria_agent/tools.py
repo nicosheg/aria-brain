@@ -130,6 +130,48 @@ def build_tools(user_id: str, store: AgentStore, browser: BrowserController, bro
         return str(_calc(expression))
 
     @function_tool
+    def list_uploaded_files() -> str:
+        """List files in the user private ARIA workspace."""
+        from pathlib import Path
+        from .config import settings
+        root = (settings.data_dir / "uploads" / user_id).resolve()
+        if not root.exists():
+            return "No uploaded files."
+        items = []
+        for path in sorted(root.iterdir(), key=lambda p: p.name.lower()):
+            if path.is_file():
+                items.append({"name": path.name, "bytes": path.stat().st_size})
+        return json.dumps(items[:200], ensure_ascii=False)
+
+    @function_tool
+    def read_uploaded_file(file_name: str, max_chars: int = 50000) -> Any:
+        """Read a user upload or return an image as model-visible visual input."""
+        from pathlib import Path
+        from .config import settings
+        root = (settings.data_dir / "uploads" / user_id).resolve()
+        candidate = (root / Path(file_name).name).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError as exc:
+            raise ValueError("Invalid file name.") from exc
+        if not candidate.is_file():
+            raise FileNotFoundError("Uploaded file not found.")
+        suffix = candidate.suffix.lower()
+        if suffix in {".png", ".jpg", ".jpeg", ".webp", ".gif"} and ToolOutputImage is not None:
+            encoded = base64.b64encode(candidate.read_bytes()).decode("ascii")
+            mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "webp": "image/webp", "gif": "image/gif"}[suffix.lstrip(".")]
+            return ToolOutputImage(image_url=f"data:{mime};base64,{encoded}", detail="high")
+        if suffix == ".pdf":
+            from pypdf import PdfReader
+            reader = PdfReader(str(candidate))
+            text = "\n".join((page.extract_text() or "") for page in reader.pages)
+            return text[:max(1000, min(max_chars, 100000))]
+        try:
+            return candidate.read_text("utf-8")[:max(1000, min(max_chars, 100000))]
+        except UnicodeDecodeError as exc:
+            raise ValueError("This binary file type is not readable as text.") from exc
+
+    @function_tool
     def remember(content: str, kind: str = "fact", importance: float = 0.8) -> str:
         """Persist a useful fact, preference, goal, constraint or decision for this user."""
         from .security import redact_secrets
