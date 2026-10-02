@@ -8,6 +8,7 @@ DANGEROUS_WORDS = {
     "purchase", "pay", "charge", "refund", "transfer", "withdraw", "invite",
     "create", "update", "edit", "write", "commit", "merge", "deploy", "submit",
     "cancel", "close", "approve", "revoke", "disable", "archive", "rename",
+    "execute", "exec", "shell", "eval", "upload", "move", "replace",
 }
 
 
