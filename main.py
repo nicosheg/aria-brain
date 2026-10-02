@@ -35,8 +35,8 @@ class ChatRequest(BaseModel):
 class ConnectorRequest(BaseModel):
     email: str
     name: str = Field(min_length=1, max_length=100)
-    connector_type: str = Field(pattern="^(mcp|rest)$")
-    base_url: str = Field(min_length=1, max_length=2000)
+    connector_type: str = Field(pattern="^(mcp|rest|browser)$")
+    base_url: str = Field(default="", max_length=2000)
     config: dict = Field(default_factory=dict)
 
 
@@ -73,7 +73,7 @@ async def health():
         "durable_store": store.durable,
         "providers_configured": configured,
         "workers": len(runtime.workers.all()),
-        "connector_types": ["mcp", "rest"],
+        "connector_types": ["mcp", "rest", "browser"],
         "browser_control": settings.allow_browser,
     }
 
