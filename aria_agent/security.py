@@ -95,14 +95,14 @@ def redact_secrets(text: str) -> str:
     import re
 
     patterns = [
-        r"(?i)(password|passwd|passcode|client_secret|secret)s*[:=]s*S+",
-        r"(?i)(api[_ -]?key|access[_ -]?token|refresh[_ -]?token|authorization)s*[:=]s*[A-Za-z0-9_-./+=]{12,}",
-        r"(?i)Bearers+[A-Za-z0-9._-]{20,}",
-        r"sk-[A-Za-z0-9_-]{16,}",
-        r"(?:ghp|github_pat)_[A-Za-z0-9_]{20,}",
-        r"AIza[0-9A-Za-z_-]{20,}",
+        r"(?i)\b(password|passwd|passcode|client_secret|secret)\s*[:=]\s*\S+",
+        r"(?i)\b(api[_ -]?key|access[_ -]?token|refresh[_ -]?token|authorization)\s*[:=]\s*[A-Za-z0-9_.\-/+=]{12,}",
+        r"(?i)\bBearer\s+[A-Za-z0-9._\-]{20,}\b",
+        r"\bsk-[A-Za-z0-9_-]{16,}\b",
+        r"\b(?:ghp|github_pat)_[A-Za-z0-9_]{20,}\b",
+        r"\bAIza[0-9A-Za-z_-]{20,}\b",
     ]
     redacted = text or ""
     for pattern in patterns:
-        redacted = re.sub(pattern, lambda match: "[REDACTED]", redacted)
+        redacted = re.sub(pattern, "[REDACTED]", redacted)
     return redacted
