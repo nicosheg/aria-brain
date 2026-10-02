@@ -135,7 +135,7 @@ def build_tools(user_id: str, store: AgentStore, browser: BrowserController, bro
             if r.is_redirect or r.is_permanent_redirect:
                 location = r.headers.get("Location", "").strip()
                 if not location:
-                    break
+                    raise ValueError("Redirect response did not contain a location.")
                 current_url = _assert_public_url(urljoin(current_url, location))
                 continue
             r.raise_for_status()
