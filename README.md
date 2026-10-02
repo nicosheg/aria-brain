@@ -11,7 +11,7 @@ The live FastAPI service no longer imports the legacy monolithic brain.py reques
 - Streamable HTTP MCP connections for external software, with legacy SSE support and per-tool approval policies
 - browser automation for websites that do not expose an API/MCP server, including live page inspection, stable element references, form filling, uploads and approved submissions
 - a durable background-job queue with scheduling, leases, retries, cancellation and a separate Render worker
-- 38 specialist workers covering opportunity discovery, jobs, applications, freelancing, services, sales, communication, learning, research, resource use, automation and execution
+- 45 specialist workers covering opportunity discovery, jobs, applications, freelancing, services, sales, communication, learning, research, resource use, automation, software and execution
 - configurable provider selection across OpenAI and OpenAI-compatible endpoints, with run-resume pinning to the original provider/model
 
 ## Connected apps
