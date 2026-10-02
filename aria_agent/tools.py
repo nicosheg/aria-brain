@@ -80,11 +80,6 @@ def _safe_upload_path(user_id: str, file_name: str):
     return candidate
 
 
-async def _browser_ref_needs_approval(context, args: dict[str, Any], call_id: str) -> bool:
-    ref = str(args.get("ref", "")).strip()
-    if not ref:
-        return True
-    return await context.context.browser_ref_needs_approval(ref)
 
 
 def build_tools(user_id: str, store: AgentStore, browser: BrowserController, browser_enabled: bool):
@@ -211,6 +206,12 @@ def build_tools(user_id: str, store: AgentStore, browser: BrowserController, bro
             raise RuntimeError("Browser automation is disabled.")
         return True
 
+    async def _browser_ref_needs_approval_for_user(context, args: dict[str, Any], call_id: str) -> bool:
+        ref = str(args.get("ref", "")).strip()
+        if not ref:
+            return True
+        return await browser.ref_needs_approval(user_id, ref)
+
     @function_tool
     async def browser_open(url: str) -> str:
         """Open a website in ARIA's persistent browser session and inspect it."""
@@ -223,7 +224,7 @@ def build_tools(user_id: str, store: AgentStore, browser: BrowserController, bro
         await _browser_ready()
         return await browser.inspect(user_id)
 
-    @function_tool(needs_approval=_browser_ref_needs_approval)
+    @function_tool(needs_approval=_browser_ref_needs_approval_for_user)
     async def browser_click_ref(ref: str) -> str:
         """Click an element by the ARIA browser reference returned by browser_inspect_elements."""
         await _browser_ready()
@@ -289,6 +290,7 @@ def build_tools(user_id: str, store: AgentStore, browser: BrowserController, bro
 
     return [
         web_search, web_fetch, calculator, remember, search_memory, enqueue_background_job, list_uploaded_files, read_uploaded_file,
-        browser_open, browser_inspect, browser_screenshot, browser_click, browser_fill,
-        browser_press, browser_submit,
+        browser_open, browser_inspect, browser_inspect_elements, browser_screenshot,
+        browser_click, browser_click_ref, browser_fill, browser_fill_ref, browser_select_ref,
+        browser_press, browser_submit, browser_upload_ref,
     ]
