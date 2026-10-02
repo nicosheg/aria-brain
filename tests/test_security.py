@@ -1,6 +1,7 @@
 import pytest
 
 from aria_agent.connectors import needs_mcp_approval
+from aria_agent.security import redact_secrets
 from aria_agent.tools import _assert_public_url
 
 
@@ -22,3 +23,11 @@ def test_mcp_side_effect_words_require_approval():
     assert needs_mcp_approval("delete_record")
     assert needs_mcp_approval("execute_sql")
     assert not needs_mcp_approval("search_records")
+
+
+def test_secret_redaction_works():
+    raw = "password=superSecret123 api_key=sk-abcdefghijklmno Bearer abcdefghijklmnopqrstuvwxyz"
+    redacted = redact_secrets(raw)
+    assert "superSecret123" not in redacted
+    assert "sk-abcdefghijklmno" not in redacted
+    assert "abcdefghijklmnopqrstuvwxyz" not in redacted
