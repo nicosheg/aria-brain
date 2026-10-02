@@ -55,10 +55,16 @@ async def worker_loop(runtime: AriaRuntime, worker_index: int) -> None:
 
 
 async def main():
+    if settings.require_database and not settings.database_url:
+        raise RuntimeError("ARIA_REQUIRE_DATABASE is enabled but SUPABASE_DB_URL/DATABASE_URL is not configured.")
+
     runtimes = [AriaRuntime(store) for _ in range(settings.worker_concurrency)]
-    await asyncio.gather(
-        *(worker_loop(runtime, index + 1) for index, runtime in enumerate(runtimes))
-    )
+    try:
+        await asyncio.gather(
+            *(worker_loop(runtime, index + 1) for index, runtime in enumerate(runtimes))
+        )
+    finally:
+        await asyncio.gather(*(runtime.close() for runtime in runtimes), return_exceptions=True)
 
 
 if __name__ == "__main__":
