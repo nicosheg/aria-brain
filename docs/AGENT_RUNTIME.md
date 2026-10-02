@@ -48,6 +48,7 @@ Any configured model key can provide the reasoning layer:
 - `GROQ_KEY_1`
 - `DEEPSEEK_KEY_1`
 - `GEMINI_KEY_1`
+- `OPENAI_KEY_1` (optional current Responses API fallback)
 
 Search providers are optional:
 
