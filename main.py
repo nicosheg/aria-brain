@@ -63,6 +63,7 @@ async def health():
     configured = {
         "groq": bool(os.getenv("GROQ_KEY_1")),
         "deepseek": bool(os.getenv("DEEPSEEK_KEY_1")),
+        "openai": bool(os.getenv("OPENAI_KEY_1")),
         "gemini": bool(os.getenv("GEMINI_KEY_1")),
         "search": any(os.getenv(k) for k in ("TAVILY_API_KEY", "BRAVE_SEARCH_API_KEY", "SERPER_API_KEY")),
     }
