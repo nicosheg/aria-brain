@@ -59,3 +59,10 @@ Search providers are optional:
 Connector secrets require `ARIA_CONNECTOR_ENCRYPTION_KEY`.
 
 Set `ARIA_AUTONOMY_LEVEL=supervised` in production. Add a controlled browser/computer-use integration only after the permission, audit and isolation layers are in place.
+
+
+## Event-driven automation
+
+Use `POST /automations` to create a durable workflow. ARIA returns a one-time webhook secret. Send events to `POST /hooks/automations/{id}` with that secret in `X-ARIA-Automation-Secret`.
+
+Event payloads are explicitly treated as untrusted data. The automation's trusted prompt remains the authority, and normal tool policy still applies. A webhook can therefore wake ARIA up without granting the event source permission to choose arbitrary tool actions.
