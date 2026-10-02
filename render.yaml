@@ -12,6 +12,10 @@ services:
         value: "true"
       - key: ARIA_DATA_DIR
         value: "/data/aria"
+      - key: ARIA_REQUIRE_DATABASE
+        value: "true"
+      - key: ARIA_MAX_TURNS
+        value: "32"
       - key: ARIA_ALLOW_EMAIL_IDENTITY
         value: "false"
       - key: OPENAI_API_KEY
@@ -21,6 +25,8 @@ services:
       - key: ARIA_ENCRYPTION_KEY
         sync: false
       - key: SUPABASE_DB_URL
+        sync: false
+      - key: ARIA_PROVIDER
         sync: false
       - key: FIREBASE_CREDENTIALS
         sync: false
@@ -37,6 +43,14 @@ services:
         value: 3.13.5
       - key: ARIA_BROWSER_ENABLED
         value: "true"
+      - key: ARIA_REQUIRE_DATABASE
+        value: "true"
+      - key: ARIA_WORKER_CONCURRENCY
+        value: "2"
+      - key: ARIA_JOB_MAX_ATTEMPTS
+        value: "4"
+      - key: ARIA_JOB_LEASE_SECONDS
+        value: "900"
       - key: ARIA_ALLOW_EMAIL_IDENTITY
         value: "false"
       - key: OPENAI_API_KEY
