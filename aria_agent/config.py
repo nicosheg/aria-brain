@@ -25,6 +25,7 @@ class Settings:
     llm_timeout_seconds: int = _int("ARIA_LLM_TIMEOUT_SECONDS", 25)
     search_timeout_seconds: int = _int("ARIA_SEARCH_TIMEOUT_SECONDS", 12)
     allow_browser: bool = os.getenv("ARIA_BROWSER_ENABLED", "false").lower() == "true"
+    allow_private_connectors: bool = os.getenv("ARIA_ALLOW_PRIVATE_CONNECTORS", "false").lower() in {"1","true","yes","on"}
     connector_encryption_key: str = os.getenv("ARIA_CONNECTOR_ENCRYPTION_KEY", "")
     public_base_url: str = os.getenv("ARIA_PUBLIC_BASE_URL", "")
     data_dir: Path = Path(os.getenv("ARIA_DATA_DIR", "/tmp/aria"))
