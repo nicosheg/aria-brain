@@ -97,10 +97,23 @@ class AgentRuntime:
             return {"status": approval["status"], "approval_id": approval_id}
 
         payload = approval["payload"]
+        approved_step = payload.get("approved_step") or {}
         plan = payload.get("remaining_plan", [])
-        prior_results = payload.get("results", [])
+        prior_results = list(payload.get("results", []))
         original_message = payload.get("original_message", "")
-        safe_results, pending = self._execute_plan(approval["run_id"], user_id, plan, prior_results, original_message=original_message)
+
+        if approved_step:
+            args = dict(approved_step.get("args") or {})
+            tool = str(approved_step.get("tool", ""))
+            result = self._execute_tool(user_id, tool, args, approved_step)
+            prior_results.append({"step":"approved","tool":tool,"ok":True,"result":result})
+            self.store.audit(approval["run_id"], user_id, "tool.approved_and_completed", {
+                "tool": tool, "approval_id": approval_id
+            })
+
+        safe_results, pending = self._execute_plan(
+            approval["run_id"], user_id, plan, prior_results, original_message=original_message
+        )
 
         if pending:
             response = {
@@ -199,7 +212,8 @@ Each step: {tool, args, connector_id?, external_tool?, reason?, side_effect?}.
                     run_id, user_id, tool, str(step.get("reason") or "External action"),
                     {
                         "original_message": original_message or (plan.get("goal","") if isinstance(plan, dict) else ""),
-                        "remaining_plan": steps[index:],
+                        "approved_step": step,
+                        "remaining_plan": steps[index + 1:],
                         "results": results,
                         "args": sanitized,
                         "connector_id": step.get("connector_id"),
