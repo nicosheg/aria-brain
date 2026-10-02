@@ -1,292 +1,368 @@
-from fastapi import FastAPI, HTTPException
+from __future__ import annotations
+
+import base64
+import hashlib
+import json
+import os
+import re
+from contextlib import AsyncExitStack
+from pathlib import Path
+from typing import Any, Optional
+
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
-import os
-import json
-import firebase_admin
-from firebase_admin import credentials, firestore
+from pydantic import BaseModel, Field
 
-# ── Initialize Firestore ──
-if not firebase_admin._apps:
-    cred_json = os.environ.get("FIREBASE_CREDENTIALS")
-    if cred_json:
-        cred = credentials.Certificate(json.loads(cred_json))
-        firebase_admin.initialize_app(cred)
-        db = firestore.client()
-        print("✅ Firestore initialized in main")
-    else:
-        print("❌ FIREBASE_CREDENTIALS not found")
-        db = None
-else:
-    db = firestore.client()
-    print("✅ Firestore already initialized")
+from aria_agent.config import settings
+from aria_agent.runtime import AriaRuntime
+from aria_agent.storage import store
 
-# ── Import brain and initialize PostgreSQL ──
-from brain import ask, generate_aria_uid, init_postgres
+app = FastAPI(title="ARIA", version="4.0.0")
 
-print("🔧 Initializing PostgreSQL pool...")
-init_postgres()
-print("✅ PostgreSQL pool initialized")
+_origins = [x.strip() for x in os.getenv("ARIA_ALLOWED_ORIGINS", "").split(",") if x.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_origins or ["http://localhost", "http://127.0.0.1"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+)
 
-app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+runtime = AriaRuntime(store)
+PUBLIC_ROOT = Path("public").resolve()
+
 
 class ChatRequest(BaseModel):
-    message: str
-    email: str
+    message: str = Field(min_length=1, max_length=settings.max_message_chars)
+    email: Optional[str] = None
 
-class ChatResponse(BaseModel):
-    reply: str
 
-# ─── SPECIFIC ROUTES (in order of priority) ─────────────────
+class ApprovalRequest(BaseModel):
+    approved: bool
+
+
+class ConnectionRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    url: str = Field(min_length=8, max_length=1000)
+    kind: str = "mcp"
+    token: str = Field(default="", max_length=4000)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class JobRequest(BaseModel):
+    kind: str = Field(min_length=1, max_length=120)
+    goal: str = Field(min_length=1, max_length=12000)
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class FeedbackRequest(BaseModel):
+    score: int = Field(ge=1, le=5)
+
+
+class UploadRequest(BaseModel):
+    file_base64: str = Field(min_length=1)
+    file_name: str = Field(min_length=1, max_length=240)
+    file_type: str = "file"
+    mime_type: str = ""
+
+
+_firebase_auth = None
+_firebase_error: Optional[str] = None
+
+
+def _get_firebase_auth():
+    global _firebase_auth, _firebase_error
+    if _firebase_auth is not None:
+        return _firebase_auth
+    if _firebase_error:
+        return None
+
+    raw = os.getenv("FIREBASE_CREDENTIALS", "").strip()
+    if not raw:
+        _firebase_error = "FIREBASE_CREDENTIALS is not configured"
+        return None
+
+    try:
+        import firebase_admin
+        from firebase_admin import auth, credentials
+
+        try:
+            firebase_admin.get_app()
+        except ValueError:
+            if raw.startswith("{"):
+                firebase_admin.initialize_app(credentials.Certificate(json.loads(raw)))
+            else:
+                firebase_admin.initialize_app(credentials.Certificate(raw))
+        _firebase_auth = auth
+        return _firebase_auth
+    except Exception as exc:
+        _firebase_error = str(exc)
+        return None
+
+
+def _identity_from_request(authorization: Optional[str], email: Optional[str] = None) -> dict[str, str]:
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization.split(" ", 1)[1].strip()
+        if token:
+            auth_module = _get_firebase_auth()
+            if auth_module is None:
+                raise HTTPException(503, detail="Authentication service is not configured.")
+            try:
+                decoded = auth_module.verify_id_token(token)
+            except Exception:
+                raise HTTPException(401, detail="Authentication token is invalid or expired.")
+            uid = str(decoded.get("uid", "")).strip()
+            if not uid:
+                raise HTTPException(401, detail="Authentication token contains no user identity.")
+            user_email = str(decoded.get("email", "") or "")
+            display_name = str(decoded.get("name", "") or "")
+            store.ensure_user(uid, user_email, display_name)
+            return {"user_id": uid, "email": user_email, "display_name": display_name}
+
+    # Deliberately disabled by default. It exists only for local/dev compatibility.
+    if settings.allow_email_identity and email:
+        normalized = email.strip().lower()
+        if "@" not in normalized:
+            raise HTTPException(400, detail="A valid email is required.")
+        uid = "email:" + hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:32]
+        store.ensure_user(uid, normalized, normalized.split("@", 1)[0])
+        return {"user_id": uid, "email": normalized, "display_name": normalized.split("@", 1)[0]}
+
+    raise HTTPException(401, detail="Sign in and send a Firebase ID token.")
+
+
+def _public_aria_uid(user_id: str) -> str:
+    return "aria-" + hashlib.sha256(user_id.encode("utf-8")).hexdigest()[:24]
+
+
+def _require_https_url(url: str) -> None:
+    if not (url.startswith("https://") or url.startswith("http://")):
+        raise HTTPException(400, detail="Connection URLs must use HTTP or HTTPS.")
+    if len(url) > 1000:
+        raise HTTPException(400, detail="Connection URL is too long.")
+
+
+def _safe_filename(name: str) -> str:
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("._")[:180] or "upload.bin"
+
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    providers = [(p, m) for p, m, _ in runtime.provider_candidates()]
+    return {
+        "status": "ok" if providers else "degraded",
+        "service": "aria-brain",
+        "version": "4.0.0",
+        "providers": [{"provider": p, "model": m} for p, m in providers],
+        "storage": "postgres" if settings.database_url else "local",
+        "firebase_configured": bool(os.getenv("FIREBASE_CREDENTIALS")),
+        "encryption_configured": bool(settings.encryption_key or os.getenv("ARIA_APP_SECRET")),
+    }
+
 
 @app.get("/ping")
 async def ping():
     return {"pong": "ok"}
 
-@app.post("/chat", response_model=ChatResponse)
-async def chat(req: ChatRequest):
-    try:
-        uid_result = generate_aria_uid(req.email.lower())
-        user_id = uid_result["aria_uid"]
-        reply = ask(req.message, user_id, None)
-        return ChatResponse(reply=reply)
-    except Exception as e:
-        raise HTTPException(500, detail=str(e))
 
-@app.get("/debug-uid")
-async def debug_uid(email: str):
-    from brain import generate_aria_uid
-    result = generate_aria_uid(email)
-    return result
-
-@app.get("/debug-db")
-async def debug_db():
-    from brain import _postgres_pool
-    if _postgres_pool is None:
-        return {"error": "PostgreSQL pool is None"}
+@app.post("/chat")
+async def chat(req: ChatRequest, authorization: Optional[str] = Header(default=None)):
+    identity = _identity_from_request(authorization, req.email)
     try:
-        conn = _postgres_pool.getconn()
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM users")
-        count = cur.fetchone()[0]
-        _postgres_pool.putconn(conn)
-        return {"connected": True, "user_count": count}
-    except Exception as e:
-        return {"error": str(e)}
-
-@app.get("/check-db")
-async def check_db():
-    """Check if users table exists and count rows."""
-    from brain import _postgres_pool
-    if _postgres_pool is None:
-        return {"error": "PostgreSQL pool is None"}
-    conn = None
-    try:
-        conn = _postgres_pool.getconn()
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables
-                WHERE table_name = 'users'
-            );
-        """)
-        table_exists = cur.fetchone()[0]
-        if not table_exists:
-            return {"table_exists": False, "message": "users table does not exist"}
-        cur.execute("SELECT COUNT(*) FROM users")
-        count = cur.fetchone()[0]
-        cur.execute("SELECT aria_uid, email FROM users LIMIT 5")
-        rows = cur.fetchall()
-        _postgres_pool.putconn(conn)
+        result = await runtime.run(identity["user_id"], req.message)
         return {
-            "table_exists": True,
-            "row_count": count,
-            "sample_rows": [{"aria_uid": r[0], "email": r[1]} for r in rows]
+            "reply": result["reply"],
+            "run_id": result["run_id"],
+            "status": result["status"],
+            "approval_required": result["approval_required"],
+            "interruptions": result["interruptions"],
+            "provider": result["provider"],
+            "model": result["model"],
         }
-    except Exception as e:
-        if conn:
-            _postgres_pool.putconn(conn)
-        return {"error": str(e)}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        # Never expose stack traces, credentials or database details to clients.
+        raise HTTPException(502, detail=f"ARIA could not complete the request: {type(exc).__name__}.")
+
+
+@app.post("/runs/{run_id}/approve")
+async def approve_run(run_id: str, req: ApprovalRequest, authorization: Optional[str] = Header(default=None)):
+    identity = _identity_from_request(authorization)
+    try:
+        result = await runtime.run(
+            identity["user_id"],
+            "Continue the approved action." if req.approved else "Stop the requested action and explain what was not executed.",
+            resume_run_id=run_id,
+            approve=req.approved,
+        )
+        return result
+    except Exception as exc:
+        raise HTTPException(502, detail=f"ARIA could not resume the run: {type(exc).__name__}.")
+
+
+@app.get("/get-uid")
+async def get_uid(authorization: Optional[str] = Header(default=None), email: Optional[str] = None):
+    identity = _identity_from_request(authorization, email)
+    return {"aria_uid": _public_aria_uid(identity["user_id"]), "user_id": identity["user_id"]}
+
+
+@app.get("/context")
+async def get_context(authorization: Optional[str] = Header(default=None), email: Optional[str] = None):
+    identity = _identity_from_request(authorization, email)
+    rows = store.recent_memory(identity["user_id"], limit=50)
+    lines = []
+    for row in reversed(rows):
+        if row["kind"] == "conversation_user":
+            lines.append("User: " + row["content"])
+        elif row["kind"] == "conversation_assistant":
+            lines.append("ARIA: " + row["content"])
+    return {"context": "\n".join(lines)}
+
+
+@app.post("/set_user_name")
+async def set_user_name(payload: dict, authorization: Optional[str] = Header(default=None)):
+    identity = _identity_from_request(authorization, payload.get("email"))
+    name = str(payload.get("name", "")).strip()
+    if not name:
+        raise HTTPException(400, detail="Name is required.")
+    store.ensure_user(identity["user_id"], identity.get("email", ""), name)
+    store.add_memory(identity["user_id"], "profile", f"The user's preferred name is {name}.", importance=0.85)
+    return {"status": "ok", "aria_uid": _public_aria_uid(identity["user_id"])}
+
+
+@app.post("/feedback")
+async def feedback(req: FeedbackRequest, authorization: Optional[str] = Header(default=None)):
+    identity = _identity_from_request(authorization)
+    return {"status": "ok", "id": store.add_feedback(identity["user_id"], req.score)}
+
+
+@app.get("/debug-memory")
+async def debug_memory(authorization: Optional[str] = Header(default=None)):
+    identity = _identity_from_request(authorization)
+    return {"memories": store.recent_memory(identity["user_id"], limit=50)}
+
+
+@app.post("/connections")
+async def add_connection(req: ConnectionRequest, authorization: Optional[str] = Header(default=None)):
+    identity = _identity_from_request(authorization)
+    _require_https_url(req.url)
+    kind = req.kind.strip().lower()
+    if kind not in {"mcp", "streamable_http", "http"}:
+        raise HTTPException(400, detail="Only MCP/Streamable HTTP connections are currently supported.")
+    result = store.save_connection(
+        identity["user_id"], req.name.strip(), kind, req.url.strip(), req.token.strip(), req.metadata
+    )
+    return {"status": "connected", "connection": result}
+
+
+@app.get("/connections")
+async def list_connections(authorization: Optional[str] = Header(default=None)):
+    identity = _identity_from_request(authorization)
+    return {"connections": store.list_connections(identity["user_id"])}
+
+
+@app.delete("/connections/{connection_id}")
+async def delete_connection(connection_id: str, authorization: Optional[str] = Header(default=None)):
+    identity = _identity_from_request(authorization)
+    return {"deleted": store.delete_connection(identity["user_id"], connection_id)}
+
+
+@app.post("/connections/{connection_id}/test")
+async def test_connection(connection_id: str, authorization: Optional[str] = Header(default=None)):
+    identity = _identity_from_request(authorization)
+    conn = store.get_connection(identity["user_id"], connection_id)
+    if not conn:
+        raise HTTPException(404, detail="Connection not found.")
+    async with AsyncExitStack() as stack:
+        from aria_agent.connectors import MCPConnectorManager
+        manager = MCPConnectorManager()
+        servers = await manager.open_for_user(identity["user_id"], store, stack)
+        for server in servers:
+            if getattr(server, "name", "") == conn["name"]:
+                tools = await server.list_tools()
+                return {"status": "ok", "name": conn["name"], "tools": [t.name for t in tools]}
+    raise HTTPException(502, detail="The app connector could not be reached.")
+
+
+@app.get("/jobs")
+async def list_jobs(authorization: Optional[str] = Header(default=None)):
+    identity = _identity_from_request(authorization)
+    return {"jobs": store.list_jobs(identity["user_id"], limit=100)}
+
+
+@app.post("/jobs")
+async def create_job(req: JobRequest, authorization: Optional[str] = Header(default=None)):
+    identity = _identity_from_request(authorization)
+    payload = dict(req.payload)
+    payload["goal"] = req.goal
+    job_id = store.enqueue_job(identity["user_id"], req.kind, payload)
+    return {"status": "queued", "job_id": job_id}
+
+
+async def _handle_upload(req: UploadRequest, authorization: Optional[str]) -> dict[str, Any]:
+    identity = _identity_from_request(authorization)
+    try:
+        raw = base64.b64decode(req.file_base64, validate=True)
+    except Exception:
+        raise HTTPException(400, detail="Invalid base64 upload.")
+    if len(raw) > 25 * 1024 * 1024:
+        raise HTTPException(413, detail="File is larger than 25MB.")
+    upload_dir = settings.data_dir / "uploads" / identity["user_id"]
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    path = upload_dir / _safe_filename(req.file_name)
+    path.write_bytes(raw)
+
+    kind = "file_upload"
+    extracted = ""
+    if req.file_type.lower() == "pdf" or req.mime_type.lower() == "application/pdf":
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(str(path))
+            extracted = "\n".join((p.extract_text() or "") for p in reader.pages)[:30000]
+            kind = "pdf_text"
+        except Exception:
+            kind = "pdf_upload"
+
+    store.add_memory(
+        identity["user_id"],
+        kind,
+        f"Uploaded {req.file_name} ({req.mime_type or req.file_type}), stored at {path.name}.",
+        metadata={"file_name": req.file_name, "mime_type": req.mime_type, "path": str(path), "extracted_preview": extracted[:5000]},
+        importance=0.55,
+    )
+    return {
+        "status": "uploaded",
+        "file_name": req.file_name,
+        "full_length": len(extracted),
+        "text": extracted,
+        "message": "The file is stored in ARIA's private workspace. Image OCR/vision can be handled by a connected vision-capable worker.",
+    }
+
+
+@app.post("/upload-ocr")
+async def upload_ocr(req: UploadRequest, authorization: Optional[str] = Header(default=None)):
+    return await _handle_upload(req, authorization)
+
+
+@app.post("/upload-pdf")
+async def upload_pdf(req: UploadRequest, authorization: Optional[str] = Header(default=None)):
+    return await _handle_upload(req, authorization)
+
 
 @app.get("/")
 async def index():
-    return FileResponse("public/index.html")
+    return FileResponse(PUBLIC_ROOT / "index.html")
 
-# ─── CATCH‑ALL ROUTE (MUST BE LAST) ──────────────────────────
 
 @app.get("/{path:path}")
 async def static(path: str):
-    full_path = f"public/{path}"
-    if os.path.exists(full_path):
-        return FileResponse(full_path)
+    candidate = (PUBLIC_ROOT / path).resolve()
+    try:
+        candidate.relative_to(PUBLIC_ROOT)
+    except ValueError:
+        raise HTTPException(404, detail="Not found")
+    if candidate.is_file():
+        return FileResponse(candidate)
     raise HTTPException(404, detail="Not found")
-
-@app.get("/context")
-async def get_context(uid: str):
-    from brain import get_full_history
-    import logging
-    logger = logging.getLogger(__name__)
-    if not uid.startswith('aria'):
-        return {"error": "Invalid UID", "context": ""}
-    try:
-        history = get_full_history(uid)
-        if history:
-            return {"context": history}
-        return {"context": ""}
-    except Exception as e:
-        logger.error(f"context error: {e}")
-        return {"error": str(e), "context": ""}
-@app.get("/get-uid")
-async def get_uid(email: str):
-    """Return the ARIA UID for a given email."""
-    from brain import generate_aria_uid
-    result = generate_aria_uid(email)
-    return result
-
-@app.post("/set_user_name")
-async def set_user_name(request: dict):
-    """Set the user's name using email (not Firebase UID)."""
-    email = request.get("email", "").strip().lower()
-    name = request.get("name", "").strip()
-    if not email or not name:
-        raise HTTPException(400, detail="Missing email or name")
-    
-    from brain import generate_aria_uid, db
-    uid_result = generate_aria_uid(email)
-    if "error" in uid_result:
-        raise HTTPException(400, detail=uid_result["error"])
-    aria_uid = uid_result["aria_uid"]
-    
-    # Store name in Firestore facts
-    if db:
-        try:
-            fact_ref = db.collection("users").document(aria_uid).collection("facts").document("name")
-            fact_ref.set({"key": "name", "value": name})
-            return {"status": "ok", "aria_uid": aria_uid}
-        except Exception as e:
-            raise HTTPException(500, detail=str(e))
-    return {"status": "ok", "aria_uid": aria_uid}
-
-@app.get("/get-uid")
-async def get_uid(email: str):
-    """Return the ARIA UID for a given email."""
-    from brain import generate_aria_uid
-    result = generate_aria_uid(email)
-    return result
-
-@app.post("/set_user_name")
-async def set_user_name(request: dict):
-    """Set the user's name using email (not Firebase UID)."""
-    email = request.get("email", "").strip().lower()
-    name = request.get("name", "").strip()
-    if not email or not name:
-        raise HTTPException(400, detail="Missing email or name")
-    
-    from brain import generate_aria_uid, db
-    uid_result = generate_aria_uid(email)
-    if "error" in uid_result:
-        raise HTTPException(400, detail=uid_result["error"])
-    aria_uid = uid_result["aria_uid"]
-    
-    if db:
-        try:
-            fact_ref = db.collection("users").document(aria_uid).collection("facts").document("name")
-            fact_ref.set({"key": "name", "value": name})
-            return {"status": "ok", "aria_uid": aria_uid}
-        except Exception as e:
-            raise HTTPException(500, detail=str(e))
-    return {"status": "ok", "aria_uid": aria_uid}
-
-
-@app.get("/debug-memory")
-async def debug_memory(email: str):
-    """Debug endpoint to check stored memories for a user."""
-    from brain import generate_aria_uid, db
-    from firebase_admin import firestore
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    uid_result = generate_aria_uid(email)
-    if "error" in uid_result:
-        logger.error(f"UID generation error: {uid_result['error']}")
-        return {"error": uid_result["error"]}
-    uid = uid_result["aria_uid"]
-    logger.info(f"Checking memory for UID: {uid}")
-    
-    try:
-        docs = db.collection("users").document(uid).collection("memory").order_by("t", direction=firestore.Query.DESCENDING).limit(20).stream()
-        memories = []
-        for doc in docs:
-            data = doc.to_dict()
-            memories.append({
-                "message": data.get("m", ""),
-                "response": data.get("r", ""),
-                "time": data.get("t", "")
-            })
-        return {"uid": uid, "count": len(memories), "memories": memories}
-    except Exception as e:
-        logger.error(f"Error fetching memories: {e}")
-        return {"error": str(e)}
-
-@app.get("/debug-memory")
-async def debug_memory(email: str):
-    """Debug endpoint to check stored memories for a user."""
-    from brain import generate_aria_uid, db
-    from firebase_admin import firestore
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    uid_result = generate_aria_uid(email)
-    if "error" in uid_result:
-        logger.error(f"UID generation error: {uid_result['error']}")
-        return {"error": uid_result["error"]}
-    uid = uid_result["aria_uid"]
-    logger.info(f"Checking memory for UID: {uid}")
-    
-    try:
-        docs = db.collection("users").document(uid).collection("memory").order_by("t", direction=firestore.Query.DESCENDING).limit(20).stream()
-        memories = []
-        for doc in docs:
-            data = doc.to_dict()
-            memories.append({
-                "message": data.get("m", ""),
-                "response": data.get("r", ""),
-                "time": data.get("t", "")
-            })
-        return {"uid": uid, "count": len(memories), "memories": memories}
-    except Exception as e:
-        logger.error(f"Error fetching memories: {e}")
-        return {"error": str(e)}
-
-@app.get("/debug-history")
-async def debug_history(email: str):
-    from brain import generate_aria_uid, get_full_history
-    uid_result = generate_aria_uid(email)
-    if "error" in uid_result:
-        return {"error": uid_result["error"]}
-    uid = uid_result["aria_uid"]
-    history = get_full_history(uid, limit=50)
-    return {"uid": uid, "history": history, "length": len(history)}
-
-
-@app.get("/debug-embeddings")
-async def debug_embeddings(email: str):
-    """Show stored embeddings for a user."""
-    from brain import generate_aria_uid
-    import os, json
-    uid_result = generate_aria_uid(email)
-    if "error" in uid_result:
-        return {"error": uid_result["error"]}
-    uid = uid_result["aria_uid"]
-    emb_file = f"aria_emb_{uid}.json"
-    if os.path.exists(emb_file):
-        with open(emb_file, 'r') as f:
-            data = json.load(f)
-        return {"uid": uid, "embedding_count": len(data)}
-    return {"uid": uid, "embedding_count": 0}

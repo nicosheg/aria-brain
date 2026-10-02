@@ -234,6 +234,47 @@
     let currentUser = null;
     let lastAriaMessage = null;
 
+    // ── Authenticated API helper ──
+    async function apiHeaders(extra = {}) {
+      if (!currentUser) return extra;
+      const token = await currentUser.getIdToken();
+      return { ...extra, 'Authorization': `Bearer ${token}` };
+    }
+
+    function showApproval(runId, interruptions) {
+      const div = document.createElement('div');
+      div.className = 'message aria';
+      const details = (interruptions || []).map(x => `${x.tool || 'external action'}: ${x.arguments || ''}`).join('<br>');
+      div.innerHTML = `<div class="message-bubble"><strong>Approval needed</strong><div style="font-size:11px;margin-top:6px;color:#CBD5E1;">${details}</div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button class="message-action approve-run">Approve</button>
+          <button class="message-action reject-run">Reject</button>
+        </div></div>`;
+      div.querySelector('.approve-run').onclick = async () => resumeApproval(runId, true, div);
+      div.querySelector('.reject-run').onclick = async () => resumeApproval(runId, false, div);
+      messagesArea.appendChild(div);
+      messagesArea.scrollTop = messagesArea.scrollHeight;
+    }
+
+    async function resumeApproval(runId, approved, card) {
+      card.remove();
+      showTyping();
+      try {
+        const res = await fetch(`/runs/${encodeURIComponent(runId)}/approve`, {
+          method: 'POST',
+          headers: await apiHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ approved })
+        });
+        const data = await res.json();
+        hideTyping();
+        addMessage(data.reply || data.detail || 'The run ended.', 'aria');
+        if (data.approval_required) showApproval(data.run_id || runId, data.interruptions || []);
+      } catch (err) {
+        hideTyping();
+        addMessage('Approval could not be completed.', 'aria');
+      }
+    }
+
     function updateTimestamp() {
       const now = new Date();
       const timeStr = now.toLocaleTimeString('en-NG', { hour:'2-digit', minute:'2-digit', timeZone:'Africa/Lagos' });
@@ -276,7 +317,7 @@
     // ── Get ARIA UID ──
     async function getAriaUid(email) {
       try {
-        const res = await fetch(`/get-uid?email=${encodeURIComponent(email)}`);
+        const res = await fetch(`/get-uid?email=${encodeURIComponent(email)}`, { headers: await apiHeaders() });
         const data = await res.json();
         if (data.aria_uid) {
           localStorage.setItem('aria_uid', data.aria_uid);
@@ -339,8 +380,8 @@
       if (!currentUser) return;
       fetch('/feedback', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: currentUser.uid, score: score })
+        headers: await apiHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ score: score })
       }).catch(e => console.warn);
       ratingDiv.innerHTML = `<span style="font-size:11px; color:#60A5FA;">✓ Rated ${score}/5</span>`;
     }
@@ -378,17 +419,14 @@
       try {
         const res = await fetch('/chat', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            message, 
-            email: currentUser.email.toLowerCase() 
-          })
+          headers: await apiHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ message, email: currentUser.email.toLowerCase() })
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         hideTyping();
         if (data.error) addMessage(`Error: ${data.error}`, 'aria');
-        else addMessage(data.reply || '...', 'aria');
+        else { addMessage(data.reply || '...', 'aria'); if (data.approval_required) showApproval(data.run_id, data.interruptions || []); }
       } catch(e) {
         hideTyping();
         console.error("Chat error:", e);
@@ -423,7 +461,7 @@
         }
       }
       try {
-        const res = await fetch(`/context?uid=${encodeURIComponent(ariaUid)}`);
+        const res = await fetch('/context', { headers: await apiHeaders() });
         const data = await res.json();
         if (data.context && data.context.trim()) {
           const lines = data.context.split('\n');
@@ -508,7 +546,7 @@
         try {
           const res = await fetch(endpoint, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: await apiHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({
               email: currentUser.email,
               file_base64: base64,
@@ -525,7 +563,11 @@
             addMessage("Server error: invalid response", 'aria');
             return;
           }
-          if (data.status === 'OCR completed') {
+          if (data.status === 'uploaded' && fileType === 'image') {
+            addMessage(`Uploaded "${file.name}" to ARIA's private workspace. Vision/OCR can run through a connected worker.`, 'aria');
+          } else if (data.status === 'uploaded' && fileType === 'pdf') {
+            addMessage(`PDF "${file.name}" stored. Extracted ${data.full_length} characters.`, 'aria');
+          } else if (data.status === 'OCR completed') {
             addMessage(`📄 OCR completed for "${file.name}". Extracted ${data.full_length} characters. Preview: ${data.text.substring(0, 100)}...`, 'aria');
           } else if (data.status === 'PDF processed') {
             addMessage(`📄 PDF processed for "${file.name}". Extracted ${data.full_length} characters. Preview: ${data.text.substring(0, 100)}...`, 'aria');
@@ -586,11 +628,8 @@
           try {
             await fetch('/set_user_name', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                email: user.email.toLowerCase(), 
-                name: displayName 
-              })
+              headers: await apiHeaders({ 'Content-Type': 'application/json' }),
+              body: JSON.stringify({ email: user.email.toLowerCase(), name: displayName })
             });
           } catch(e) { console.warn('Name save error:', e); }
         }
