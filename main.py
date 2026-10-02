@@ -137,9 +137,12 @@ def _public_aria_uid(user_id: str) -> str:
 
 
 def _require_https_url(url: str) -> None:
-    if not (url.startswith("https://") or url.startswith("http://")):
+    value = url.strip()
+    if not (value.startswith("https://") or value.startswith("http://")):
         raise HTTPException(400, detail="Connection URLs must use HTTP or HTTPS.")
-    if len(url) > 1000:
+    if value.startswith("http://") and not settings.allow_insecure_http:
+        raise HTTPException(400, detail="Use HTTPS for external app connections.")
+    if len(value) > 1000:
         raise HTTPException(400, detail="Connection URL is too long.")
 
 
@@ -337,7 +340,7 @@ async def _handle_upload(req: UploadRequest, authorization: Optional[str]) -> di
         "file_name": req.file_name,
         "full_length": len(extracted),
         "text": extracted,
-        "message": "The file is stored in ARIA's private workspace. Image OCR/vision can be handled by a connected vision-capable worker.",
+        "message": "The file is stored in ARIA's private workspace. ARIA can inspect image uploads with a vision-capable model when the task requires it.",
     }
 
 
