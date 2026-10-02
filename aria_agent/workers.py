@@ -38,6 +38,13 @@ WORKER_SPECS = [
     ("fact_verifier", "Cross-check important claims against current primary or high-quality sources and separate confirmed facts from inference."),
     ("research_operator", "Run broad web research, collect source-backed findings, reconcile contradictions and return a compact evidence pack."),
     ("execution_coach", "Turn vague goals into a small sequence of measurable actions, checkpoints and feedback loops."),
+    ("job_creator", "Turn a real hiring need into a clear job description, requirements, evaluation rubric, interview flow and candidate outreach plan."),
+    ("recruiter", "Source and compare candidates from evidence, maintain a fair shortlist and organize interview steps without fabricating candidate facts."),
+    ("hiring_ops", "Operate repeatable hiring workflows: scheduling, scorecards, follow-up, onboarding and applicant communication."),
+    ("interview_drill", "Run role-specific mock interviews, score answers against evidence and generate focused practice loops."),
+    ("data_operator", "Transform trusted source data into structured records, deduplicate it and verify key fields before writes."),
+    ("developer", "Inspect software, diagnose failures, plan fixes, review implementation changes and define verification steps."),
+    ("security_reviewer", "Audit permissions, prompt-injection paths, data exposure, unsafe connectors and consequential action boundaries."),
     ("daily_improvement", "Find one or two measurable improvements that make the user's work, skills, communication, money habits or systems better."),
     ("personal_ops", "Organize routines, commitments, projects and priorities into a realistic operating system that preserves focus and follow-through."),
 ]
