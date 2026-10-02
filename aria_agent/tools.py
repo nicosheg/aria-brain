@@ -65,6 +65,14 @@ def _browser_click_needs_approval(context, args: dict[str, Any], call_id: str) -
     )
     return any(word in selector for word in risky)
 
+def _browser_fill_needs_approval(context, args: dict[str, Any], call_id: str) -> bool:
+    selector = str(args.get("selector", "")).lower()
+    risky = (
+        "password", "secret", "token", "otp", "one-time", "credit",
+        "debit", "card", "cvv", "bank", "pin", "login", "sign-in", "signin",
+    )
+    return any(word in selector for word in risky)
+
 
 def _safe_upload_path(user_id: str, file_name: str):
     from pathlib import Path
@@ -279,7 +287,7 @@ def build_tools(user_id: str, store: AgentStore, browser: BrowserController, bro
         await _browser_ready()
         return await browser.click(user_id, selector)
 
-    @function_tool
+    @function_tool(needs_approval=_browser_fill_needs_approval)
     async def browser_fill(selector: str, value: str) -> str:
         """Fill a form control by CSS selector."""
         await _browser_ready()
