@@ -157,11 +157,16 @@ async def health():
     providers = [(p, m) for p, m, _ in runtime.provider_candidates()]
     database_ready = bool(settings.database_url)
     healthy = bool(providers) and (database_ready or not settings.require_database)
+    default_provider = providers[0] if providers else None
     return {
         "status": "ok" if healthy else "degraded",
         "service": "aria-brain",
-        "version": "4.0.0",
+        "version": "4.1.0",
         "providers": [{"provider": p, "model": m} for p, m in providers],
+        "default_provider": (
+            {"provider": default_provider[0], "model": default_provider[1]}
+            if default_provider else None
+        ),
         "storage": "postgres" if database_ready else "local",
         "queue_shared": database_ready,
         "database_required": settings.require_database,
@@ -194,7 +199,13 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(default=N
         raise
     except Exception as exc:
         # Never expose stack traces, credentials or database details to clients.
-        raise HTTPException(502, detail=f"ARIA could not complete the request: {type(exc).__name__}.")
+        message = str(exc)
+        public_reason = (
+            "No model connection is configured."
+            if "No LLM provider configured" in message
+            else f"ARIA could not complete the request: {type(exc).__name__}."
+        )
+        raise HTTPException(503 if "No LLM provider configured" in message else 502, detail=public_reason)
 
 
 @app.post("/runs/{run_id}/approve")
@@ -209,7 +220,11 @@ async def approve_run(run_id: str, req: ApprovalRequest, authorization: Optional
         )
         return result
     except Exception as exc:
-        raise HTTPException(502, detail=f"ARIA could not resume the run: {type(exc).__name__}.")
+        raise HTTPException(503 if "provider" in str(exc).lower() else 502, detail=(
+            "ARIA could not resume that action because its model connection is unavailable."
+            if "provider" in str(exc).lower()
+            else f"ARIA could not resume the run: {type(exc).__name__}."
+        ))
 
 
 @app.get("/get-uid")
@@ -229,6 +244,12 @@ async def get_context(authorization: Optional[str] = Header(default=None), email
         elif row["kind"] == "conversation_assistant":
             lines.append("ARIA: " + row["content"])
     return {"context": "\n".join(lines)}
+
+
+@app.get("/history")
+async def history(limit: int = 100, authorization: Optional[str] = Header(default=None), email: Optional[str] = None):
+    identity = _identity_from_request(authorization, email)
+    return {"items": store.list_runs(identity["user_id"], max(1, min(limit, 200)))}
 
 
 @app.post("/set_user_name")
