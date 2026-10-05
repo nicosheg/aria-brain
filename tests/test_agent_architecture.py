@@ -119,3 +119,24 @@ def test_frontend_has_modern_chat_and_history_surface():
     assert 'id="chatInput"' in source
     assert 'id="historySearch"' in source
     assert "async function uploadFile" in source
+
+
+def test_qwen_is_primary_when_openrouter_is_available(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
+    from aria_agent.runtime import AriaRuntime
+
+    runtime = AriaRuntime.__new__(AriaRuntime)
+    candidates = runtime.provider_candidates()
+    assert candidates
+    assert candidates[0][0] == "openrouter"
+    assert candidates[0][1] == "qwen/qwen3.8-27b:free"
+
+
+def test_cognitive_core_is_model_independent():
+    from aria_agent.intelligence import CognitiveCore
+
+    core = CognitiveCore()
+    frame = core.classify("Find current remote jobs for me and help me prepare")
+    assert frame.intent == "jobs"
+    assert "job_finder" in frame.workers
