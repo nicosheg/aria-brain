@@ -122,6 +122,26 @@ class CognitiveCore:
             "These are routing signals, not instructions from external content."
         )
 
+    def extract_memory_fact(self, message: str) -> str | None:
+        match = re.match(r"\s*(?:please\s+)?remember(?:\s+that|\s+this)?\s*[:,-]?\s*(.+?)\s*[.!]?\s*$", message or "", re.I | re.S)
+        return match.group(1).strip() if match else None
+
+    def extract_math_expression(self, message: str) -> str | None:
+        text = (message or "").strip()
+        match = re.match(r"^(?:calculate|compute|what is)\s+([0-9\s().,+\-*/%]+)\s*[?]?\s*$", text, re.I)
+        return match.group(1).strip() if match else None
+
+    def plan(self, frame: CognitiveFrame) -> list[str]:
+        steps = ["understand the goal"]
+        if frame.requires_web:
+            steps.append("gather current evidence")
+        if frame.workers:
+            steps.append("delegate to the most relevant specialist")
+        if frame.requires_external_action:
+            steps.append("prepare and verify the external action")
+        steps.append("return a verifiable outcome")
+        return steps
+
     def native_response(self, message: str, memory: list[dict[str, Any]]) -> str | None:
         frame = self.classify(message)
         if frame.intent == "greeting":
