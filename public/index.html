@@ -113,7 +113,36 @@ function closeHistory(){drawerBg.classList.remove("open");historyPanel.classList
 
 $("openChat").onclick=()=>openChat();$("openHistory").onclick=openHistory;$("backChat").onclick=closeChat;$("historyBtn").onclick=openHistory;$("closeHistory").onclick=closeHistory;drawerBg.onclick=closeHistory;$("profileBtn").onclick=()=>auth.signOut();
 document.querySelectorAll(".prompt").forEach(x=>x.onclick=()=>openChat(x.dataset.prompt||""));
-input.addEventListener("input",resize);input.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}});sendBtn.onclick=send;$("attachBtn").onclick=()=>$("fileInput").click();$("fileInput").onchange=e=>{const f=e.target.files?.[0];if(!f)return;addMessage("File selected: "+f.name,"aria");e.target.value=""};
+input.addEventListener("input",resize);input.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}});sendBtn.onclick=send;$("attachBtn").onclick=()=>$("fileInput").click();
+$("fileInput").onchange=e=>{
+  const f=e.target.files?.[0];
+  if(!f)return;
+  uploadFile(f);
+  e.target.value="";
+};
+async function uploadFile(file){
+  if(!currentUser)return;
+  if(file.size>25*1024*1024){addMessage("Maximum file size is 25MB.","aria");return}
+  const reader=new FileReader();
+  reader.onload=async event=>{
+    try{
+      const base64=String(event.target.result).split(",")[1];
+      const fileType=file.type.includes("pdf")?"pdf":"image";
+      const endpoint=fileType==="pdf"?"/upload-pdf":"/upload-ocr";
+      const res=await fetch(endpoint,{
+        method:"POST",
+        headers:await headers({"Content-Type":"application/json"}),
+        body:JSON.stringify({file_base64:base64,file_name:file.name,file_type:fileType,mime_type:file.type})
+      });
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok)throw new Error(data.detail||data.error||"Upload failed.");
+      addMessage("Received "+file.name+". "+(data.message||"The file is available to ARIA."),"aria");
+    }catch(err){
+      addMessage(err.message||"The file could not be uploaded.","aria");
+    }
+  };
+  reader.readAsDataURL(file);
+};
 historySearch.oninput=()=>{const q=historySearch.value.trim().toLowerCase();renderHistory(!q?historyItems:historyItems.filter(x=>(x.input||"").toLowerCase().includes(q)||(x.output||"").toLowerCase().includes(q)))};
 
 auth.onAuthStateChanged(async user=>{if(!user){window.location.href="/login.html";return}currentUser=user;const name=user.displayName||(user.email?user.email.split("@")[0]:"there");$("userName").textContent=name;const parts=name.trim().split(/\s+/).filter(Boolean);$("initials").textContent=(parts.length>1?parts[0][0]+parts[parts.length-1][0]:name.slice(0,2)).toUpperCase();try{const res=await fetch("/health");const h=await res.json();const state=h.default_provider?(h.default_provider.provider+" · "+h.default_provider.model):(h.status==="ok"?"Core online":"Model connection needs attention");$("systemState").textContent=state;$("modelState").textContent=state}catch{}try{await fetch("/set_user_name",{method:"POST",headers:await headers({"Content-Type":"application/json"}),body:JSON.stringify({name,email:user.email||""})})}catch{}resize()});
