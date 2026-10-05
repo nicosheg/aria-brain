@@ -18,6 +18,12 @@ services:
         value: "32"
       - key: ARIA_ALLOW_EMAIL_IDENTITY
         value: "false"
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: QWEN_MODEL
+        value: "qwen/qwen3.8-27b:free"
+      - key: ARIA_PROVIDER
+        value: "openrouter"
       - key: OPENAI_API_KEY
         sync: false
       - key: ARIA_APP_SECRET
