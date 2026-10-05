@@ -162,11 +162,22 @@ Operating rules:
 
         candidates = self.provider_candidates()
         if not candidates:
+            native_fact = self.cognitive.extract_memory_fact(message)
+            native_math = self.cognitive.extract_math_expression(message)
+            if native_fact:
+                safe_fact = redact_secrets(native_fact)
+                self.store.add_memory(user_id, "fact", safe_fact, importance=0.85)
+                native = f"Remembered: {safe_fact}"
+            elif native_math:
+                try:
+                    native = str(self.cognitive.safe_math(native_math))
+                except Exception:
+                    native = None
             if native is None:
                 native = (
                     "My core systems are online, but no language model is connected yet. "
-                    "Connect an OpenRouter Qwen3.8 27B key or another supported provider and I can "
-                    "continue with full conversational reasoning."
+                    "I can still handle native memory, simple calculations, safety checks and deterministic routing. "
+                    "Connect Qwen3.8 27B free for full conversational reasoning and agentic work."
                 )
             safe_input = redact_secrets(message)
             self.store.add_memory(user_id, "conversation_user", safe_input, importance=0.35)
