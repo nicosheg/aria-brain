@@ -142,3 +142,21 @@ def test_cognitive_core_is_model_independent():
     frame = core.classify("Find current remote jobs for me and help me prepare")
     assert frame.intent == "jobs"
     assert "job_finder" in frame.workers
+
+
+def test_native_memory_and_math_primitives_are_executable(tmp_path):
+    from aria_agent.runtime import AriaRuntime
+    from aria_agent.storage import AgentStore
+    from aria_agent.config import settings
+    from pathlib import Path
+
+    s = AgentStore()
+    s._use_postgres = False
+    s._path = Path(tmp_path) / "agent_store.json"
+    s._write_local(s._empty_local())
+    r = AriaRuntime(s)
+    r.provider_candidates = lambda: []
+    result = __import__("asyncio").run(r.run("u", "remember that my target is to become 1% better every day"))
+    assert "Remembered:" in result["reply"]
+    result = __import__("asyncio").run(r.run("u", "what is 12 * 3"))
+    assert result["reply"] == "36.0"
