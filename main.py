@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import logging
 from pathlib import Path
 from typing import Any, Optional
 
@@ -18,7 +19,8 @@ from aria_agent.runtime import AriaRuntime
 from aria_agent.storage import store
 from aria_agent.security import assert_public_http_url
 
-app = FastAPI(title="ARIA", version="4.0.0")
+logger = logging.getLogger("aria.api")
+app = FastAPI(title="ARIA", version="4.1.0")
 
 _origins = [x.strip() for x in os.getenv("ARIA_ALLOWED_ORIGINS", "").split(",") if x.strip()]
 app.add_middleware(
@@ -199,6 +201,7 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(default=N
         raise
     except Exception as exc:
         # Never expose stack traces, credentials or database details to clients.
+        logger.exception("ARIA chat request failed")
         message = str(exc)
         public_reason = (
             "No model connection is configured."
@@ -220,6 +223,7 @@ async def approve_run(run_id: str, req: ApprovalRequest, authorization: Optional
         )
         return result
     except Exception as exc:
+        logger.exception("ARIA approval resume failed")
         raise HTTPException(503 if "provider" in str(exc).lower() else 502, detail=(
             "ARIA could not resume that action because its model connection is unavailable."
             if "provider" in str(exc).lower()
