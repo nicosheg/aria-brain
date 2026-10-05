@@ -27,10 +27,9 @@ For websites without MCP, ARIA includes a Playwright browser controller for navi
 
 ## Agent workers
 
-The worker catalog currently covers:
-opportunity scouting, job finding, role matching, applications, freelancing, service building, pricing, market research, prospecting, outreach, communication, personal brand, content, skill building, resource optimization, income planning, portfolio building, negotiation, customer discovery, automation design, execution coaching and daily improvement.
+The current worker catalog contains 45 specialists spanning opportunity discovery, job finding, job alerts, remote/local work, role matching, application building/review, interview coaching, freelancing, service design, pricing, market research, customer discovery, sales prospecting, lead generation, outreach, proposals, communication, negotiation, personal brand, content, portfolios, skill development, resource optimization, income planning, microbusinesses, digital products, profit tracking, automation, workflow execution, scam detection, fact verification, research, execution coaching, job creation, recruiting, hiring operations, interview drills, data operations, software development, security review, daily improvement and personal operations.
 
-These are specialists, not separate chatbots: ARIA delegates to them and owns the final plan and execution.
+These are specialists, not separate chatbots. ARIA remains the manager, combines evidence, decides what matters next and owns the final user-facing outcome.
 
 ## Security model
 
