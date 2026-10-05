@@ -379,6 +379,51 @@ class AgentStore:
                 data["runs"] = [row if x["id"] == run_id else x for x in data["runs"]] if existing else data["runs"] + [row]
                 self._write_local(data)
 
+    def list_runs(self, user_id: str, limit: int = 100) -> list[dict]:
+        uid = normalize_identity(user_id)
+        limit = max(1, min(int(limit), 200))
+        if self._use_postgres:
+            rows = self._query(
+                """
+                SELECT id,provider,model,status,input_text,output_text,created_at,updated_at
+                FROM aria_runs
+                WHERE user_id=%s
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (uid, limit),
+            )
+            return [
+                {
+                    "id": r[0],
+                    "provider": r[1],
+                    "model": r[2],
+                    "status": r[3],
+                    "input": r[4] or "",
+                    "output": r[5] or "",
+                    "created_at": r[6].isoformat() if hasattr(r[6], "isoformat") else str(r[6]),
+                    "updated_at": r[7].isoformat() if hasattr(r[7], "isoformat") else str(r[7]),
+                }
+                for r in rows
+            ]
+
+        with self._lock:
+            rows = [x for x in self._read_local()["runs"] if x["user_id"] == uid]
+        rows = sorted(rows, key=lambda x: x.get("created_at", ""), reverse=True)[:limit]
+        return [
+            {
+                "id": row["id"],
+                "provider": row.get("provider", ""),
+                "model": row.get("model", ""),
+                "status": row.get("status", ""),
+                "input": row.get("input_text", ""),
+                "output": row.get("output_text", ""),
+                "created_at": row.get("created_at", ""),
+                "updated_at": row.get("updated_at", ""),
+            }
+            for row in rows
+        ]
+
     def get_run(self, user_id: str, run_id: str) -> Optional[dict]:
         uid = normalize_identity(user_id)
         if self._use_postgres:
