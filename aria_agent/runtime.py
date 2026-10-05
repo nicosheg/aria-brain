@@ -156,9 +156,30 @@ Operating rules:
         if len(message) > settings.max_message_chars:
             raise ValueError(f"Message exceeds {settings.max_message_chars} characters.")
 
+        memory = self.store.recent_memory(user_id, 16)
+        frame = self.cognitive.classify(message)
+        native = self.cognitive.native_response(message, memory)
+
         candidates = self.provider_candidates()
         if not candidates:
-            raise RuntimeError("No LLM provider configured.")
+            if native is None:
+                native = (
+                    "My core systems are online, but no language model is connected yet. "
+                    "Connect an OpenRouter Qwen3.8 27B key or another supported provider and I can "
+                    "continue with full conversational reasoning."
+                )
+            safe_input = redact_secrets(message)
+            self.store.add_memory(user_id, "conversation_user", safe_input, importance=0.35)
+            self.store.add_memory(user_id, "conversation_assistant", redact_secrets(native), importance=0.35)
+            return {
+                "run_id": str(uuid.uuid4()),
+                "status": "completed",
+                "reply": native,
+                "provider": "native",
+                "model": "aria-core",
+                "approval_required": False,
+                "interruptions": [],
+            }
 
         previous = self.store.get_run(user_id, resume_run_id) if resume_run_id else None
         if resume_run_id and not previous:
@@ -173,6 +194,8 @@ Operating rules:
 
         servers = await self.connectors.ensure_for_user(user_id, self.store)
         agent = await self._build_agent(user_id, model, servers)
+
+        cognitive_context = self.cognitive.context_instructions(frame)
 
         if previous and previous.get("state"):
             state = await RunState.from_string(agent, previous["state"])
