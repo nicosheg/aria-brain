@@ -1,709 +1,123 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>ARIA — Your AI. Your Life. Your Future.</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    body { background: #01030A; font-family: 'Inter', sans-serif; overflow-x: hidden; min-height: 100vh; }
-    .cosmic-bg { position: fixed; inset: 0; background: radial-gradient(ellipse at 45% 30%, #0D1E3A 0%, #071222 35%, #030810 70%, #01030A 100%); z-index: 0; }
-    .space-glow { position: fixed; top: 0; left: 0; width: 100%; height: 60%; background: radial-gradient(ellipse at 50% 0%, rgba(12,28,64,0.5) 0%, rgba(6,14,32,0.2) 50%, transparent 100%); pointer-events: none; z-index: 1; }
-    .starfield { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
-    .star { position: absolute; background: white; border-radius: 50%; opacity: 0; animation: twinkle linear infinite; }
-    @keyframes twinkle { 0% { opacity: 0; transform: scale(0.6); } 40% { opacity: 0.9; transform: scale(1); } 100% { opacity: 0; transform: scale(0.6); } }
-    .shooting-star { position: absolute; width: 2px; height: 2px; background: rgba(255,255,240,0.95); box-shadow: 0 0 6px rgba(255,240,200,0.8); border-radius: 50%; opacity: 0; animation: shootVerySlow linear infinite; }
-    @keyframes shootVerySlow { 0% { transform: translate(0, 0); opacity: 0; } 10% { opacity: 1; } 30% { transform: translate(-60px, 60px); opacity: 0.6; } 100% { transform: translate(-140px, 140px); opacity: 0; } }
-    .app-container { position: relative; z-index: 3; max-width: 430px; margin: 0 auto; min-height: 100vh; padding: 20px 20px 12px; display: flex; flex-direction: column; }
-    .header { display: flex; justify-content: flex-end; align-items: flex-start; margin-bottom: 24px; }
-    .signout-block { display: flex; flex-direction: column; align-items: center; background: rgba(255,255,255,0.04); border: 0.5px solid rgba(255,255,255,0.1); border-radius: 40px; padding: 6px 14px 4px; cursor: pointer; transition: all 0.2s; }
-    .signout-block:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.15); }
-    .user-initials { font-size: 13px; font-weight: 500; color: #E2E8F0; letter-spacing: 0.5px; }
-    .signout-label { font-size: 7px; font-weight: 400; color: #7A8AAA; margin-top: 1px; }
-    .title-section { margin-right: auto; }
-    .main-title { font-size: 28px; font-weight: 700; letter-spacing: 3px; color: white; }
-    .subtitle { font-size: 10px; font-weight: 400; letter-spacing: 0.8px; color: #94A3B8; margin-top: 4px; }
-    .center-message { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; margin: 20px 0; }
-    .greeting { font-size: 24px; font-weight: 300; letter-spacing: -0.3px; color: #F0F4FA; }
-    .greeting span { font-weight: 500; background: linear-gradient(120deg, #A78BFA, #60A5FA, #10B981); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 6s linear infinite; }
-    @keyframes shimmer { 0% { background-position: 0% center; } 100% { background-position: 200% center; } }
-    .timestamp { font-size: 12px; color: #7A8AAA; margin-top: 8px; opacity: 0.7; }
-    .bottom-block { margin-top: auto; width: 100%; }
-    .cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
-    .feature-card { background: rgba(20,22,40,0.5); backdrop-filter: blur(8px); border-radius: 18px; padding: 14px 8px 10px; display: flex; flex-direction: column; align-items: center; text-align: center; border: 0.5px solid rgba(255,255,255,0.05); cursor: pointer; transition: all 0.2s; }
-    .feature-card:hover { background: rgba(20,22,40,0.7); }
-    .card-icon { width: 36px; height: 36px; border-radius: 18px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
-    .card-memory .card-icon { background: rgba(167,139,250,0.15); }
-    .card-education .card-icon { background: rgba(96,165,250,0.15); }
-    .card-income .card-icon { background: rgba(16,185,129,0.15); }
-    .card-icon svg { width: 18px; height: 18px; fill: none; stroke-width: 1.5; }
-    .card-memory .card-icon svg { stroke: #A78BFA; }
-    .card-education .card-icon svg { stroke: #60A5FA; }
-    .card-income .card-icon svg { stroke: #10B981; }
-    .card-title { font-size: 13px; font-weight: 600; color: white; margin-bottom: 2px; }
-    .card-desc { font-size: 9px; color: #9CA3AF; }
-    .divider { text-align: center; margin: 8px 0 16px; }
-    .divider-text { font-size: 9px; letter-spacing: 1.5px; color: #60A5FA; display: inline-flex; align-items: center; gap: 6px; opacity: 0.6; }
-    .input-capsule { background: #0A0F1A; border: 1.5px solid #3B82F6; border-radius: 50px; padding: 8px 12px 8px 18px; display: flex; align-items: center; gap: 12px; margin-bottom: 12px; box-shadow: 0 0 8px rgba(59,130,246,0.1); }
-    .input-icon-left svg { width: 16px; height: 16px; stroke: #60A5FA; }
-    .input-field { flex: 1; background: transparent; border: none; color: white; font-size: 14px; outline: none; padding: 8px 0; resize: none; min-height: 42px; max-height: 120px; font-family: inherit; line-height: 1.4; }
-    .input-field::placeholder { color: #334155; }
-    .send-circle { width: 34px; height: 34px; background: transparent; border: 1px solid #1E40AF; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
-    .send-circle svg { width: 14px; height: 14px; stroke: #3B82F6; stroke-width: 2; }
-    .upload-btn { background: rgba(96,165,250,0.15); border-radius: 50%; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #60A5FA; transition: all 0.25s ease; border: 0.5px solid rgba(96,165,250,0.3); position: relative; flex-shrink: 0; }
-    .upload-btn:hover { background: rgba(96,165,250,0.3); color: #A78BFA; transform: scale(1.05); border-color: #A78BFA; box-shadow: 0 0 12px rgba(96,165,250,0.5); }
-    .upload-btn svg { width: 18px; height: 18px; }
-    .upload-btn::after { content: "Upload (image/PDF)"; position: absolute; bottom: 45px; background: rgba(0,0,0,0.8); color: white; font-size: 10px; padding: 4px 8px; border-radius: 12px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; font-weight: 400; }
-    .upload-btn:hover::after { opacity: 1; }
-    @media (max-width: 640px) { .upload-btn::after { font-size: 9px; bottom: 40px; } }
-    .footer { text-align: center; padding: 8px 0 12px; font-size: 10px; letter-spacing: 0.6px; color: #4A5A7A; border-top: 0.5px solid rgba(255,255,255,0.04); width: 100%; }
-    .chat-view { position: fixed; inset: 0; background: transparent; z-index: 100; padding: 20px; display: none; flex-direction: column; }
-    .chat-view.active { display: flex; }
-    .chat-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
-    .back-btn { background: rgba(0,0,0,0.4); backdrop-filter: blur(8px); border: none; color: white; font-size: 26px; cursor: pointer; width: 40px; height: 40px; border-radius: 30px; display: flex; align-items: center; justify-content: center; }
-    .chat-actions { display: flex; gap: 12px; margin-left: auto; }
-    .chat-action { background: rgba(0,0,0,0.4); backdrop-filter: blur(8px); border: none; font-size: 18px; cursor: pointer; color: white; width: 40px; height: 40px; border-radius: 30px; display: flex; align-items: center; justify-content: center; transition: 0.1s; }
-    .chat-action:hover { background: rgba(0,0,0,0.6); }
-    .messages-area { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; }
-    .message { max-width: 80%; animation: fadeIn 0.2s ease; }
-    .message.user { align-self: flex-end; }
-    .message.aria { align-self: flex-start; }
-    .message-bubble { padding: 10px 14px; border-radius: 20px; font-size: 14px; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); color: white; }
-    .user .message-bubble { background: rgba(96,165,250,0.3); border: 0.5px solid rgba(96,165,250,0.5); }
-    .message-actions { display: flex; gap: 8px; margin-top: 6px; opacity: 0; transition: opacity 0.2s; }
-    .message:hover .message-actions { opacity: 0.8; }
-    .message-action { background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); border: none; font-size: 12px; cursor: pointer; color: white; padding: 4px 8px; border-radius: 16px; }
-    .message-action:hover { background: rgba(0,0,0,0.6); }
-    .rating-row { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px; padding: 2px 0; }
-    .rating-star { width: 18px; height: 18px; cursor: pointer; fill: none; stroke: rgba(255, 255, 255, 0.3); stroke-width: 1.5; transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.3s, fill 0.2s; }
-    .rating-star.active { fill: #ffffff; stroke: #3b82f6; filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.8)) drop-shadow(0 0 10px rgba(167, 139, 250, 0.4)); transform: scale(1.05); }
-    @media (max-width: 640px) { .rating-star { width: 22px; height: 22px; } .rating-row { gap: 8px; } }
-    .typing-indicator { display: flex; align-items: center; gap: 4px; padding: 8px 12px; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); border-radius: 20px; width: fit-content; animation: glowPulse 1.2s infinite; }
-    .typing-dot { width: 6px; height: 6px; background: #60A5FA; border-radius: 50%; animation: dotBounce 1.2s infinite; }
-    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
-    @keyframes dotBounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
-    @keyframes glowPulse { 0% { box-shadow: 0 0 0 rgba(96,165,250,0); } 50% { box-shadow: 0 0 10px rgba(96,165,250,0.3); } 100% { box-shadow: 0 0 0 rgba(96,165,250,0); } }
-    .history-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); z-index: 200; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: 0.2s; }
-    .history-modal.active { opacity: 1; pointer-events: auto; }
-    .history-container { background: rgba(10,20,40,0.95); border-radius: 24px; max-width: 90%; width: 500px; max-height: 80%; overflow-y: auto; padding: 20px; border: 1px solid rgba(255,255,255,0.1); }
-    .history-item { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 0.5px solid rgba(255,255,255,0.1); }
-    .history-user { font-size: 12px; color: #60A5FA; }
-    .history-aria { font-size: 12px; color: #A78BFA; margin-top: 4px; }
-    .close-history { background: transparent; border: none; color: white; font-size: 20px; float: right; cursor: pointer; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-    @media (max-width: 640px) { .cards-grid { gap: 8px; } .feature-card { padding: 10px 4px 6px; } .card-title { font-size: 11px; } .card-desc { font-size: 8px; } .card-icon { width: 30px; height: 30px; } .card-icon svg { width: 16px; height: 16px; } }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07111f">
+<title>ARIA</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<style>
+:root{--bg:#050b13;--panel:#0b1420e8;--panel2:#0e1a28f2;--line:#ffffff15;--line2:#ffffff26;--text:#f4f7fb;--muted:#8e9daf;--gold:#d9b86c;--blue:#8eadd0;--user:#16263c}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{overflow:hidden}
+.shell{height:100dvh;background:radial-gradient(850px 400px at 50% -80px,#19304c55,transparent 65%),radial-gradient(600px 500px at 110% 70%,#856c301b,transparent 70%),linear-gradient(180deg,#08111d,#050a11 65%,#03070c)}
+button,input,textarea{font:inherit}button{color:inherit}.hidden{display:none!important}
+.home{width:min(100%,920px);height:100%;margin:auto;padding:18px 20px max(20px,env(safe-area-inset-bottom));display:flex;flex-direction:column}
+.topbar{display:flex;align-items:center;justify-content:space-between}.brand{display:flex;align-items:center;gap:11px}.mark{width:36px;height:36px;border:1px solid var(--line2);border-radius:11px;display:grid;place-items:center;background:#ffffff08}.mark svg,.icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6}.mark svg{stroke:var(--gold)}
+.brand-name{font-size:14px;font-weight:700;letter-spacing:.18em}.brand-state{font-size:10px;color:var(--muted);margin-top:2px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.profile{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:#ffffff06;cursor:pointer;font-size:12px}
+.hero{padding:11vh 0 6vh}.eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:.19em;color:var(--gold);margin-bottom:16px}.hero h1{font-size:clamp(38px,8vw,66px);line-height:.98;letter-spacing:-.045em;font-weight:560;margin:0;max-width:760px}.hero h1 span{color:#8ea6c1}.hero p{font-size:15px;line-height:1.65;color:var(--muted);max-width:610px;margin:18px 0 0}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:26px}.primary,.secondary{padding:13px 17px;border-radius:13px;cursor:pointer;font-weight:650}.primary{border:0;background:linear-gradient(135deg,#dec078,#b99148);color:#161109}.secondary{border:1px solid var(--line2);background:#ffffff05}
+.prompts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:auto}.prompt{border:1px solid var(--line);background:#0b14209e;border-radius:16px;padding:15px;text-align:left;cursor:pointer;min-height:120px}.prompt:hover{background:#122033b5;border-color:var(--line2)}.prompt small{color:#647286;text-transform:uppercase;letter-spacing:.15em;font-size:9px}.prompt strong{display:block;margin-top:8px;font-size:13px;line-height:1.38}.prompt span{display:block;color:var(--muted);font-size:11px;line-height:1.45;margin-top:6px}
+.chat{position:fixed;inset:0;display:none;flex-direction:column;background:#050a11;z-index:10}.chat.active{display:flex}.chat-head{height:64px;padding:8px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);background:#050a11e8;backdrop-filter:blur(18px)}.chat-title{min-width:0;flex:1}.chat-title strong{font-size:14px}.chat-title span{display:block;font-size:10px;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.icon{width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:#ffffff05;display:grid;place-items:center;cursor:pointer;flex:0 0 auto}.avatar{width:31px;height:31px;border-radius:10px;display:grid;place-items:center;border:1px solid var(--line2);background:#d9b86c0c;color:var(--gold);flex:0 0 auto}.avatar svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5}
+.messages{flex:1;overflow:auto;padding:22px 14px 18px}.messages-inner{width:min(100%,820px);margin:auto}.welcome{display:flex;gap:10px;margin:8px 0 28px}.welcome h2{font-size:18px;margin:0 0 6px}.welcome p{font-size:12px;line-height:1.55;color:var(--muted);margin:0;max-width:620px}
+.row{display:flex;gap:10px;margin-bottom:18px;align-items:flex-start}.row.user{justify-content:flex-end}.bubble{max-width:min(760px,88%);padding:11px 14px;border-radius:17px;border:1px solid var(--line);font-size:13.5px;line-height:1.58;overflow-wrap:anywhere}.row.aria .bubble{background:var(--panel2);border-top-left-radius:6px}.row.user .bubble{background:var(--user);border-color:#8eadd01a;border-top-right-radius:6px}.bubble strong{font-weight:700}.bubble ul{margin:6px 0 0;padding-left:18px}.bubble li{margin:3px 0}
+.actions-row{display:flex;gap:5px;margin:6px 0 0 41px}.msg-btn{border:1px solid transparent;background:transparent;color:#637189;font-size:10px;padding:4px 7px;border-radius:7px;cursor:pointer}.msg-btn:hover{border-color:var(--line);background:#ffffff05;color:var(--text)}
+.approval{margin:0 0 20px 41px;max-width:680px;padding:13px;border:1px solid #d9b86c33;border-radius:13px;background:#d9b86c09}.approval strong{font-size:12px}.approval p{font-size:11px;color:var(--muted);line-height:1.5;margin:5px 0 10px}.approval button{border-radius:9px;padding:8px 11px;font-size:11px;cursor:pointer}.approve{background:var(--gold);border:0;color:#161109;font-weight:700}.reject{margin-left:7px;background:transparent;border:1px solid var(--line2)}
+.typing{display:flex;gap:4px}.typing i{width:6px;height:6px;background:#8190a4;border-radius:50%;animation:t 1s infinite}.typing i:nth-child(2){animation-delay:.14s}.typing i:nth-child(3){animation-delay:.28s}@keyframes t{50%{opacity:.35;transform:translateY(-2px)}}
+.composer-wrap{border-top:1px solid var(--line);padding:9px 10px max(12px,env(safe-area-inset-bottom));background:#050a11ef;backdrop-filter:blur(18px)}.composer{width:min(100%,820px);margin:auto;border:1px solid var(--line2);background:#0d1825e8;border-radius:18px;padding:7px;display:flex;gap:7px;align-items:flex-end}.composer textarea{flex:1;min-height:42px;max-height:140px;border:0;outline:0;background:transparent;color:var(--text);resize:none;font-size:14px;line-height:1.45;padding:10px 7px}.composer textarea::placeholder{color:#647386}.composer button{width:38px;height:38px;border-radius:11px;border:1px solid var(--line);background:#ffffff05;display:grid;place-items:center;cursor:pointer;flex:0 0 auto}.composer .send{background:var(--gold);color:#18130a;border:0}.composer .send:disabled{opacity:.35}.hint{text-align:center;font-size:9px;color:#4d5a6e;margin-top:6px}
+.drawer-bg{position:fixed;inset:0;background:#0009;z-index:30;display:none}.drawer-bg.open{display:block}.history{position:fixed;right:0;top:0;bottom:0;width:min(430px,100%);background:#07101aeF;border-left:1px solid var(--line2);z-index:31;transform:translateX(100%);transition:.22s ease;display:flex;flex-direction:column}.history.open{transform:none}.history-head{padding:17px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}.history-head strong{font-size:15px;flex:1}.close{border:1px solid var(--line);background:#ffffff05;border-radius:9px;padding:8px 10px;font-size:10px;cursor:pointer}.search{padding:10px 12px;border-bottom:1px solid var(--line)}.search input{width:100%;background:#ffffff05;border:1px solid var(--line);border-radius:11px;color:var(--text);padding:10px 11px;outline:0;font-size:12px}.history-list{overflow:auto;flex:1;padding:8px}.day{font-size:9px;text-transform:uppercase;letter-spacing:.15em;color:#5e6d82;padding:10px 7px 6px}.item{width:100%;display:block;text-align:left;border:1px solid transparent;background:transparent;border-radius:12px;padding:11px 9px;cursor:pointer;margin-bottom:2px}.item:hover{background:#ffffff05;border-color:var(--line)}.item .q{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.item .a{font-size:10px;color:var(--muted);line-height:1.45;margin-top:4px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}.item .meta{font-size:9px;color:#536176;margin-top:6px}
+@media(max-width:700px){.home{padding-left:14px;padding-right:14px}.hero{padding-top:8vh}.prompts{grid-template-columns:1fr}.prompt{min-height:0}.bubble{max-width:92%}.actions-row,.approval{margin-left:40px}.chat-head{padding-left:10px;padding-right:10px}}
+</style>
 </head>
 <body>
-  <div class="cosmic-bg"></div>
-  <div class="space-glow"></div>
-  <div class="starfield" id="starfield"></div>
-  <div class="app-container" id="mainUI">
-    <div class="header">
-      <div class="title-section">
-        <div class="main-title">ARIA</div>
-        <div class="subtitle">Your AI. Your Life. Your Future.</div>
-      </div>
-      <div class="signout-block" id="signoutBtn">
-        <div class="user-initials" id="userInitials">EN</div>
-        <div class="signout-label">sign out</div>
-      </div>
+<div class="shell">
+  <main class="home" id="home">
+    <header class="topbar">
+      <div class="brand"><div class="mark"><svg viewBox="0 0 24 24"><path d="M5 16.5 12 4l7 12.5M8.2 12.5h7.6M7.1 19.5h9.8"/></svg></div><div><div class="brand-name">ARIA</div><div class="brand-state" id="systemState">Core online</div></div></div>
+      <button class="profile" id="profileBtn" aria-label="Sign out"><span id="initials">EN</span></button>
+    </header>
+    <section class="hero">
+      <div class="eyebrow">Your intelligence layer</div>
+      <h1>Good to see you, <span id="userName">there</span>.</h1>
+      <p>Think with ARIA. Research what matters, remember what matters, and turn decisions into useful next steps.</p>
+      <div class="actions"><button class="primary" id="openChat">Talk to ARIA</button><button class="secondary" id="openHistory">View history</button></div>
+    </section>
+    <div class="prompts">
+      <button class="prompt" data-prompt="Find realistic jobs or income opportunities I can pursue with my current skills and resources."><small>Work</small><strong>Find my next opportunity</strong><span>Jobs, income paths and practical entry points.</span></button>
+      <button class="prompt" data-prompt="Look at what you know about my goals and tell me the highest-value thing I should improve next."><small>Growth</small><strong>Make me meaningfully better</strong><span>One focused improvement instead of vague motivation.</span></button>
+      <button class="prompt" data-prompt="Research something useful I should know right now and explain why it matters to me."><small>Research</small><strong>Discover something useful</strong><span>Current information turned into action.</span></button>
     </div>
-    <div class="center-message">
-      <div class="greeting">Hey <span id="userName">friend</span>.</div>
-      <div class="timestamp" id="timestamp">—</div>
-    </div>
-    <div class="bottom-block">
-      <div class="cards-grid">
-        <div class="feature-card card-memory" data-pillar="Memory">
-          <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M12 2a9 9 0 1 0 0 18A9 9 0 0 0 12 2z"/><path d="M8 12s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/></svg></div>
-          <div class="card-title">Memory</div><div class="card-desc">Your memories, organized.</div>
-        </div>
-        <div class="feature-card card-education" data-pillar="Education">
-          <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
-          <div class="card-title">Education</div><div class="card-desc">Learn, grow, and master.</div>
-        </div>
-        <div class="feature-card card-income" data-pillar="Income">
-          <div class="card-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-          <div class="card-title">Income</div><div class="card-desc">Track, plan, and grow.</div>
-        </div>
-      </div>
-      <div class="divider"><div class="divider-text">💫 ONE AI. EVERY PART OF YOUR LIFE. 💫</div></div>
-      <div class="input-capsule">
-        <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
-        <textarea class="input-field" id="mainInput" rows="1" placeholder="Message ARIA..."></textarea>
-        <div class="send-circle" id="sendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
-        <div class="upload-btn" id="uploadBtn">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-            <line x1="8" y1="21" x2="16" y2="21"></line>
-            <line x1="12" y1="17" x2="12" y2="21"></line>
-            <path d="M12 2v5m-2-2 2-2 2 2"/>
-          </svg>
-        </div>
-      </div>
-      <div class="footer">By MrNicosh Eg</div>
-    </div>
-  </div>
-  <div id="chatView" class="chat-view">
-    <div class="chat-header">
-      <button class="back-btn" id="closeChatBtn">←</button>
-      <div style="color:white; font-weight:500;">ARIA</div>
-      <div class="chat-actions">
-        <button class="chat-action" id="historyBtn" title="History">🕘</button>
-      </div>
-    </div>
-    <div class="messages-area" id="messagesArea"></div>
-    <div class="input-capsule" style="margin-bottom: 0;">
-      <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
-      <textarea class="input-field" id="chatInput" rows="1" placeholder="Message ARIA..."></textarea>
-      <div class="send-circle" id="chatSendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
-      <div class="upload-btn" id="chatUploadBtn">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-          <line x1="8" y1="21" x2="16" y2="21"></line>
-          <line x1="12" y1="17" x2="12" y2="21"></line>
-          <path d="M12 2v5m-2-2 2-2 2 2"/>
-        </svg>
-      </div>
-    </div>
-  </div>
-  <div id="historyModal" class="history-modal">
-    <div class="history-container">
-      <button class="close-history" id="closeHistoryBtn">✕</button>
-      <h3 style="margin-bottom:16px;">📜 Conversation History</h3>
-      <div id="historyContent"></div>
-    </div>
-  </div>
-  <script>
-    // ── Stars ──
-    (function() {
-      const starfield = document.getElementById('starfield');
-      function isNearDiagonal(x, y) { return (x + y) > 1.2; }
-      const starCount = 550;
-      for (let i = 0; i < starCount; i++) {
-        const star = document.createElement('div');
-        star.className = 'star';
-        let x = Math.random();
-        let y = Math.random();
-        if (isNearDiagonal(x, y)) {
-          star.style.left = (x * 100) + '%';
-          star.style.top = (y * 100) + '%';
-          star.style.width = (Math.random() * 0.9 + 0.2) + 'px';
-          star.style.height = star.style.width;
-          star.style.animationDuration = (Math.random() * 8 + 4) + 's';
-        } else {
-          if (Math.random() > 0.65) continue;
-          star.style.left = (x * 100) + '%';
-          star.style.top = (y * 100) + '%';
-          star.style.width = (Math.random() * 0.7 + 0.1) + 'px';
-          star.style.height = star.style.width;
-          star.style.animationDuration = (Math.random() * 10 + 6) + 's';
-        }
-        star.style.animationDelay = (Math.random() * 8) + 's';
-        starfield.appendChild(star);
-      }
-      for (let i = 0; i < 6; i++) {
-        const shoot = document.createElement('div');
-        shoot.className = 'shooting-star';
-        shoot.style.left = (Math.random() * 70 + 15) + '%';
-        shoot.style.top = (Math.random() * 50) + '%';
-        shoot.style.animationDuration = (Math.random() * 10 + 12) + 's';
-        shoot.style.animationDelay = (Math.random() * 40) + 's';
-        starfield.appendChild(shoot);
-      }
-    })();
+  </main>
 
-    // ── Firebase ──
-    const firebaseConfig = {
-      apiKey: "AIzaSyAfrs67qWlU8FjsjqHwNeivGgm7x_vHdJY",
-      authDomain: "fiducia-148b9.firebaseapp.com",
-      projectId: "fiducia-148b9",
-      storageBucket: "fiducia-148b9.firebasestorage.app",
-      messagingSenderId: "380888909038",
-      appId: "1:380888909038:web:efe40c252537e670959fff"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
+  <section class="chat" id="chat">
+    <header class="chat-head">
+      <button class="icon" id="backChat" aria-label="Back"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+      <div class="avatar"><svg viewBox="0 0 24 24"><path d="M5 16.5 12 4l7 12.5M8.2 12.5h7.6M7.1 19.5h9.8"/></svg></div>
+      <div class="chat-title"><strong>ARIA</strong><span id="modelState">Core online</span></div>
+      <button class="icon" id="historyBtn" aria-label="History"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9h8M8 13h6"/></svg></button>
+    </header>
+    <div class="messages" id="messages"><div class="messages-inner" id="messagesInner">
+      <div class="welcome"><div class="avatar"><svg viewBox="0 0 24 24"><path d="M5 16.5 12 4l7 12.5M8.2 12.5h7.6M7.1 19.5h9.8"/></svg></div><div><h2 id="welcomeTitle">What are we working on?</h2><p>Research, remember, delegate, plan and act. When an external action matters, ARIA pauses for your approval.</p></div></div>
+    </div></div>
+    <div class="composer-wrap"><div class="composer">
+      <button id="attachBtn" aria-label="Attach"><svg viewBox="0 0 24 24"><path d="m7.5 12.5 6.7-6.7a3 3 0 0 1 4.2 4.2l-8 8a5 5 0 0 1-7-7l7.4-7.4"/></svg></button>
+      <textarea id="chatInput" rows="1" placeholder="Message ARIA..."></textarea>
+      <button class="send" id="sendBtn" disabled aria-label="Send"><svg viewBox="0 0 24 24"><path d="m4 4 16 8-16 8 3.4-8z"/></svg></button>
+      <input id="fileInput" type="file" accept="image/*,application/pdf" hidden>
+    </div><div class="hint">Enter to send · Shift+Enter for a new line</div></div>
+  </section>
 
-    let currentUser = null;
-    let lastAriaMessage = null;
+  <div class="drawer-bg" id="drawerBg"></div>
+  <aside class="history" id="historyPanel">
+    <div class="history-head"><strong>Conversation history</strong><button class="close" id="closeHistory">Close</button></div>
+    <div class="search"><input id="historySearch" type="search" placeholder="Search conversations..."></div>
+    <div class="history-list" id="historyList"><div style="padding:24px 10px;color:#7f8da0;font-size:11px;text-align:center">No conversations yet.</div></div>
+  </aside>
+</div>
 
-    // ── Authenticated API helper ──
-    async function apiHeaders(extra = {}) {
-      if (!currentUser) return extra;
-      const token = await currentUser.getIdToken();
-      return { ...extra, 'Authorization': `Bearer ${token}` };
-    }
+<script>
+const firebaseConfig={apiKey:"AIzaSyAfrs67qWlU8FjsjqHwNeivGgm7x_vHdJY",authDomain:"fiducia-148b9.firebaseapp.com",projectId:"fiducia-148b9",storageBucket:"fiducia-148b9.firebasestorage.app",messagingSenderId:"380888909038",appId:"1:380888909038:web:efe40c252537e670959fff"};
+firebase.initializeApp(firebaseConfig);const auth=firebase.auth();
+let currentUser=null,busy=false,historyItems=[];
+const $=id=>document.getElementById(id),home=$("home"),chat=$("chat"),input=$("chatInput"),sendBtn=$("sendBtn"),messages=$("messages"),inner=$("messagesInner");
+const historyPanel=$("historyPanel"),drawerBg=$("drawerBg"),historyList=$("historyList"),historySearch=$("historySearch");
 
-    function safeMarkdown(text) {
-      const raw = (window.marked && typeof marked.parse === 'function')
-        ? marked.parse(String(text ?? ''))
-        : String(text ?? '').replace(/[&<>"']/g, (ch) => ({
-            '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
-          }[ch]));
-      const doc = new DOMParser().parseFromString(raw, 'text/html');
-      doc.querySelectorAll('script,style,iframe,object,embed,form,link,meta,base').forEach((node) => node.remove());
-      doc.querySelectorAll('*').forEach((el) => {
-        Array.from(el.attributes).forEach((attr) => {
-          const name = attr.name.toLowerCase();
-          const value = attr.value.trim();
-          if (name.startsWith('on') || name === 'srcdoc') {
-            el.removeAttribute(attr.name);
-            return;
-          }
-          if ((name === 'href' || name === 'src') && /^(javascript|vbscript|data):/i.test(value)) {
-            el.removeAttribute(attr.name);
-          }
-        });
-      });
-      return doc.body.innerHTML;
-    }
+async function headers(extra={}){if(!currentUser)return extra;const token=await currentUser.getIdToken();return {...extra,Authorization:"Bearer "+token}}
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
+function renderText(v){let s=esc(v).replace(/\\r?\\n/g,"<br>");s=s.replace(/\\*\\*(.+?)\\*\\*/g,"<strong>$1</strong>");s=s.replace(/(^|<br>)[-•]\\s(.+?)(?=<br>|$)/g,"$1<li>$2</li>");s=s.replace(/(?:<li>.*?<\\/li>){2,}/g,b=>"<ul>"+b+"</ul>");return s}
 
-    function showApproval(runId, interruptions) {
-      const div = document.createElement('div');
-      div.className = 'message aria';
+function addMessage(text,sender){
+  const row=document.createElement("div");row.className="row "+sender;
+  if(sender==="aria"){const av=document.createElement("div");av.className="avatar";av.innerHTML='<svg viewBox="0 0 24 24"><path d="M5 16.5 12 4l7 12.5M8.2 12.5h7.6M7.1 19.5h9.8"/></svg>';row.appendChild(av)}
+  const body=document.createElement("div"),bubble=document.createElement("div");bubble.className="bubble";bubble.innerHTML=sender==="aria"?renderText(text):esc(text);body.appendChild(bubble);
+  if(sender==="aria"){const actions=document.createElement("div");actions.className="actions-row";const copy=document.createElement("button");copy.className="msg-btn";copy.textContent="Copy";copy.onclick=()=>navigator.clipboard?.writeText(text);const speak=document.createElement("button");speak.className="msg-btn";speak.textContent="Speak";speak.onclick=()=>{if("speechSynthesis" in window){speechSynthesis.cancel();speechSynthesis.speak(new SpeechSynthesisUtterance(text))}};actions.append(copy,speak);body.appendChild(actions)}
+  row.appendChild(body);inner.appendChild(row);requestAnimationFrame(()=>messages.scrollTop=messages.scrollHeight);return row
+}
+function typing(show){const old=$("typing");if(!show){old?.remove();return}if(old)return;const row=document.createElement("div");row.id="typing";row.className="row aria";const av=document.createElement("div");av.className="avatar";av.textContent="A";const bubble=document.createElement("div");bubble.className="bubble";bubble.innerHTML='<div class="typing"><i></i><i></i><i></i></div>';row.append(av,bubble);inner.appendChild(row);messages.scrollTop=messages.scrollHeight}
+function openChat(prompt=""){home.style.display="none";chat.classList.add("active");$("welcomeTitle").textContent="What are we working on, "+($("userName").textContent||"there").split(" ")[0]+"?";input.focus();if(prompt){input.value=prompt;resize();send()}}
+function closeChat(){chat.classList.remove("active");home.style.display=""}
+function resize(){input.style.height="auto";input.style.height=Math.min(input.scrollHeight,140)+"px";sendBtn.disabled=busy||!currentUser||!input.value.trim()}
 
-      const bubble = document.createElement('div');
-      bubble.className = 'message-bubble';
+function showApproval(runId,ints){const card=document.createElement("div");card.className="approval";const title=document.createElement("strong");title.textContent="ARIA needs your approval";const p=document.createElement("p");p.textContent=(ints||[]).map(x=>x.tool||"external action").join(", ")+" is ready to change something outside ARIA.";const yes=document.createElement("button");yes.className="approve";yes.textContent="Approve";const no=document.createElement("button");no.className="reject";no.textContent="Reject";yes.onclick=()=>resume(runId,true,card);no.onclick=()=>resume(runId,false,card);card.append(title,p,yes,no);inner.appendChild(card);messages.scrollTop=messages.scrollHeight}
+async function resume(runId,approved,card){if(busy)return;busy=true;resize();card.remove();typing(true);try{const res=await fetch("/runs/"+encodeURIComponent(runId)+"/approve",{method:"POST",headers:await headers({"Content-Type":"application/json"}),body:JSON.stringify({approved})});const data=await res.json().catch(()=>({}));typing(false);if(!res.ok)throw new Error(data.detail||"ARIA could not resume that action.");addMessage(data.reply||"The action finished.","aria");if(data.approval_required)showApproval(data.run_id||runId,data.interruptions||[])}catch(e){typing(false);addMessage(e.message||"ARIA could not resume that action.","aria")}finally{busy=false;resize()}}
 
-      const title = document.createElement('strong');
-      title.textContent = 'Approval needed';
-      bubble.appendChild(title);
+async function send(){const msg=input.value.trim();if(!msg||busy||!currentUser)return;busy=true;resize();addMessage(msg,"user");input.value="";resize();typing(true);try{const res=await fetch("/chat",{method:"POST",headers:await headers({"Content-Type":"application/json"}),body:JSON.stringify({message:msg,email:currentUser.email||undefined})});const data=await res.json().catch(()=>({}));typing(false);if(!res.ok){addMessage(data.detail||"ARIA could not complete the request.","aria");$("modelState").textContent=data.detail||"Model connection needs attention";return}addMessage(data.reply||"I don't have a response yet.","aria");if(data.approval_required)showApproval(data.run_id,data.interruptions||[]);$("modelState").textContent=data.model?"Powered by "+data.model:"Core online"}catch(e){typing(false);addMessage("I couldn't reach the ARIA service. Check the network connection and try again.","aria")}finally{busy=false;resize()}}
 
-      (interruptions || []).forEach((item) => {
-        const detail = document.createElement('div');
-        detail.style.cssText = 'font-size:11px;margin-top:6px;color:#CBD5E1;';
-        detail.textContent = `${item.tool || 'external action'}: ${item.arguments || ''}`;
-        bubble.appendChild(detail);
-      });
+function dayLabel(v){const d=new Date(v);if(Number.isNaN(d.getTime()))return"Earlier";const n=new Date(),t=new Date(n.getFullYear(),n.getMonth(),n.getDate()),x=new Date(d.getFullYear(),d.getMonth(),d.getDate()),diff=Math.round((t-x)/86400000);if(diff===0)return"Today";if(diff===1)return"Yesterday";return d.toLocaleDateString("en-NG",{day:"numeric",month:"long",year:"numeric"})}
+function renderHistory(items){historyList.innerHTML="";if(!items.length){const e=document.createElement("div");e.style.cssText="padding:24px 10px;color:#7f8da0;font-size:11px;text-align:center";e.textContent=historyItems.length?"Nothing matches that search.":"No conversations yet.";historyList.appendChild(e);return}let last="";items.forEach(it=>{const day=dayLabel(it.created_at);if(day!==last){last=day;const h=document.createElement("div");h.className="day";h.textContent=day;historyList.appendChild(h)}const b=document.createElement("button");b.className="item";const q=document.createElement("div");q.className="q";q.textContent=it.input||"Conversation";const a=document.createElement("div");a.className="a";a.textContent=it.output||"";const m=document.createElement("div");m.className="meta";const d=new Date(it.created_at);m.textContent=(Number.isNaN(d.getTime())?"":d.toLocaleTimeString("en-NG",{hour:"2-digit",minute:"2-digit"}))+(it.status?" · "+it.status:"");b.append(q,a,m);b.onclick=()=>{closeHistory();openChat();addMessage(it.input||"","user");addMessage(it.output||"","aria")};historyList.appendChild(b)})}
+async function loadHistory(){if(!currentUser)return;historyList.innerHTML='<div style="padding:24px 10px;color:#7f8da0;font-size:11px;text-align:center">Loading...</div>';try{const res=await fetch("/history?limit=100",{headers:await headers()});const data=await res.json();if(!res.ok)throw new Error(data.detail||"Could not load history.");historyItems=Array.isArray(data.items)?data.items:[];renderHistory(historyItems)}catch(e){historyList.innerHTML="";const x=document.createElement("div");x.style.cssText="padding:24px 10px;color:#7f8da0;font-size:11px;text-align:center";x.textContent=e.message||"Could not load history.";historyList.appendChild(x)}}
 
-      const actions = document.createElement('div');
-      actions.style.cssText = 'display:flex;gap:8px;margin-top:10px;';
+function openHistory(){drawerBg.classList.add("open");historyPanel.classList.add("open");loadHistory();setTimeout(()=>historySearch.focus(),100)}
+function closeHistory(){drawerBg.classList.remove("open");historyPanel.classList.remove("open")}
 
-      const approve = document.createElement('button');
-      approve.className = 'message-action';
-      approve.textContent = 'Approve';
-      approve.onclick = () => resumeApproval(runId, true, div);
+$("openChat").onclick=()=>openChat();$("openHistory").onclick=openHistory;$("backChat").onclick=closeChat;$("historyBtn").onclick=openHistory;$("closeHistory").onclick=closeHistory;drawerBg.onclick=closeHistory;$("profileBtn").onclick=()=>auth.signOut();
+document.querySelectorAll(".prompt").forEach(x=>x.onclick=()=>openChat(x.dataset.prompt||""));
+input.addEventListener("input",resize);input.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}});sendBtn.onclick=send;$("attachBtn").onclick=()=>$("fileInput").click();$("fileInput").onchange=e=>{const f=e.target.files?.[0];if(!f)return;addMessage("File selected: "+f.name,"aria");e.target.value=""};
+historySearch.oninput=()=>{const q=historySearch.value.trim().toLowerCase();renderHistory(!q?historyItems:historyItems.filter(x=>(x.input||"").toLowerCase().includes(q)||(x.output||"").toLowerCase().includes(q)))};
 
-      const reject = document.createElement('button');
-      reject.className = 'message-action';
-      reject.textContent = 'Reject';
-      reject.onclick = () => resumeApproval(runId, false, div);
-
-      actions.append(approve, reject);
-      bubble.appendChild(actions);
-      div.appendChild(bubble);
-      messagesArea.appendChild(div);
-      messagesArea.scrollTop = messagesArea.scrollHeight;
-    }
-
-    async function resumeApproval(runId, approved, card) {
-      card.remove();
-      showTyping();
-      try {
-        const res = await fetch(`/runs/${encodeURIComponent(runId)}/approve`, {
-          method: 'POST',
-          headers: await apiHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ approved })
-        });
-        const data = await res.json();
-        hideTyping();
-        addMessage(data.reply || data.detail || 'The run ended.', 'aria');
-        if (data.approval_required) showApproval(data.run_id || runId, data.interruptions || []);
-      } catch (err) {
-        hideTyping();
-        addMessage('Approval could not be completed.', 'aria');
-      }
-    }
-
-    function updateTimestamp() {
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString('en-NG', { hour:'2-digit', minute:'2-digit', timeZone:'Africa/Lagos' });
-      document.getElementById('timestamp').textContent = timeStr;
-    }
-    updateTimestamp();
-    setInterval(updateTimestamp, 60000);
-
-    function getUserInitials(displayName, email) {
-      if (!displayName) return email.substring(0,2).toUpperCase();
-      const parts = displayName.trim().split(/\s+/);
-      if (parts.length === 1) return parts[0].substring(0,2).toUpperCase();
-      return (parts[0][0] + (parts[1][0] || '')).toUpperCase();
-    }
-
-    // ── DOM refs ──
-    const mainUI = document.getElementById('mainUI');
-    const chatView = document.getElementById('chatView');
-    const mainInput = document.getElementById('mainInput');
-    const chatInput = document.getElementById('chatInput');
-    const messagesArea = document.getElementById('messagesArea');
-    const userNameSpan = document.getElementById('userName');
-    const userInitialsSpan = document.getElementById('userInitials');
-    const signoutBtn = document.getElementById('signoutBtn');
-    const historyModal = document.getElementById('historyModal');
-    const historyContent = document.getElementById('historyContent');
-
-    function autoResize(textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
-    }
-    function setupTextarea(inputEl) {
-      if (!inputEl) return;
-      inputEl.addEventListener('input', () => autoResize(inputEl));
-      autoResize(inputEl);
-    }
-    setupTextarea(mainInput);
-    setupTextarea(chatInput);
-
-    // ── Get ARIA UID ──
-    async function getAriaUid(email) {
-      try {
-        const res = await fetch(`/get-uid?email=${encodeURIComponent(email)}`, { headers: await apiHeaders() });
-        const data = await res.json();
-        if (data.aria_uid) {
-          localStorage.setItem('aria_uid', data.aria_uid);
-          return data.aria_uid;
-        }
-      } catch (e) {
-        console.warn('Could not fetch ARIA UID:', e);
-      }
-      return null;
-    }
-
-    // ── Chat functions ──
-    function addMessage(text, sender, showRating = false, msgId = null) {
-      const div = document.createElement('div');
-      div.className = `message ${sender}`;
-      const bubble = document.createElement('div');
-      bubble.className = 'message-bubble';
-      bubble.innerHTML = safeMarkdown(text);
-      div.appendChild(bubble);
-      if (sender === 'aria') {
-        const actions = document.createElement('div');
-        actions.className = 'message-actions';
-        actions.innerHTML = `<button class="message-action copy-msg">📋 Copy</button><button class="message-action speak-msg">🔊 Speak</button>`;
-        actions.querySelector('.copy-msg').onclick = () => navigator.clipboard.writeText(text);
-        actions.querySelector('.speak-msg').onclick = () => {
-          const utterance = new SpeechSynthesisUtterance(text);
-          utterance.lang = 'en-US';
-          speechSynthesis.cancel();
-          speechSynthesis.speak(utterance);
-        };
-        div.appendChild(actions);
-        const ratingDiv = document.createElement('div');
-        ratingDiv.className = 'rating-row';
-        for (let i = 1; i <= 5; i++) {
-          const star = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-          star.setAttribute("class", "rating-star");
-          star.setAttribute("viewBox", "0 0 24 24");
-          star.innerHTML = '<path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>';
-          star.dataset.score = i;
-          star.onclick = (e) => {
-            e.stopPropagation();
-            const score = parseInt(star.dataset.score);
-            sendRating(score, ratingDiv);
-            const allStars = ratingDiv.querySelectorAll('.rating-star');
-            allStars.forEach((s, idx) => {
-              if (idx < score) s.classList.add('active');
-              else s.classList.remove('active');
-            });
-          };
-          ratingDiv.appendChild(star);
-        }
-        div.appendChild(ratingDiv);
-      }
-      messagesArea.appendChild(div);
-      messagesArea.scrollTop = messagesArea.scrollHeight;
-      return div;
-    }
-
-    async function sendRating(score, ratingDiv) {
-      if (!currentUser) return;
-      try {
-        await fetch('/feedback', {
-          method: 'POST',
-          headers: await apiHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ score: score })
-        });
-      } catch (e) {
-        console.warn('Feedback could not be sent:', e);
-      }
-      ratingDiv.textContent = `✓ Rated ${score}/5`;
-    }
-
-    function showTyping() {
-      const div = document.createElement('div');
-      div.className = 'message aria';
-      div.id = 'typingIndicator';
-      div.innerHTML = `<div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>`;
-      messagesArea.appendChild(div);
-      messagesArea.scrollTop = messagesArea.scrollHeight;
-    }
-    function hideTyping() {
-      const el = document.getElementById('typingIndicator');
-      if (el) el.remove();
-    }
-
-    // ── SEND MESSAGE ──
-    async function sendToAria(message, inputElement) {
-      if (!currentUser) {
-        addMessage("Please sign in first.", 'aria');
-        return;
-      }
-      addMessage(message, 'user');
-      inputElement.value = '';
-      autoResize(inputElement);
-      showTyping();
-
-      // Ensure we have ARIA UID
-      let ariaUid = localStorage.getItem('aria_uid');
-      if (!ariaUid) {
-        ariaUid = await getAriaUid(currentUser.email);
-      }
-
-      try {
-        const res = await fetch('/chat', {
-          method: 'POST',
-          headers: await apiHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ message, email: currentUser.email.toLowerCase() })
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        hideTyping();
-        if (data.error) addMessage(`Error: ${data.error}`, 'aria');
-        else { addMessage(data.reply || '...', 'aria'); if (data.approval_required) showApproval(data.run_id, data.interruptions || []); }
-      } catch(e) {
-        hideTyping();
-        console.error("Chat error:", e);
-        addMessage("Connection uncertain. Please try again.", 'aria');
-      }
-    }
-
-    function openChat() {
-      mainUI.style.display = 'none';
-      chatView.classList.add('active');
-      if (messagesArea.children.length === 0 && currentUser) {
-        const name = localStorage.getItem('displayName') || currentUser.displayName || currentUser.email.split('@')[0];
-        addMessage(`Hey ${name}. I'm ARIA. What would you like to explore?`, 'aria');
-      }
-      chatInput.focus();
-    }
-    function closeChat() {
-      mainUI.style.display = 'flex';
-      chatView.classList.remove('active');
-      messagesArea.innerHTML = '';
-    }
-
-    // ── History ──
-    async function fetchHistory() {
-      if (!currentUser) return;
-      let ariaUid = localStorage.getItem('aria_uid');
-      if (!ariaUid) {
-        ariaUid = await getAriaUid(currentUser.email);
-        if (!ariaUid) {
-          historyContent.textContent = 'No conversation history yet.';
-          return;
-        }
-      }
-      try {
-        const res = await fetch('/context', { headers: await apiHeaders() });
-        const data = await res.json();
-        if (data.context && data.context.trim()) {
-          const lines = data.context.split('\n');
-          let items = [];
-          let currentUserMsg = null;
-          let currentAriaMsg = null;
-          for (let line of lines) {
-            if (line.startsWith('User:')) {
-              if (currentUserMsg && currentAriaMsg) {
-                items.push({ user: currentUserMsg, aria: currentAriaMsg });
-                currentUserMsg = null; currentAriaMsg = null;
-              }
-              currentUserMsg = line.substring(5).trim();
-            } else if (line.startsWith('ARIA:')) {
-              currentAriaMsg = line.substring(5).trim();
-            }
-          }
-          if (currentUserMsg && currentAriaMsg) items.push({ user: currentUserMsg, aria: currentAriaMsg });
-          historyContent.innerHTML = '';
-          if (items.length === 0) {
-            historyContent.textContent = 'No conversation history yet.';
-            return;
-          }
-          items.slice(-10).forEach(item => {
-            const div = document.createElement('div');
-            div.className = 'history-item';
-
-            const userLine = document.createElement('div');
-            userLine.className = 'history-user';
-            userLine.textContent = `🧑 ${item.user}`;
-
-            const ariaLine = document.createElement('div');
-            ariaLine.className = 'history-aria';
-            ariaLine.textContent = `ARIA: ${item.aria}`;
-
-            div.append(userLine, ariaLine);
-            historyContent.appendChild(div);
-          });
-        } else {
-          historyContent.textContent = 'No conversation history yet.';
-        }
-      } catch(e) {
-        console.warn(e);
-        historyContent.textContent = 'Failed to load history.';
-      }
-    }
-    function showHistory() { fetchHistory(); historyModal.classList.add('active'); }
-    function closeHistory() { historyModal.classList.remove('active'); }
-
-    // ── Event listeners ──
-    document.querySelectorAll('.feature-card').forEach(card => {
-      card.addEventListener('click', () => {
-        openChat();
-        const pillar = card.querySelector('.card-title').textContent;
-        addMessage(`Let's talk about ${pillar}. How can I help?`, 'aria');
-      });
-    });
-
-    mainInput.addEventListener('focus', openChat);
-    document.getElementById('closeChatBtn').addEventListener('click', closeChat);
-
-    function sendFromInput(inputEl) {
-      const msg = inputEl.value.trim();
-      if (msg) sendToAria(msg, inputEl);
-    }
-    document.getElementById('chatSendBtn').addEventListener('click', () => sendFromInput(chatInput));
-    document.getElementById('sendBtn').addEventListener('click', () => sendFromInput(mainInput));
-
-    document.getElementById('historyBtn').addEventListener('click', showHistory);
-    document.getElementById('closeHistoryBtn').addEventListener('click', closeHistory);
-    historyModal.addEventListener('click', (e) => { if (e.target === historyModal) closeHistory(); });
-
-    signoutBtn.addEventListener('click', async () => {
-      try {
-        await auth.signOut();
-        window.location.href = '/login.html';
-      } catch(e) { console.error(e); }
-    });
-
-    // ── Upload ──
-    async function uploadFile(file, uid) {
-      if (file.size > 25 * 1024 * 1024) {
-        addMessage("❌ File too large. Max 25MB.", 'aria');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64 = e.target.result.split(',')[1];
-        const fileType = file.type.includes('pdf') ? 'pdf' : 'image';
-        const endpoint = fileType === 'image' ? '/upload-ocr' : '/upload-pdf';
-        try {
-          const res = await fetch(endpoint, {
-            method: 'POST',
-            headers: await apiHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({
-              email: currentUser.email,
-              file_base64: base64,
-              file_name: file.name,
-              file_type: fileType,
-              mime_type: file.type
-            })
-          });
-          const text = await res.text();
-          let data;
-          try {
-            data = JSON.parse(text);
-          } catch (e) {
-            addMessage("Server error: invalid response", 'aria');
-            return;
-          }
-          if (data.status === 'uploaded' && fileType === 'image') {
-            addMessage(`Uploaded "${file.name}" to ARIA's private workspace. Vision/OCR can run through a connected worker.`, 'aria');
-          } else if (data.status === 'uploaded' && fileType === 'pdf') {
-            addMessage(`PDF "${file.name}" stored. Extracted ${data.full_length} characters.`, 'aria');
-          } else if (data.status === 'OCR completed') {
-            addMessage(`📄 OCR completed for "${file.name}". Extracted ${data.full_length} characters. Preview: ${data.text.substring(0, 100)}...`, 'aria');
-          } else if (data.status === 'PDF processed') {
-            addMessage(`📄 PDF processed for "${file.name}". Extracted ${data.full_length} characters. Preview: ${data.text.substring(0, 100)}...`, 'aria');
-          } else if (data.status === 'Upload received (debug)') {
-            addMessage(`📄 Uploaded "${file.name}" (metadata only). OCR not applied.`, 'aria');
-          } else {
-            addMessage(`Upload failed: ${data.error || 'Unknown'}`, 'aria');
-          }
-        } catch (err) {
-          addMessage(`Upload error: ${err.message}`, 'aria');
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-
-    function triggerUpload(uid) {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*,application/pdf';
-      input.onchange = (e) => {
-        if (e.target.files.length) uploadFile(e.target.files[0], uid);
-      };
-      input.click();
-    }
-
-    const uploadBtn = document.getElementById('uploadBtn');
-    const chatUploadBtn = document.getElementById('chatUploadBtn');
-    if (uploadBtn) {
-      uploadBtn.onclick = () => {
-        if (currentUser && currentUser.uid) triggerUpload(currentUser.uid);
-        else addMessage("Please sign in first.", 'aria');
-      };
-    }
-    if (chatUploadBtn) {
-      chatUploadBtn.onclick = () => {
-        if (currentUser && currentUser.uid) triggerUpload(currentUser.uid);
-        else addMessage("Please sign in first.", 'aria');
-      };
-    }
-
-    // ── Auth ──
-    auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        currentUser = user;
-        setInterval(() => {
-          fetch('/health').catch(() => {});
-        }, 4 * 60 * 1000);
-        const displayName = user.displayName || user.email.split('@')[0];
-        userNameSpan.textContent = displayName;
-        localStorage.setItem('displayName', displayName);
-        const initials = getUserInitials(user.displayName, user.email);
-        userInitialsSpan.textContent = initials;
-        
-        const ariaUid = await getAriaUid(user.email);
-        if (ariaUid) {
-          localStorage.setItem('aria_uid', ariaUid);
-          console.log('[Auth] ARIA UID:', ariaUid);
-          try {
-            await fetch('/set_user_name', {
-              method: 'POST',
-              headers: await apiHeaders({ 'Content-Type': 'application/json' }),
-              body: JSON.stringify({ email: user.email.toLowerCase(), name: displayName })
-            });
-          } catch(e) { console.warn('Name save error:', e); }
-        }
-      } else {
-        window.location.href = '/login.html';
-      }
-    });
-
-    setTimeout(() => {
-      if (currentUser && userNameSpan.textContent === 'friend') {
-        const displayName = localStorage.getItem('displayName') || currentUser.displayName || currentUser.email.split('@')[0];
-        userNameSpan.textContent = displayName;
-      }
-    }, 500);
-  </script>
+auth.onAuthStateChanged(async user=>{if(!user){window.location.href="/login.html";return}currentUser=user;const name=user.displayName||(user.email?user.email.split("@")[0]:"there");$("userName").textContent=name;const parts=name.trim().split(/\s+/).filter(Boolean);$("initials").textContent=(parts.length>1?parts[0][0]+parts[parts.length-1][0]:name.slice(0,2)).toUpperCase();try{const res=await fetch("/health");const h=await res.json();const state=h.default_provider?(h.default_provider.provider+" · "+h.default_provider.model):(h.status==="ok"?"Core online":"Model connection needs attention");$("systemState").textContent=state;$("modelState").textContent=state}catch{}try{await fetch("/set_user_name",{method:"POST",headers:await headers({"Content-Type":"application/json"}),body:JSON.stringify({name,email:user.email||""})})}catch{}resize()});
+resize();
+</script>
 </body>
 </html>
