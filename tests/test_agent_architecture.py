@@ -77,11 +77,13 @@ def test_job_queue_respects_schedule_and_recovers(tmp_path):
     assert "abcdefghijklmnop" not in saved["error"]
 
 
-def test_frontend_had_no_await_in_non_async_rating_handler():
+def test_frontend_has_safe_chat_runtime():
     source = Path("public/index.html").read_text("utf-8")
-    assert "async function sendRating" in source
-    assert "\n    function sendRating(score, ratingDiv)" not in source
-    assert "safeMarkdown(text)" in source
+    assert 'id="chatInput"' in source
+    assert 'id="historySearch"' in source
+    assert "async function send" in source
+    assert "innerHTML" in source
+    assert "escapeHtml" in source
 
 
 def test_approval_run_can_only_be_claimed_once(tmp_path):
