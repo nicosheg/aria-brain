@@ -43,6 +43,8 @@ class Settings:
     @property
     def has_any_model(self) -> bool:
         prefixes = ("GROQ_KEY_", "DEEPSEEK_KEY_", "GEMINI_KEY_")
+        if os.getenv("OPENROUTER_API_KEY") or os.getenv("DASHSCOPE_API_KEY"):
+            return True
         return self.has_openai or any(
             any(k.startswith(prefix) and v for k, v in os.environ.items())
             for prefix in prefixes
