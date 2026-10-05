@@ -173,8 +173,28 @@ async def health():
         "queue_shared": database_ready,
         "database_required": settings.require_database,
         "browser_enabled": settings.browser_enabled,
+        "cognitive_core": "online",
+        "native_capabilities": ["routing", "memory", "planning", "safe_math", "safety_policy"],
         "firebase_configured": bool(os.getenv("FIREBASE_CREDENTIALS")),
         "encryption_configured": bool(settings.encryption_key or os.getenv("ARIA_APP_SECRET")),
+    }
+
+
+@app.get("/capabilities")
+async def capabilities(authorization: Optional[str] = Header(default=None)):
+    _identity_from_request(authorization)
+    workers = []
+    try:
+        from aria_agent.workers import WORKER_SPECS
+        workers = [name for name, _ in WORKER_SPECS]
+    except Exception:
+        pass
+    return {
+        "core": ["routing", "memory", "planning", "safe_math", "safety_policy"],
+        "browser": settings.browser_enabled,
+        "connected_apps": True,
+        "background_jobs": True,
+        "workers": workers,
     }
 
 
