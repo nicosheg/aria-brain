@@ -95,3 +95,27 @@ def test_approval_run_can_only_be_claimed_once(tmp_path):
     s.save_run("run-1", "u", "openai", "gpt-test", "awaiting_approval", "in", "out", "state", {})
     assert s.claim_run_resume("u", "run-1") is True
     assert s.claim_run_resume("u", "run-1") is False
+
+
+def test_cognitive_core_routes_without_an_llm():
+    from aria_agent.intelligence import CognitiveCore
+    frame = CognitiveCore().classify("Find me current remote jobs and help me apply")
+    assert frame.intent == "jobs"
+    assert frame.requires_web is True
+    assert frame.requires_external_action is True
+    assert "job_finder" in frame.workers
+
+
+def test_native_core_handles_basic_requests():
+    from aria_agent.intelligence import CognitiveCore
+    core = CognitiveCore()
+    assert core.native_response("hello", []) is not None
+    assert core.native_response("what can you do?", []) is not None
+
+
+def test_frontend_has_modern_chat_and_history_surface():
+    source = Path("public/index.html").read_text("utf-8")
+    assert "Conversation history" in source
+    assert 'id="chatInput"' in source
+    assert 'id="historySearch"' in source
+    assert "async function uploadFile" in source
