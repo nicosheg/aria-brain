@@ -11,6 +11,7 @@ from .connectors import MCPConnectorManager
 from .security import redact_secrets
 from .storage import AgentStore, store
 from .tools import build_tools
+from .intelligence import CognitiveCore
 from .workers import build_workers
 
 
@@ -21,9 +22,45 @@ class AriaRuntime:
         self.store = data_store
         self.browser = BrowserController(settings.browser_enabled)
         self.connectors = MCPConnectorManager()
+        self.cognitive = CognitiveCore()
 
     def provider_candidates(self):
         candidates = []
+
+        openrouter_key = os.getenv("OPENROUTER_API_KEY", "").strip()
+        if openrouter_key:
+            client = AsyncOpenAI(
+                api_key=openrouter_key,
+                base_url="https://openrouter.ai/api/v1",
+                default_headers={
+                    "HTTP-Referer": settings.openrouter_site_url,
+                    "X-OpenRouter-Title": settings.openrouter_site_name,
+                },
+            )
+            candidates.append((
+                "openrouter",
+                settings.qwen_model,
+                OpenAIChatCompletionsModel(
+                    model=settings.qwen_model,
+                    openai_client=client,
+                ),
+            ))
+
+        qwencloud_key = os.getenv("DASHSCOPE_API_KEY", "").strip()
+        if qwencloud_key:
+            client = AsyncOpenAI(
+                api_key=qwencloud_key,
+                base_url="https://maas.qwencloudapi.com/compatible-mode/v1",
+            )
+            candidates.append((
+                "qwencloud",
+                settings.qwencloud_model,
+                OpenAIChatCompletionsModel(
+                    model=settings.qwencloud_model,
+                    openai_client=client,
+                ),
+            ))
+
         if os.getenv("OPENAI_API_KEY"):
             candidates.append(("openai", settings.model, settings.model))
         for i in range(1, 21):
@@ -102,6 +139,11 @@ Operating rules:
             if not matches:
                 raise RuntimeError(f"ARIA_PROVIDER={preferred!r} is not configured.")
             return matches[0]
+        preferred_order = ["openrouter", "qwencloud", "openai", "deepseek", "groq", "gemini"]
+        for provider_name in preferred_order:
+            match = next((candidate for candidate in candidates if candidate[0] == provider_name), None)
+            if match:
+                return match
         return candidates[0]
 
     async def run(
