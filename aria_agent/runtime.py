@@ -96,7 +96,6 @@ Operating rules:
             model_settings={
                 "extra_args": {
                     "reasoning_effort": settings.reasoning_effort,
-                    "reasoning_format": settings.reasoning_format,
                 }
             },
         )
@@ -127,6 +126,7 @@ Operating rules:
         message: str,
         resume_run_id: str | None = None,
         approve: bool | None = None,
+        conversation_id: str | None = None,
     ) -> dict:
         if len(message) > settings.max_message_chars:
             raise ValueError(f"Message exceeds {settings.max_message_chars} characters.")
@@ -134,6 +134,26 @@ Operating rules:
         memory = self.store.recent_memory(user_id, 16)
         frame = self.cognitive.classify(message)
         native = self.cognitive.native_response(message, memory)
+
+        previous = self.store.get_run(user_id, resume_run_id) if resume_run_id else None
+        if resume_run_id and not previous:
+            raise ValueError("The requested run does not exist for this user.")
+
+        if previous:
+            conversation_id = (previous.get("metadata") or {}).get("conversation_id") or conversation_id
+
+        if conversation_id:
+            conversation = self.store.get_conversation(user_id, conversation_id)
+            if not conversation:
+                raise ValueError("The requested conversation does not exist for this user.")
+        else:
+            conversation = self.store.create_conversation(user_id, title=message[:72].strip() or "New conversation")
+            conversation_id = conversation["id"]
+
+        # Durable transcript is separate from durable memory. Both live in Supabase/Postgres
+        # in production, and the transcript gives ARIA precise conversational continuity.
+        if not resume_run_id:
+            self.store.add_message(conversation_id, user_id, "user", redact_secrets(message))
 
         candidates = self.provider_candidates()
         if not candidates:
@@ -161,15 +181,12 @@ Operating rules:
                 "run_id": str(uuid.uuid4()),
                 "status": "completed",
                 "reply": native,
+                "conversation_id": conversation_id,
                 "provider": "native",
                 "model": "aria-core",
                 "approval_required": False,
                 "interruptions": [],
             }
-
-        previous = self.store.get_run(user_id, resume_run_id) if resume_run_id else None
-        if resume_run_id and not previous:
-            raise ValueError("The requested run does not exist for this user.")
 
         provider, model_name, model = self._select_provider(candidates, previous)
         if resume_run_id:
@@ -205,14 +222,21 @@ Operating rules:
             )
         else:
             recent = self.store.recent_memory(user_id, 12)
-            context = "\n".join(
+            transcript = self.store.get_conversation(conversation_id, include_messages=True)
+            transcript_lines = []
+            for item in (transcript or {}).get("messages", [])[-24:]:
+                transcript_lines.append(f"{item['role']}: {item['content']}")
+            memory_context = "\n".join(
                 f"{x['kind']}: {x['content']}" for x in reversed(recent)
             )
-            prompt = (
-                f"Recent memory:\n{context}\n\nUser request:\n{message}"
-                if context
-                else message
-            )
+            conversation_context = "\n".join(transcript_lines)
+            prompt_parts = []
+            if memory_context:
+                prompt_parts.append(f"Durable memory:\n{memory_context}")
+            if conversation_context:
+                prompt_parts.append(f"Current conversation:\n{conversation_context}")
+            prompt_parts.append(f"User request:\n{message}")
+            prompt = "\n\n".join(prompt_parts)
             result = await Runner.run(
                 agent,
                 prompt,
@@ -250,7 +274,7 @@ Operating rules:
             safe_input,
             safe_output,
             state_text,
-            {"interruptions": safe_interruptions},
+            {"interruptions": safe_interruptions, "conversation_id": conversation_id},
         )
 
         self.store.add_memory(
@@ -266,9 +290,11 @@ Operating rules:
                 safe_output,
                 importance=0.35,
             )
+            self.store.add_message(conversation_id, user_id, "assistant", safe_output)
 
         return {
             "run_id": run_id,
+            "conversation_id": conversation_id,
             "status": status,
             "reply": output,
             "provider": provider,
