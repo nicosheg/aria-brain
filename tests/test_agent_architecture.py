@@ -210,3 +210,9 @@ def test_frontend_has_persistent_conversation_panel():
     assert "function loadConversations()" in source
     assert "function openConversation(id)" in source
     assert "conversation_id: conversationId" in source
+
+
+def test_runtime_uses_user_scoped_conversation_lookup():
+    source = Path("aria_agent/runtime.py").read_text("utf-8")
+    assert "self.store.get_conversation(user_id, conversation_id, include_messages=True)" in source
+    assert "self.store.get_conversation(conversation_id, include_messages=True)" not in source
