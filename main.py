@@ -225,10 +225,18 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(default=N
         # Never expose stack traces, credentials or database details to clients.
         logger.exception("ARIA chat request failed")
         message = str(exc)
+        status_code = getattr(exc, "status_code", None) or getattr(exc, "status", None)
+        try:
+            status_code = int(status_code or 0)
+        except Exception:
+            status_code = 0
+        name = type(exc).__name__
+        is_auth_error = name == "AuthenticationError" or status_code == 401 or "authentication" in name.lower()
         public_reason = (
             "No model connection is configured."
             if "No LLM provider configured" in message
-            else f"ARIA could not complete the request: {type(exc).__name__}."
+            else "ARIA's model connection rejected the configured credentials. I tried the available fallback connections, but none authenticated." if is_auth_error
+            else f"ARIA could not complete the request: {name}."
         )
         raise HTTPException(503 if "No LLM provider configured" in message else 502, detail=public_reason)
 
