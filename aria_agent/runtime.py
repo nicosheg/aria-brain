@@ -222,7 +222,7 @@ Operating rules:
             )
         else:
             recent = self.store.recent_memory(user_id, 12)
-            transcript = self.store.get_conversation(conversation_id, include_messages=True)
+            transcript = self.store.get_conversation(user_id, conversation_id, include_messages=True)
             transcript_lines = []
             for item in (transcript or {}).get("messages", [])[-24:]:
                 transcript_lines.append(f"{item['role']}: {item['content']}")
