@@ -24,17 +24,31 @@ class AriaRuntime:
         self.connectors = MCPConnectorManager()
         self.cognitive = CognitiveCore()
 
-    def provider_candidates(self):
-        candidates = []
-
+    def _groq_keys(self):
         keys = []
-        primary_key = os.getenv("GROQ_API_KEY", "").strip()
-        if primary_key:
-            keys.append(primary_key)
+        primary = os.getenv("GROQ_API_KEY", "").strip()
+        if primary:
+            keys.append(primary)
         for i in range(1, 21):
             key = os.getenv(f"GROQ_KEY_{i}", "").strip()
             if key and key not in keys:
                 keys.append(key)
+        return keys
+
+    @staticmethod
+    def _is_authentication_error(exc: Exception) -> bool:
+        name = type(exc).__name__.lower()
+        status = getattr(exc, "status_code", None) or getattr(exc, "status", None)
+        try:
+            status = int(status or 0)
+        except Exception:
+            status = 0
+        return "authenticationerror" in name or "authentication" in name or status == 401
+
+    def provider_candidates(self):
+        candidates = []
+
+        keys = self._groq_keys()
 
         for key in keys:
             client = AsyncOpenAI(
@@ -120,6 +134,65 @@ Operating rules:
             return match
         return candidates[0]
 
+    async def _save_fast_turn(self, user_id: str, conversation_id: str, message: str, output: str, provider: str, model_name: str) -> str:
+        run_id = str(uuid.uuid4())
+        safe_input = redact_secrets(message)
+        safe_output = redact_secrets(output or "")
+        self.store.add_memory(user_id, "conversation_user", safe_input, importance=0.35)
+        if safe_output:
+            self.store.add_memory(user_id, "conversation_assistant", safe_output, importance=0.35)
+            self.store.add_message(conversation_id, user_id, "assistant", safe_output)
+        self.store.save_run(run_id, user_id, provider, model_name, "completed", safe_input, safe_output, "", {"conversation_id": conversation_id, "fast_path": True})
+        return run_id
+
+    def _should_use_fast_lane(self, frame) -> bool:
+        return not (frame.requires_web or frame.requires_background or frame.requires_external_action) and frame.intent in {"greeting", "capabilities", "memory", "general"}
+
+    async def _fast_conversation(self, user_id: str, message: str, conversation_id: str, memory: list[dict]) -> dict:
+        frame = self.cognitive.classify(message)
+        native = self.cognitive.native_response(message, memory)
+        if native and frame.intent in {"greeting", "capabilities", "memory"}:
+            reply = "Hey. I’m ARIA. What would you like to explore?" if frame.intent == "greeting" else native
+            run_id = await self._save_fast_turn(user_id, conversation_id, message, reply, "native", "aria-core")
+            return {"run_id": run_id, "status": "completed", "reply": reply, "conversation_id": conversation_id, "provider": "native", "model": "aria-core", "approval_required": False, "interruptions": []}
+
+        transcript = self.store.get_conversation(user_id, conversation_id, include_messages=True) or {}
+        history = [
+            {"role": item["role"], "content": item.get("content", "")}
+            for item in transcript.get("messages", [])[-12:]
+            if item.get("role") in {"user", "assistant"}
+        ]
+        system = self._base_instructions(user_id, memory[:12]) + """
+
+FAST CONVERSATION MODE:
+- This is ordinary conversation, not a research or external-action task.
+- Answer directly and naturally using the durable memory and transcript.
+- Do not claim web research, connected-app use, or external actions in this mode.
+- Keep simple answers concise; expand when the user asks for depth.
+"""
+        last_error = None
+        for key in self._groq_keys():
+            client = AsyncOpenAI(api_key=key, base_url="https://api.groq.com/openai/v1")
+            try:
+                response = await client.chat.completions.create(
+                    model=settings.groq_model,
+                    messages=[{"role": "system", "content": system}, *history, {"role": "user", "content": message}],
+                    temperature=0.25,
+                    max_completion_tokens=700,
+                    reasoning_effort="none",
+                )
+                reply = (response.choices[0].message.content or "").strip()
+                if not reply:
+                    raise RuntimeError("The model returned an empty response.")
+                run_id = await self._save_fast_turn(user_id, conversation_id, message, reply, "groq", settings.groq_model)
+                return {"run_id": run_id, "status": "completed", "reply": reply, "conversation_id": conversation_id, "provider": "groq", "model": settings.groq_model, "approval_required": False, "interruptions": []}
+            except Exception as exc:
+                last_error = exc
+                if self._is_authentication_error(exc):
+                    continue
+                raise
+        raise last_error or RuntimeError("No Groq model connection is configured.")
+
     async def run(
         self,
         user_id: str,
@@ -154,6 +227,9 @@ Operating rules:
         # in production, and the transcript gives ARIA precise conversational continuity.
         if not resume_run_id:
             self.store.add_message(conversation_id, user_id, "user", redact_secrets(message))
+
+        if not resume_run_id and self._should_use_fast_lane(frame):
+            return await self._fast_conversation(user_id, message, conversation_id, memory)
 
         candidates = self.provider_candidates()
         if not candidates:
@@ -212,14 +288,20 @@ Operating rules:
                     )
                 else:
                     raise ValueError("Approval decision is required.")
-            result = await Runner.run(
-                agent,
-                state,
-                max_turns=settings.max_turns,
-                run_config=RunConfig(
-                    tool_not_found_behavior="return_error_to_model"
-                ),
-            )
+            result = None
+            last_error = None
+            for candidate in candidates:
+                try:
+                    selected_agent = agent if candidate[0] == provider and candidate[1] == model_name else await self._build_agent(user_id, candidate[2], servers)
+                    result = await Runner.run(selected_agent, state, max_turns=settings.max_turns, run_config=RunConfig(tool_not_found_behavior="return_error_to_model"))
+                    provider, model_name = candidate[0], candidate[1]
+                    break
+                except Exception as exc:
+                    last_error = exc
+                    if not self._is_authentication_error(exc):
+                        raise
+            if result is None:
+                raise last_error or RuntimeError("No model connection is configured.")
         else:
             recent = self.store.recent_memory(user_id, 12)
             transcript = self.store.get_conversation(user_id, conversation_id, include_messages=True)
@@ -237,14 +319,20 @@ Operating rules:
                 prompt_parts.append(f"Current conversation:\n{conversation_context}")
             prompt_parts.append(f"User request:\n{message}")
             prompt = "\n\n".join(prompt_parts)
-            result = await Runner.run(
-                agent,
-                prompt,
-                max_turns=settings.max_turns,
-                run_config=RunConfig(
-                    tool_not_found_behavior="return_error_to_model"
-                ),
-            )
+            result = None
+            last_error = None
+            for candidate in candidates:
+                try:
+                    selected_agent = agent if candidate[0] == provider and candidate[1] == model_name else await self._build_agent(user_id, candidate[2], servers)
+                    result = await Runner.run(selected_agent, prompt, max_turns=settings.max_turns, run_config=RunConfig(tool_not_found_behavior="return_error_to_model"))
+                    provider, model_name = candidate[0], candidate[1]
+                    break
+                except Exception as exc:
+                    last_error = exc
+                    if not self._is_authentication_error(exc):
+                        raise
+            if result is None:
+                raise last_error or RuntimeError("No model connection is configured.")
 
         interruptions = result.interruptions or []
         state_text = result.to_state().to_string() if interruptions else ""
