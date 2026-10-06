@@ -1,5 +1,7 @@
 from agents import Agent
 
+from .config import settings
+
 
 WORKER_SPECS = [
     ("opportunity_scout", "Find legitimate, current opportunities aligned with the user's constraints; verify source, eligibility and route to action."),
@@ -66,6 +68,12 @@ Do not perform side-effectful external actions yourself unless an explicitly sup
 Return compact findings with sources, assumptions, uncertainty and the next action the main ARIA agent can execute.""",
             model=model,
             tools=research_tools,
+            model_settings={
+                "extra_args": {
+                    "reasoning_effort": settings.reasoning_effort,
+                    "reasoning_format": settings.reasoning_format,
+                }
+            },
         )
         workers.append(worker)
     return workers
