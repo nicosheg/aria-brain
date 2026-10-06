@@ -83,7 +83,7 @@ def test_frontend_has_safe_chat_runtime():
     assert 'id="historySearch"' in source
     assert "async function send" in source
     assert "innerHTML" in source
-    assert "escapeHtml" in source
+    assert "safeMarkdown" in source
 
 
 def test_approval_run_can_only_be_claimed_once(tmp_path):
@@ -117,7 +117,7 @@ def test_native_core_handles_basic_requests():
 
 def test_frontend_has_modern_chat_and_history_surface():
     source = Path("public/index.html").read_text("utf-8")
-    assert "Conversation history" in source
+    assert "Conversation History" in source
     assert 'id="chatInput"' in source
     assert 'id="historySearch"' in source
     assert "async function uploadFile" in source
