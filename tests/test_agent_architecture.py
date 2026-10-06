@@ -216,3 +216,23 @@ def test_runtime_uses_user_scoped_conversation_lookup():
     source = Path("aria_agent/runtime.py").read_text("utf-8")
     assert "self.store.get_conversation(user_id, conversation_id, include_messages=True)" in source
     assert "self.store.get_conversation(conversation_id, include_messages=True)" not in source
+
+
+def test_runtime_has_fast_conversation_lane_and_auth_fallback():
+    source = Path("aria_agent/runtime.py").read_text("utf-8")
+    assert "async def _fast_conversation" in source
+    assert "def _should_use_fast_lane" in source
+    assert "self._is_authentication_error(exc)" in source
+    assert 'reasoning_effort="none"' in source
+
+
+def test_frontend_does_not_fetch_aria_uid_before_each_chat_and_refreshes_expired_auth():
+    source = Path("public/index.html").read_text("utf-8")
+    assert "authenticatedFetch('/chat'" in source
+    assert "if (response.status === 401 && currentUser)" in source
+    assert "Ensure we have ARIA UID" not in source
+
+
+def test_chat_authentication_error_is_user_safe():
+    source = Path("main.py").read_text("utf-8")
+    assert "model connection rejected the configured credentials" in source
