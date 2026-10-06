@@ -22,6 +22,8 @@ class AgentStore:
         self._schema_ready = False
         self._box = SecretBox(settings.encryption_key, settings.app_secret)
         self._use_postgres = bool(settings.database_url)
+        if settings.require_database and not self._use_postgres:
+            raise RuntimeError("Supabase/Postgres database is required for this ARIA deployment.")
         self._path = Path(settings.data_dir) / "agent_store.json"
         if not self._use_postgres:
             self._path.parent.mkdir(parents=True, exist_ok=True)
