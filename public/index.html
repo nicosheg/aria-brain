@@ -266,6 +266,7 @@
     const auth = firebase.auth();
 
     let currentUser = null;
+    let firebaseIdToken = null;
     let lastAriaMessage = null;
     let chatBusy = false;
     let conversationId = null;
@@ -273,10 +274,21 @@
     let recentSearchTerm = '';
 
     // ── Authenticated API helper ──
-    async function apiHeaders(extra = {}) {
+    async function apiHeaders(extra = {}, forceRefresh = false) {
       if (!currentUser) return extra;
-      const token = await currentUser.getIdToken();
-      return { ...extra, 'Authorization': `Bearer ${token}` };
+      if (!firebaseIdToken || forceRefresh) firebaseIdToken = await currentUser.getIdToken(forceRefresh);
+      return { ...extra, 'Authorization': `Bearer ${firebaseIdToken}` };
+    }
+
+    async function authenticatedFetch(url, options = {}) {
+      const headers = await apiHeaders(options.headers || {});
+      let response = await fetch(url, { ...options, headers });
+      if (response.status === 401 && currentUser) {
+        firebaseIdToken = null;
+        const refreshedHeaders = await apiHeaders(options.headers || {}, true);
+        response = await fetch(url, { ...options, headers: refreshedHeaders });
+      }
+      return response;
     }
 
     function safeMarkdown(text) {
@@ -629,16 +641,10 @@
       autoResize(inputElement);
       showTyping();
 
-      // Ensure we have ARIA UID
-      let ariaUid = localStorage.getItem('aria_uid');
-      if (!ariaUid) {
-        ariaUid = await getAriaUid(currentUser.email);
-      }
-
       try {
-        const res = await fetch('/chat', {
+        const res = await authenticatedFetch('/chat', {
           method: 'POST',
-          headers: await apiHeaders({ 'Content-Type': 'application/json' }),
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message,
             email: currentUser.email.toLowerCase(),
@@ -950,6 +956,7 @@
     auth.onAuthStateChanged(async (user) => {
       if (user) {
         currentUser = user;
+        firebaseIdToken = await user.getIdToken();
         loadConversations();
         setInterval(() => {
           fetch('/health').catch(() => {});
