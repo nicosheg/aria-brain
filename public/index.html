@@ -501,15 +501,21 @@
           headers: await apiHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({ message, email: currentUser.email.toLowerCase() })
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+        const raw = await res.text();
+        let data = {};
+        try { data = JSON.parse(raw); } catch (_) {}
+        if (!res.ok) {
+          const detail = typeof data.detail === 'string' ? data.detail : `HTTP ${res.status}`;
+          throw new Error(detail);
+        }
         hideTyping();
         if (data.error) addMessage(`Error: ${data.error}`, 'aria');
         else { addMessage(data.reply || '...', 'aria'); if (data.approval_required) showApproval(data.run_id, data.interruptions || []); }
       } catch(e) {
         hideTyping();
         console.error("Chat error:", e);
-        addMessage("Connection uncertain. Please try again.", 'aria');
+        const reason = e && e.message ? e.message : "The connection failed unexpectedly.";
+        addMessage(`ARIA couldn't connect: ${reason}`, 'aria');
       }
     }
 
