@@ -264,6 +264,9 @@
 
     let currentUser = null;
     let lastAriaMessage = null;
+    let conversationId = null;
+    let conversations = [];
+    let recentSearchTerm = '';
 
     // ── Authenticated API helper ──
     async function apiHeaders(extra = {}) {
@@ -379,6 +382,9 @@
     const signoutBtn = document.getElementById('signoutBtn');
     const historyModal = document.getElementById('historyModal');
     const historyContent = document.getElementById('historyContent');
+    const recentList = document.getElementById('recentList');
+    const recentSearch = document.getElementById('recentSearch');
+    const newConversationBtn = document.getElementById('newConversationBtn');
 
     function autoResize(textarea) {
       textarea.style.height = 'auto';
@@ -405,6 +411,95 @@
         console.warn('Could not fetch ARIA UID:', e);
       }
       return null;
+    }
+
+    // ── Standalone conversation continuity ──
+    function formatRecentTime(iso) {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return '';
+      const now = new Date();
+      return d.toDateString() === now.toDateString()
+        ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+        : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    }
+
+    function renderRecentConversations() {
+      if (!recentList) return;
+      const q = recentSearchTerm.toLowerCase();
+      const items = conversations.filter(item => !q || [item.title, item.preview].join(' ').toLowerCase().includes(q));
+      recentList.innerHTML = '';
+      if (!items.length) {
+        recentList.innerHTML = '<div class="recent-empty">No previous chats yet.</div>';
+        return;
+      }
+      items.forEach(item => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'recent-item' + (item.id === conversationId ? ' active' : '');
+        const title = document.createElement('div');
+        title.className = 'recent-item-title';
+        title.textContent = item.title || 'New conversation';
+        const preview = document.createElement('div');
+        preview.className = 'recent-item-preview';
+        preview.textContent = item.preview || 'No messages yet.';
+        const time = document.createElement('div');
+        time.className = 'recent-item-time';
+        time.textContent = formatRecentTime(item.updated_at);
+        button.append(title, preview, time);
+        button.addEventListener('click', () => openConversation(item.id));
+        recentList.appendChild(button);
+      });
+    }
+
+    async function loadConversations() {
+      if (!currentUser) return;
+      if (recentList) recentList.innerHTML = '<div class="recent-loading">Loading your conversations…</div>';
+      try {
+        const query = recentSearchTerm ? '&search=' + encodeURIComponent(recentSearchTerm) : '';
+        const res = await fetch('/conversations?limit=100' + query, { headers: await apiHeaders(), cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        conversations = Array.isArray(data.conversations) ? data.conversations : [];
+        renderRecentConversations();
+      } catch (e) {
+        console.warn('Conversations could not be loaded:', e);
+        conversations = [];
+        if (recentList) recentList.innerHTML = '<div class="recent-empty">Conversations could not be loaded.</div>';
+      }
+    }
+
+    async function openConversation(id) {
+      if (!id || !currentUser) return;
+      try {
+        const res = await fetch('/conversations/' + encodeURIComponent(id), { headers: await apiHeaders(), cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        conversationId = data.id || id;
+        messagesArea.innerHTML = '';
+        const messages = Array.isArray(data.messages) ? data.messages : [];
+        messages.forEach(item => {
+          if (item.role === 'user') addMessage(item.content, 'user');
+          else if (item.role === 'assistant') addMessage(item.content, 'aria');
+        });
+        renderRecentConversations();
+        if (!messages.length) {
+          const name = localStorage.getItem('displayName') || currentUser.displayName || currentUser.email.split('@')[0];
+          addMessage('Hey ' + name + '. I\'m ARIA. What would you like to explore?', 'aria');
+        }
+        messagesArea.scrollTop = messagesArea.scrollHeight;
+      } catch (e) {
+        console.warn('Conversation could not be opened:', e);
+        addMessage('I could not open that conversation right now.', 'aria');
+      }
+    }
+
+    function startNewConversation() {
+      conversationId = null;
+      messagesArea.innerHTML = '';
+      renderRecentConversations();
+      const name = localStorage.getItem('displayName') || (currentUser && currentUser.displayName) || (currentUser && currentUser.email ? currentUser.email.split('@')[0] : 'friend');
+      addMessage('Hey ' + name + '. I\'m ARIA. What would you like to explore?', 'aria');
+      chatInput.focus();
     }
 
     // ── Chat functions ──
