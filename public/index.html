@@ -597,7 +597,11 @@
         const res = await fetch('/chat', {
           method: 'POST',
           headers: await apiHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ message, email: currentUser.email.toLowerCase() })
+          body: JSON.stringify({
+            message,
+            email: currentUser.email.toLowerCase(),
+            conversation_id: conversationId
+          })
         });
         const raw = await res.text();
         let data = {};
@@ -607,8 +611,11 @@
           throw new Error(detail);
         }
         hideTyping();
+        if (data.conversation_id) conversationId = data.conversation_id;
         if (data.error) addMessage(`Error: ${data.error}`, 'aria');
         else { addMessage(data.reply || '...', 'aria'); if (data.approval_required) showApproval(data.run_id, data.interruptions || []); }
+        renderRecentConversations();
+        loadConversations();
       } catch(e) {
         hideTyping();
         console.error("Chat error:", e);
@@ -620,18 +627,17 @@
     function openChat() {
       mainUI.style.display = 'none';
       chatView.classList.add('active');
-      if (messagesArea.children.length === 0 && currentUser) {
-        const name = localStorage.getItem('displayName') || currentUser.displayName || currentUser.email.split('@')[0];
-        addMessage(`Hey ${name}. I'm ARIA. What would you like to explore?`, 'aria');
+      if (currentUser) {
+        loadConversations();
+        if (conversationId && messagesArea.children.length === 0) openConversation(conversationId);
+        else if (!conversationId && messagesArea.children.length === 0) startNewConversation();
       }
       chatInput.focus();
     }
     function closeChat() {
       mainUI.style.display = 'flex';
       chatView.classList.remove('active');
-      messagesArea.innerHTML = '';
     }
-
     // ── History ──
     let historyItems = [];
     let historySearchTerm = '';
@@ -822,6 +828,14 @@
     document.getElementById('chatSendBtn').addEventListener('click', () => sendFromInput(chatInput));
     document.getElementById('sendBtn').addEventListener('click', () => sendFromInput(mainInput));
 
+    if (recentSearch) {
+      recentSearch.addEventListener('input', (e) => {
+        recentSearchTerm = e.target.value.trim();
+        loadConversations();
+      });
+    }
+    if (newConversationBtn) newConversationBtn.addEventListener('click', startNewConversation);
+
     document.getElementById('historyBtn').addEventListener('click', showHistory);
     document.getElementById('closeHistoryBtn').addEventListener('click', closeHistory);
     document.getElementById('historyRefreshBtn').addEventListener('click', fetchHistory);
@@ -914,6 +928,7 @@
     auth.onAuthStateChanged(async (user) => {
       if (user) {
         currentUser = user;
+        loadConversations();
         setInterval(() => {
           fetch('/health').catch(() => {});
         }, 4 * 60 * 1000);
