@@ -732,9 +732,13 @@
           closeHistory();
           mainUI.style.display = 'none';
           chatView.classList.add('active');
-          messagesArea.innerHTML = '';
-          if (item.input) addMessage(item.input, 'user');
-          if (item.output) addMessage(item.output, 'aria');
+          if (item.conversation_id) {
+            openConversation(item.conversation_id);
+          } else {
+            messagesArea.innerHTML = '';
+            if (item.input) addMessage(item.input, 'user');
+            if (item.output) addMessage(item.output, 'aria');
+          }
         };
 
         historyContent.appendChild(card);
@@ -744,53 +748,24 @@
     async function fetchHistory() {
       if (!currentUser) return;
       historyContent.innerHTML = '<div class="history-loading">Loading your conversations…</div>';
-
       try {
-        const res = await fetch('/history?limit=200', { headers: await apiHeaders() });
+        const res = await fetch('/conversations?limit=200', { headers: await apiHeaders(), cache: 'no-store' });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
-        historyItems = Array.isArray(data.items) ? data.items : [];
-
-        if (historyItems.length) {
-          renderHistory(historyItems);
-          return;
-        }
-
-        const legacyRes = await fetch('/context', { headers: await apiHeaders() });
-        const legacyData = await legacyRes.json();
-        if (legacyData.context && legacyData.context.trim()) {
-          const lines = legacyData.context.split('\n');
-          let currentUserMsg = null;
-          let currentAriaMsg = null;
-          const fallback = [];
-
-          for (const line of lines) {
-            if (line.startsWith('User:')) {
-              if (currentUserMsg && currentAriaMsg) {
-                fallback.push({ input: currentUserMsg, output: currentAriaMsg, status: 'completed', created_at: new Date().toISOString() });
-              }
-              currentUserMsg = line.substring(5).trim();
-              currentAriaMsg = null;
-            } else if (line.startsWith('ARIA:')) {
-              currentAriaMsg = line.substring(5).trim();
-            }
-          }
-          if (currentUserMsg && currentAriaMsg) {
-            fallback.push({ input: currentUserMsg, output: currentAriaMsg, status: 'completed', created_at: new Date().toISOString() });
-          }
-
-          historyItems = fallback;
-          renderHistory(historyItems);
-        } else {
-          historyItems = [];
-          historyContent.innerHTML = '<div class="history-empty">No conversations yet.</div>';
-        }
+        const items = Array.isArray(data.conversations) ? data.conversations : [];
+        historyItems = items.map(item => ({
+          conversation_id: item.id,
+          input: item.title || 'Conversation',
+          output: item.preview || 'No messages yet.',
+          status: item.status || 'active',
+          created_at: item.updated_at || item.created_at
+        }));
+        renderHistory(historyItems);
       } catch (e) {
         console.warn('History could not be loaded:', e);
         historyContent.innerHTML = '<div class="history-error">History could not be loaded right now.</div>';
       }
     }
-
     function showHistory() {
       historySearchTerm = '';
       const search = document.getElementById('historySearch');
