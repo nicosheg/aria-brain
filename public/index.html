@@ -62,6 +62,25 @@
     @media (max-width: 640px) { .upload-btn::after { font-size: 9px; bottom: 40px; } }
     .footer { text-align: center; padding: 8px 0 12px; font-size: 10px; letter-spacing: 0.6px; color: #4A5A7A; border-top: 0.5px solid rgba(255,255,255,0.04); width: 100%; }
     .chat-view { position: fixed; inset: 0; background: transparent; z-index: 100; padding: 20px; display: none; flex-direction: column; }
+    .chat-content { flex: 1; min-height: 0; display: flex; gap: 14px; }
+    .recent-panel { width: 285px; flex: 0 0 285px; min-height: 0; display: flex; flex-direction: column; background: rgba(5,10,20,0.62); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.09); border-radius: 22px; overflow: hidden; }
+    .recent-panel-header { padding: 14px 14px 10px; border-bottom: 1px solid rgba(255,255,255,0.07); }
+    .recent-panel-title { color: rgba(255,255,255,0.9); font-size: 13px; font-weight: 600; margin-bottom: 9px; }
+    .recent-panel-tools { display: flex; gap: 8px; }
+    .recent-search { flex: 1; min-width: 0; height: 36px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.09); background: rgba(255,255,255,0.04); color: #fff; outline: none; padding: 0 10px; font: inherit; font-size: 11px; }
+    .recent-search::placeholder { color: rgba(255,255,255,0.32); }
+    .new-chat-btn { height: 36px; border: 1px solid rgba(96,165,250,0.25); background: rgba(96,165,250,0.10); color: #dbeafe; border-radius: 12px; padding: 0 10px; cursor: pointer; font: inherit; font-size: 11px; white-space: nowrap; }
+    .new-chat-btn:hover { background: rgba(96,165,250,0.18); }
+    .recent-list { flex: 1; overflow-y: auto; padding: 9px; }
+    .recent-empty, .recent-loading { padding: 18px 10px; color: rgba(255,255,255,0.34); font-size: 11px; text-align: center; }
+    .recent-item { width: 100%; border: 1px solid transparent; background: transparent; color: #fff; border-radius: 14px; padding: 10px; cursor: pointer; text-align: left; margin-bottom: 6px; }
+    .recent-item:hover { background: rgba(255,255,255,0.045); }
+    .recent-item.active { background: rgba(96,165,250,0.10); border-color: rgba(96,165,250,0.22); }
+    .recent-item-title { font-size: 11px; font-weight: 600; line-height: 1.35; color: rgba(255,255,255,0.88); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .recent-item-preview { margin-top: 4px; font-size: 10px; line-height: 1.35; color: rgba(255,255,255,0.35); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .recent-item-time { margin-top: 5px; font-size: 9px; color: rgba(255,255,255,0.23); }
+    .chat-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+    @media (max-width: 760px) { .chat-content { flex-direction: column; gap: 10px; } .recent-panel { width: 100%; flex: 0 0 auto; max-height: 150px; border-radius: 18px; } .recent-panel-header { padding: 10px 10px 8px; } .recent-list { padding: 7px; } .recent-item { display: none; } .recent-item:nth-child(-n+3) { display: block; } }
     .chat-view.active { display: flex; }
     .chat-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
     .back-btn { background: rgba(0,0,0,0.4); backdrop-filter: blur(8px); border: none; color: white; font-size: 26px; cursor: pointer; width: 40px; height: 40px; border-radius: 30px; display: flex; align-items: center; justify-content: center; }
@@ -170,26 +189,10 @@
     </div>
   </div>
   <div id="chatView" class="chat-view">
-    <div class="chat-header">
-      <button class="back-btn" id="closeChatBtn">←</button>
-      <div style="color:white; font-weight:500;">ARIA</div>
-      <div class="chat-actions">
-        <button class="chat-action" id="historyBtn" title="History">🕘</button>
-      </div>
-    </div>
-    <div class="messages-area" id="messagesArea"></div>
-    <div class="input-capsule" style="margin-bottom: 0;">
-      <div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
-      <textarea class="input-field" id="chatInput" rows="1" placeholder="Message ARIA..."></textarea>
-      <div class="send-circle" id="chatSendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
-      <div class="upload-btn" id="chatUploadBtn">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-          <line x1="8" y1="21" x2="16" y2="21"></line>
-          <line x1="12" y1="17" x2="12" y2="21"></line>
-          <path d="M12 2v5m-2-2 2-2 2 2"/>
-        </svg>
-      </div>
+    <div class="chat-header"><button class="back-btn" id="closeChatBtn">←</button><div style="color:white; font-weight:500;">ARIA</div><div class="chat-actions"><button class="chat-action" id="historyBtn" title="History">🕘</button></div></div>
+    <div class="chat-content">
+      <aside class="recent-panel" aria-label="Previous conversations"><div class="recent-panel-header"><div class="recent-panel-title">Previous chats</div><div class="recent-panel-tools"><input id="recentSearch" class="recent-search" type="search" placeholder="Search chats..." autocomplete="off"><button id="newConversationBtn" class="new-chat-btn" type="button">New</button></div></div><div id="recentList" class="recent-list"><div class="recent-loading">Loading your conversations…</div></div></aside>
+      <div class="chat-main"><div class="messages-area" id="messagesArea"></div><div class="input-capsule" style="margin-bottom: 0;"><div class="input-icon-left"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div><textarea class="input-field" id="chatInput" rows="1" placeholder="Message ARIA..."></textarea><div class="send-circle" id="chatSendBtn"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div><div class="upload-btn" id="chatUploadBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line><path d="M12 2v5m-2-2 2-2 2 2"/></svg></div></div></div>
     </div>
   </div>
   <div id="historyModal" class="history-modal">
