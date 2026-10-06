@@ -16,6 +16,15 @@ class Settings:
     groq_model: str = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
     reasoning_effort: str = os.getenv("ARIA_REASONING_EFFORT", "default").strip().lower()
     reasoning_format: str = os.getenv("ARIA_REASONING_FORMAT", "hidden").strip().lower()
+    # Legacy field compatibility keeps an older Render instance bootable during a rolling deploy.
+    # The live provider path is still Groq Qwen3.8 only.
+    model: str = os.getenv("ARIA_MODEL", "qwen/qwen3.8-27b")
+    qwen_model: str = os.getenv("QWEN_MODEL", "qwen/qwen3.8-27b")
+    qwencloud_model: str = os.getenv("QWENCLOUD_MODEL", "qwen3.8-flash")
+    deepseek_model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    openrouter_site_url: str = os.getenv("OPENROUTER_SITE_URL", "")
+    openrouter_site_name: str = os.getenv("OPENROUTER_SITE_NAME", "ARIA")
     max_turns: int = int(os.getenv("ARIA_MAX_TURNS", "32"))
     max_message_chars: int = int(os.getenv("ARIA_MAX_MESSAGE_CHARS", "12000"))
     memory_results: int = int(os.getenv("ARIA_MEMORY_RESULTS", "12"))
