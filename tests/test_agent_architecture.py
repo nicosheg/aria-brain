@@ -175,3 +175,38 @@ def test_chat_surfaces_backend_detail():
     source = Path("public/index.html").read_text("utf-8")
     assert "ARIA couldn't connect:" in source
     assert "const raw = await res.text()" in source
+
+
+def test_reasoning_provider_does_not_send_unsupported_reasoning_format():
+    runtime = Path("aria_agent/runtime.py").read_text("utf-8")
+    workers = Path("aria_agent/workers.py").read_text("utf-8")
+    assert "reasoning_format" not in runtime
+    assert "reasoning_format" not in workers
+
+
+def test_conversation_storage_contract(tmp_path):
+    from aria_agent.storage import AgentStore
+    from pathlib import Path
+
+    store = AgentStore()
+    store._use_postgres = False
+    store._path = Path(tmp_path) / "agent_store.json"
+    store._write_local(store._empty_local())
+    convo = store.create_conversation("u", "Remember my goals")
+    store.add_message(convo["id"], "u", "user", "Remember my goals")
+    store.add_message(convo["id"], "u", "assistant", "I will remember that.")
+    loaded = store.get_conversation("u", convo["id"])
+    assert loaded["title"] == "Remember my goals"
+    assert [m["role"] for m in loaded["messages"]] == ["user", "assistant"]
+    listed = store.list_conversations("u")
+    assert listed[0]["id"] == convo["id"]
+
+
+def test_frontend_has_persistent_conversation_panel():
+    source = Path("public/index.html").read_text("utf-8")
+    assert 'id="recentList"' in source
+    assert 'id="recentSearch"' in source
+    assert 'id="newConversationBtn"' in source
+    assert "function loadConversations()" in source
+    assert "function openConversation(id)" in source
+    assert "conversation_id: conversationId" in source
