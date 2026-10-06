@@ -43,6 +43,7 @@ async def shutdown():
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=settings.max_message_chars)
     email: Optional[str] = None
+    conversation_id: Optional[str] = Field(default=None, max_length=120)
 
 
 class ApprovalRequest(BaseModel):
@@ -207,9 +208,10 @@ async def ping():
 async def chat(req: ChatRequest, authorization: Optional[str] = Header(default=None)):
     identity = _identity_from_request(authorization, req.email)
     try:
-        result = await runtime.run(identity["user_id"], req.message)
+        result = await runtime.run(identity["user_id"], req.message, conversation_id=req.conversation_id)
         return {
             "reply": result["reply"],
+            "conversation_id": result.get("conversation_id"),
             "run_id": result["run_id"],
             "status": result["status"],
             "approval_required": result["approval_required"],
@@ -268,6 +270,36 @@ async def get_context(authorization: Optional[str] = Header(default=None), email
         elif row["kind"] == "conversation_assistant":
             lines.append("ARIA: " + row["content"])
     return {"context": "\n".join(lines)}
+
+
+@app.get("/conversations")
+async def conversations(
+    limit: int = 50,
+    search: str = "",
+    authorization: Optional[str] = Header(default=None),
+    email: Optional[str] = None,
+):
+    identity = _identity_from_request(authorization, email)
+    return {
+        "conversations": runtime.store.list_conversations(
+            identity["user_id"],
+            max(1, min(limit, 200)),
+            search[:160],
+        )
+    }
+
+
+@app.get("/conversations/{conversation_id}")
+async def conversation(
+    conversation_id: str,
+    authorization: Optional[str] = Header(default=None),
+    email: Optional[str] = None,
+):
+    identity = _identity_from_request(authorization, email)
+    item = runtime.store.get_conversation(identity["user_id"], conversation_id, include_messages=True)
+    if not item:
+        raise HTTPException(404, detail="Conversation not found.")
+    return item
 
 
 @app.get("/history")
