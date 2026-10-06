@@ -123,16 +123,17 @@ def test_frontend_has_modern_chat_and_history_surface():
     assert "async function uploadFile" in source
 
 
-def test_qwen_is_primary_when_openrouter_is_available(monkeypatch):
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+def test_groq_qwen38_is_primary_reasoning_provider(monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
     from aria_agent.runtime import AriaRuntime
 
     runtime = AriaRuntime.__new__(AriaRuntime)
     candidates = runtime.provider_candidates()
     assert candidates
-    assert candidates[0][0] == "openrouter"
-    assert candidates[0][1] == "qwen/qwen3.8-27b:free"
+    assert candidates[0][0] == "groq"
+    assert candidates[0][1] == "qwen/qwen3.8-27b"
 
 
 def test_cognitive_core_is_model_independent():
@@ -160,3 +161,17 @@ def test_native_memory_and_math_primitives_are_executable(tmp_path):
     assert "Remembered:" in result["reply"]
     result = __import__("asyncio").run(r.run("u", "what is 12 * 3"))
     assert result["reply"] == "36.0"
+
+
+def test_render_is_groq_only_and_reasoning_enabled_by_default():
+    source = Path("render.yaml").read_text("utf-8")
+    assert "OPENROUTER_API_KEY" not in source
+    assert 'value: "groq"' in source
+    assert 'value: "qwen/qwen3.8-27b"' in source
+    assert 'value: "default"' in source
+
+
+def test_chat_surfaces_backend_detail():
+    source = Path("public/index.html").read_text("utf-8")
+    assert "ARIA couldn't connect:" in source
+    assert "const raw = await res.text()" in source
