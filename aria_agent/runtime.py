@@ -27,59 +27,30 @@ class AriaRuntime:
     def provider_candidates(self):
         candidates = []
 
-        openrouter_key = os.getenv("OPENROUTER_API_KEY", "").strip()
-        if openrouter_key:
-            client = AsyncOpenAI(
-                api_key=openrouter_key,
-                base_url="https://openrouter.ai/api/v1",
-                default_headers={
-                    "HTTP-Referer": settings.openrouter_site_url,
-                    "X-OpenRouter-Title": settings.openrouter_site_name,
-                },
-            )
-            candidates.append((
-                "openrouter",
-                settings.qwen_model,
-                OpenAIChatCompletionsModel(
-                    model=settings.qwen_model,
-                    openai_client=client,
-                ),
-            ))
-
-        qwencloud_key = os.getenv("DASHSCOPE_API_KEY", "").strip()
-        if qwencloud_key:
-            client = AsyncOpenAI(
-                api_key=qwencloud_key,
-                base_url="https://maas.qwencloudapi.com/compatible-mode/v1",
-            )
-            candidates.append((
-                "qwencloud",
-                settings.qwencloud_model,
-                OpenAIChatCompletionsModel(
-                    model=settings.qwencloud_model,
-                    openai_client=client,
-                ),
-            ))
-
-        if os.getenv("OPENAI_API_KEY"):
-            candidates.append(("openai", settings.model, settings.model))
+        keys = []
+        primary_key = os.getenv("GROQ_API_KEY", "").strip()
+        if primary_key:
+            keys.append(primary_key)
         for i in range(1, 21):
             key = os.getenv(f"GROQ_KEY_{i}", "").strip()
-            if key:
-                client = AsyncOpenAI(api_key=key, base_url="https://api.groq.com/openai/v1")
-                candidates.append(("groq", settings.groq_model, OpenAIChatCompletionsModel(model=settings.groq_model, openai_client=client)))
-        for i in range(1, 6):
-            key = os.getenv(f"DEEPSEEK_KEY_{i}", "").strip()
-            if key:
-                client = AsyncOpenAI(api_key=key, base_url="https://api.deepseek.com")
-                candidates.append(("deepseek", settings.deepseek_model, OpenAIChatCompletionsModel(model=settings.deepseek_model, openai_client=client)))
-        for i in range(1, 21):
-            key = os.getenv(f"GEMINI_KEY_{i}", "").strip()
-            if key:
-                client = AsyncOpenAI(api_key=key, base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
-                candidates.append(("gemini", settings.gemini_model, OpenAIChatCompletionsModel(model=settings.gemini_model, openai_client=client)))
-        if not any(x[0] == "openai" for x in candidates):
-            set_tracing_disabled(True)
+            if key and key not in keys:
+                keys.append(key)
+
+        for key in keys:
+            client = AsyncOpenAI(
+                api_key=key,
+                base_url="https://api.groq.com/openai/v1",
+            )
+            candidates.append((
+                "groq",
+                settings.groq_model,
+                OpenAIChatCompletionsModel(
+                    model=settings.groq_model,
+                    openai_client=client,
+                ),
+            ))
+
+        set_tracing_disabled(True)
         return candidates
 
     def _base_instructions(self, user_id: str, memory: list[dict]) -> str:
@@ -122,6 +93,12 @@ Operating rules:
             tools=tools + worker_tools,
             mcp_servers=servers or [],
             mcp_config={"include_server_in_tool_names": True},
+            model_settings={
+                "extra_args": {
+                    "reasoning_effort": settings.reasoning_effort,
+                    "reasoning_format": settings.reasoning_format,
+                }
+            },
         )
 
     def _select_provider(self, candidates, previous=None):
@@ -139,11 +116,9 @@ Operating rules:
             if not matches:
                 raise RuntimeError(f"ARIA_PROVIDER={preferred!r} is not configured.")
             return matches[0]
-        preferred_order = ["openrouter", "qwencloud", "openai", "deepseek", "groq", "gemini"]
-        for provider_name in preferred_order:
-            match = next((candidate for candidate in candidates if candidate[0] == provider_name), None)
-            if match:
-                return match
+        match = next((candidate for candidate in candidates if candidate[0] == "groq"), None)
+        if match:
+            return match
         return candidates[0]
 
     async def run(
@@ -177,7 +152,7 @@ Operating rules:
                 native = (
                     "My core systems are online, but no language model is connected yet. "
                     "I can still handle native memory, simple calculations, safety checks and deterministic routing. "
-                    "Connect Qwen3.8 27B free for full conversational reasoning and agentic work."
+                    "Connect Groq Qwen3.8 27B for full conversational reasoning and agentic work."
                 )
             safe_input = redact_secrets(message)
             self.store.add_memory(user_id, "conversation_user", safe_input, importance=0.35)
