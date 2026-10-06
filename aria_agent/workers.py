@@ -71,7 +71,6 @@ Return compact findings with sources, assumptions, uncertainty and the next acti
             model_settings={
                 "extra_args": {
                     "reasoning_effort": settings.reasoning_effort,
-                    "reasoning_format": settings.reasoning_format,
                 }
             },
         )
