@@ -97,6 +97,9 @@
     .message:hover .message-actions { opacity: 0.8; }
     .message-action { background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); border: none; font-size: 12px; cursor: pointer; color: white; padding: 4px 8px; border-radius: 16px; }
     .message-action:hover { background: rgba(0,0,0,0.6); }
+    .chat-starters { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 4px; padding: 0 2px; }
+    .chat-starter { border: 1px solid rgba(96,165,250,0.18); background: rgba(96,165,250,0.07); color: rgba(255,255,255,0.72); border-radius: 16px; padding: 8px 11px; cursor: pointer; font: inherit; font-size: 10px; text-align: left; transition: .18s ease; }
+    .chat-starter:hover { background: rgba(96,165,250,0.13); border-color: rgba(96,165,250,0.32); color: #fff; transform: translateY(-1px); }
     .rating-row { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px; padding: 2px 0; }
     .rating-star { width: 18px; height: 18px; cursor: pointer; fill: none; stroke: rgba(255, 255, 255, 0.3); stroke-width: 1.5; transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.3s, fill 0.2s; }
     .rating-star.active { fill: #ffffff; stroke: #3b82f6; filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.8)) drop-shadow(0 0 10px rgba(167, 139, 250, 0.4)); transform: scale(1.05); }
@@ -264,6 +267,7 @@
 
     let currentUser = null;
     let lastAriaMessage = null;
+    let chatBusy = false;
     let conversationId = null;
     let conversations = [];
     let recentSearchTerm = '';
@@ -388,11 +392,16 @@
 
     function autoResize(textarea) {
       textarea.style.height = 'auto';
-      textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+      textarea.style.height = Math.min(textarea.scrollHeight, 180) + 'px';
     }
     function setupTextarea(inputEl) {
       if (!inputEl) return;
       inputEl.addEventListener('input', () => autoResize(inputEl));
+      inputEl.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' || event.shiftKey) return;
+        event.preventDefault();
+        sendFromInput(inputEl);
+      });
       autoResize(inputEl);
     }
     setupTextarea(mainInput);
@@ -475,6 +484,7 @@
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         conversationId = data.id || id;
+        clearChatStarters();
         messagesArea.innerHTML = '';
         const messages = Array.isArray(data.messages) ? data.messages : [];
         messages.forEach(item => {
@@ -485,6 +495,7 @@
         if (!messages.length) {
           const name = localStorage.getItem('displayName') || currentUser.displayName || currentUser.email.split('@')[0];
           addMessage('Hey ' + name + '. I\'m ARIA. What would you like to explore?', 'aria');
+          showChatStarters();
         }
         messagesArea.scrollTop = messagesArea.scrollHeight;
       } catch (e) {
@@ -493,12 +504,41 @@
       }
     }
 
+    function clearChatStarters() {
+      const existing = document.getElementById('chatStarters');
+      if (existing) existing.remove();
+    }
+
+    function showChatStarters() {
+      clearChatStarters();
+      const starters = [
+        'What do you remember about me?',
+        'Help me plan my biggest goal',
+        'What can you do for me?',
+        'Help me find my next opportunity'
+      ];
+      const wrap = document.createElement('div');
+      wrap.id = 'chatStarters';
+      wrap.className = 'chat-starters';
+      starters.forEach((prompt) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'chat-starter';
+        button.textContent = prompt;
+        button.addEventListener('click', () => sendToAria(prompt, chatInput));
+        wrap.appendChild(button);
+      });
+      messagesArea.appendChild(wrap);
+      messagesArea.scrollTop = messagesArea.scrollHeight;
+    }
+
     function startNewConversation() {
       conversationId = null;
       messagesArea.innerHTML = '';
       renderRecentConversations();
       const name = localStorage.getItem('displayName') || (currentUser && currentUser.displayName) || (currentUser && currentUser.email ? currentUser.email.split('@')[0] : 'friend');
       addMessage('Hey ' + name + '. I\'m ARIA. What would you like to explore?', 'aria');
+      showChatStarters();
       chatInput.focus();
     }
 
@@ -578,10 +618,12 @@
 
     // ── SEND MESSAGE ──
     async function sendToAria(message, inputElement) {
-      if (!currentUser) {
-        addMessage("Please sign in first.", 'aria');
+      if (!currentUser || chatBusy) {
+        if (!currentUser) addMessage("Please sign in first.", 'aria');
         return;
       }
+      chatBusy = true;
+      clearChatStarters();
       addMessage(message, 'user');
       inputElement.value = '';
       autoResize(inputElement);
@@ -621,6 +663,10 @@
         console.error("Chat error:", e);
         const reason = e && e.message ? e.message : "The connection failed unexpectedly.";
         addMessage(`ARIA couldn't connect: ${reason}`, 'aria');
+      } finally {
+        chatBusy = false;
+        chatInput.disabled = false;
+        mainInput.disabled = false;
       }
     }
 
@@ -797,6 +843,7 @@
     document.getElementById('closeChatBtn').addEventListener('click', closeChat);
 
     function sendFromInput(inputEl) {
+      if (chatBusy) return;
       const msg = inputEl.value.trim();
       if (msg) sendToAria(msg, inputEl);
     }
