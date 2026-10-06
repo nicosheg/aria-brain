@@ -151,6 +151,14 @@ Operating rules:
     async def _fast_conversation(self, user_id: str, message: str, conversation_id: str, memory: list[dict]) -> dict:
         frame = self.cognitive.classify(message)
         native = self.cognitive.native_response(message, memory)
+        native_math = self.cognitive.extract_math_expression(message)
+        if native_math:
+            try:
+                native_math_result = str(self.cognitive.safe_math(native_math))
+                run_id = await self._save_fast_turn(user_id, conversation_id, message, native_math_result, "native", "aria-core")
+                return {"run_id": run_id, "status": "completed", "reply": native_math_result, "conversation_id": conversation_id, "provider": "native", "model": "aria-core", "approval_required": False, "interruptions": []}
+            except Exception:
+                pass
         if native and frame.intent in {"greeting", "capabilities", "memory"}:
             reply = "Hey. I’m ARIA. What would you like to explore?" if frame.intent == "greeting" else native
             run_id = await self._save_fast_turn(user_id, conversation_id, message, reply, "native", "aria-core")
