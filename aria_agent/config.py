@@ -15,7 +15,6 @@ class Settings:
     app_name: str = os.getenv("ARIA_APP_NAME", "ARIA")
     groq_model: str = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
     reasoning_effort: str = os.getenv("ARIA_REASONING_EFFORT", "default").strip().lower()
-    reasoning_format: str = os.getenv("ARIA_REASONING_FORMAT", "hidden").strip().lower()
     # Legacy field compatibility keeps an older Render instance bootable during a rolling deploy.
     # The live provider path is still Groq Qwen3.8 only.
     model: str = os.getenv("ARIA_MODEL", "qwen/qwen3.8-27b")
