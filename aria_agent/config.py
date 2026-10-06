@@ -13,14 +13,9 @@ def _bool(name: str, default: bool = False) -> bool:
 @dataclass(frozen=True)
 class Settings:
     app_name: str = os.getenv("ARIA_APP_NAME", "ARIA")
-    model: str = os.getenv("ARIA_MODEL", os.getenv("OPENAI_DEFAULT_MODEL", "gpt-5.6-luna"))
-    groq_model: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-    deepseek_model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
-    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-    qwen_model: str = os.getenv("QWEN_MODEL", "qwen/qwen3.8-27b:free")
-    qwencloud_model: str = os.getenv("QWENCLOUD_MODEL", "qwen3.8-flash")
-    openrouter_site_url: str = os.getenv("OPENROUTER_SITE_URL", "")
-    openrouter_site_name: str = os.getenv("OPENROUTER_SITE_NAME", "ARIA")
+    groq_model: str = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
+    reasoning_effort: str = os.getenv("ARIA_REASONING_EFFORT", "default").strip().lower()
+    reasoning_format: str = os.getenv("ARIA_REASONING_FORMAT", "hidden").strip().lower()
     max_turns: int = int(os.getenv("ARIA_MAX_TURNS", "32"))
     max_message_chars: int = int(os.getenv("ARIA_MAX_MESSAGE_CHARS", "12000"))
     memory_results: int = int(os.getenv("ARIA_MEMORY_RESULTS", "12"))
@@ -42,13 +37,9 @@ class Settings:
 
     @property
     def has_any_model(self) -> bool:
-        prefixes = ("GROQ_KEY_", "DEEPSEEK_KEY_", "GEMINI_KEY_")
-        if os.getenv("OPENROUTER_API_KEY") or os.getenv("DASHSCOPE_API_KEY"):
+        if os.getenv("GROQ_API_KEY", "").strip():
             return True
-        return self.has_openai or any(
-            any(k.startswith(prefix) and v for k, v in os.environ.items())
-            for prefix in prefixes
-        )
+        return any(os.getenv(f"GROQ_KEY_{i}", "").strip() for i in range(1, 21))
 
 
 settings = Settings()
