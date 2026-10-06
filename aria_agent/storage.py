@@ -29,7 +29,7 @@ class AgentStore:
                 self._write_local(self._empty_local())
 
     def _empty_local(self) -> dict[str, Any]:
-        return {"memory": [], "connections": [], "runs": [], "jobs": [], "users": [], "feedback": []}
+        return {"memory": [], "connections": [], "runs": [], "jobs": [], "users": [], "feedback": [], "conversations": [], "messages": []}
 
     def _read_local(self) -> dict[str, Any]:
         try:
@@ -124,6 +124,30 @@ class AgentStore:
                 );
                 CREATE INDEX IF NOT EXISTS aria_jobs_queue
                     ON aria_jobs(status, run_after);
+
+                CREATE TABLE IF NOT EXISTS aria_conversations (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    title TEXT NOT NULL DEFAULT 'New conversation',
+                    status TEXT NOT NULL DEFAULT 'active',
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+                CREATE INDEX IF NOT EXISTS aria_conversations_user_updated
+                    ON aria_conversations(user_id, updated_at DESC);
+
+                CREATE TABLE IF NOT EXISTS aria_messages (
+                    id TEXT PRIMARY KEY,
+                    conversation_id TEXT NOT NULL REFERENCES aria_conversations(id) ON DELETE CASCADE,
+                    user_id TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+                CREATE INDEX IF NOT EXISTS aria_messages_conversation_created
+                    ON aria_messages(conversation_id, created_at ASC, id ASC);
+                CREATE INDEX IF NOT EXISTS aria_messages_user_created
+                    ON aria_messages(user_id, created_at DESC);
 
                 CREATE TABLE IF NOT EXISTS aria_users (
                     user_id TEXT PRIMARY KEY,
@@ -378,6 +402,142 @@ class AgentStore:
                 existing = any(x["id"] == run_id for x in data["runs"])
                 data["runs"] = [row if x["id"] == run_id else x for x in data["runs"]] if existing else data["runs"] + [row]
                 self._write_local(data)
+
+    def create_conversation(self, user_id: str, title: str = "New conversation") -> dict:
+        cid = str(uuid.uuid4())
+        uid = normalize_identity(user_id)
+        safe_title = redact_secrets(str(title or "New conversation").strip())[:120] or "New conversation"
+        if self._use_postgres:
+            self._query(
+                "INSERT INTO aria_conversations(id,user_id,title) VALUES(%s,%s,%s)",
+                (cid, uid, safe_title),
+                fetch="none",
+            )
+            return {"id": cid, "user_id": uid, "title": safe_title, "status": "active", "created_at": now_iso(), "updated_at": now_iso()}
+        with self._lock:
+            data = self._read_local()
+            row = {"id": cid, "user_id": uid, "title": safe_title, "status": "active", "created_at": now_iso(), "updated_at": now_iso()}
+            data["conversations"].append(row)
+            self._write_local(data)
+            return dict(row)
+
+    def get_conversation(self, user_id: str, conversation_id: str, include_messages: bool = True) -> Optional[dict]:
+        uid = normalize_identity(user_id)
+        if self._use_postgres:
+            row = self._query(
+                "SELECT id,user_id,title,status,created_at,updated_at FROM aria_conversations WHERE id=%s AND user_id=%s AND status='active'",
+                (conversation_id, uid),
+                fetch="one",
+            )
+            if not row:
+                return None
+            result = {
+                "id": row[0], "user_id": row[1], "title": row[2], "status": row[3],
+                "created_at": row[4].isoformat() if hasattr(row[4], "isoformat") else str(row[4]),
+                "updated_at": row[5].isoformat() if hasattr(row[5], "isoformat") else str(row[5]),
+            }
+            if include_messages:
+                rows = self._query(
+                    "SELECT id,role,content,created_at FROM aria_messages WHERE conversation_id=%s AND user_id=%s ORDER BY created_at ASC,id ASC LIMIT 200",
+                    (conversation_id, uid),
+                )
+                result["messages"] = [
+                    {"id": r[0], "role": r[1], "content": r[2], "created_at": r[3].isoformat() if hasattr(r[3], "isoformat") else str(r[3])}
+                    for r in rows
+                ]
+            return result
+
+        with self._lock:
+            row = next((x for x in self._read_local()["conversations"] if x["id"] == conversation_id and x["user_id"] == uid and x.get("status") == "active"), None)
+            if not row:
+                return None
+            result = dict(row)
+            if include_messages:
+                result["messages"] = [
+                    dict(x) for x in self._read_local()["messages"]
+                    if x["conversation_id"] == conversation_id and x["user_id"] == uid
+                ]
+                result["messages"].sort(key=lambda x: (x.get("created_at", ""), x.get("id", "")))
+            return result
+
+    def list_conversations(self, user_id: str, limit: int = 50, search: str = "") -> list[dict]:
+        uid = normalize_identity(user_id)
+        limit = max(1, min(int(limit), 200))
+        q = str(search or "").strip().lower()
+        if self._use_postgres:
+            params = [uid]
+            where = "WHERE user_id=%s AND status='active'"
+            if q:
+                where += " AND (LOWER(title) LIKE %s OR EXISTS (SELECT 1 FROM aria_messages m WHERE m.conversation_id=aria_conversations.id AND m.content ILIKE %s))"
+                params.extend([f"%{q}%", f"%{q}%"])
+            params.append(limit)
+            rows = self._query(
+                f"""SELECT id,title,status,created_at,updated_at,
+                           (SELECT COUNT(*) FROM aria_messages m WHERE m.conversation_id=aria_conversations.id) AS message_count,
+                           COALESCE((SELECT m.content FROM aria_messages m WHERE m.conversation_id=aria_conversations.id ORDER BY m.created_at DESC,m.id DESC LIMIT 1),'') AS preview
+                    FROM aria_conversations
+                    {where}
+                    ORDER BY updated_at DESC
+                    LIMIT %s""",
+                tuple(params),
+            )
+            return [
+                {
+                    "id": r[0], "title": r[1], "status": r[2],
+                    "created_at": r[3].isoformat() if hasattr(r[3], "isoformat") else str(r[3]),
+                    "updated_at": r[4].isoformat() if hasattr(r[4], "isoformat") else str(r[4]),
+                    "message_count": r[5], "preview": r[6] or "",
+                }
+                for r in rows
+            ]
+        with self._lock:
+            data = self._read_local()
+            rows = [dict(x) for x in data["conversations"] if x["user_id"] == uid and x.get("status") == "active"]
+            if q:
+                rows = [
+                    x for x in rows
+                    if q in x.get("title", "").lower()
+                    or any(q in m.get("content", "").lower() for m in data["messages"] if m.get("conversation_id") == x["id"])
+                ]
+            rows.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
+            out = []
+            for x in rows[:limit]:
+                msgs = sorted([m for m in data["messages"] if m["conversation_id"] == x["id"]], key=lambda m:(m.get("created_at",""),m.get("id","")))
+                out.append({**x, "message_count": len(msgs), "preview": msgs[-1]["content"] if msgs else ""})
+            return out
+
+    def add_message(self, conversation_id: str, user_id: str, role: str, content: str) -> str:
+        mid = str(uuid.uuid4())
+        uid = normalize_identity(user_id)
+        safe_role = str(role).strip().lower()
+        if safe_role not in {"user", "assistant", "system", "tool"}:
+            raise ValueError("Unsupported conversation message role.")
+        safe_content = redact_secrets(str(content or ""))
+        if self._use_postgres:
+            self._query(
+                "INSERT INTO aria_messages(id,conversation_id,user_id,role,content) SELECT %s,id,%s,%s,%s FROM aria_conversations WHERE id=%s AND user_id=%s AND status='active'",
+                (mid, uid, safe_role, safe_content, conversation_id, uid),
+                fetch="none",
+            )
+            self._query(
+                "UPDATE aria_conversations SET updated_at=NOW(), title=CASE WHEN title='New conversation' AND %s <> '' THEN LEFT(%s,120) ELSE title END WHERE id=%s AND user_id=%s AND status='active'",
+                (safe_content[:120], safe_content[:120], conversation_id, uid),
+                fetch="none",
+            )
+            return mid
+        with self._lock:
+            data = self._read_local()
+            convo = next((x for x in data["conversations"] if x["id"] == conversation_id and x["user_id"] == uid and x.get("status") == "active"), None)
+            if not convo:
+                raise ValueError("Conversation not found for this user.")
+            row = {"id": mid, "conversation_id": conversation_id, "user_id": uid, "role": safe_role, "content": safe_content, "created_at": now_iso()}
+            data["messages"].append(row)
+            convo["updated_at"] = row["created_at"]
+            if convo.get("title") == "New conversation" and safe_content:
+                convo["title"] = safe_content[:120]
+            self._write_local(data)
+            return mid
+
 
     def list_runs(self, user_id: str, limit: int = 100) -> list[dict]:
         uid = normalize_identity(user_id)
