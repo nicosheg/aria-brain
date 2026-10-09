@@ -282,3 +282,22 @@ def test_fast_chat_reads_only_preexisting_transcript_and_never_persists_chat_as_
 def test_render_does_not_define_removed_reasoning_format():
     source = Path("render.yaml").read_text("utf-8")
     assert "ARIA_REASONING_FORMAT" not in source
+
+
+def test_legacy_repeated_memory_reply_is_deduplicated_when_loaded_from_history():
+    from aria_agent.storage import normalize_legacy_memory_reply
+
+    old_reply = (
+        "Here is the most recent durable context I have:\n"
+        "• The user's preferred name is Egwame Nicholas.\n"
+        "• The user's preferred name is Egwame Nicholas.\n"
+        "• The user's preferred name is Egwame Nicholas.\n"
+        "• The user's preferred name is Egwame Nicholas."
+    )
+    cleaned = normalize_legacy_memory_reply("assistant", old_reply)
+    assert cleaned.count("The user's preferred name is Egwame Nicholas.") == 1
+    assert cleaned.startswith("Here is the most recent durable context I have:")
+
+    # Do not silently rewrite normal dialogue or user-authored content.
+    assert normalize_legacy_memory_reply("assistant", "Hi\nHi") == "Hi\nHi"
+    assert normalize_legacy_memory_reply("user", old_reply) == old_reply
