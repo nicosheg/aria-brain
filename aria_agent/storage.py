@@ -13,6 +13,39 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def normalize_legacy_memory_reply(role: str, content: str) -> str:
+    """Deduplicate old malformed memory summaries at read time without rewriting history."""
+    text = str(content or "")
+    if str(role or "").lower() != "assistant":
+        return text
+    lines = text.splitlines()
+    if not lines:
+        return text
+    heading = lines[0].strip()
+    if heading.casefold() not in {
+        "here is the most recent durable context i have:",
+        "here is the durable context i have:",
+    }:
+        return text
+
+    facts = []
+    seen = set()
+    for line in lines[1:]:
+        value = line.strip()
+        while value and value[0] in {"•", "-", "*"}:
+            value = value[1:].strip()
+        if not value:
+            continue
+        key = " ".join(value.casefold().split())
+        if key in seen:
+            continue
+        seen.add(key)
+        facts.append(value)
+    if not facts:
+        return text
+    return heading + "\\n" + "\\n".join(f"• {fact}" for fact in facts)
+
+
 class AgentStore:
     """Durable PostgreSQL store with a safe local JSON fallback for development."""
 
@@ -378,8 +411,11 @@ class AgentStore:
             )
             rows = list(reversed(rows))
             return [
-                {"id": r[0], "conversation_id": r[1], "role": r[2], "content": r[3],
-                 "created_at": r[4].isoformat() if hasattr(r[4], "isoformat") else str(r[4])}
+                {
+                    "id": r[0], "conversation_id": r[1], "role": r[2],
+                    "content": normalize_legacy_memory_reply(r[2], r[3]),
+                    "created_at": r[4].isoformat() if hasattr(r[4], "isoformat") else str(r[4]),
+                }
                 for r in rows
             ]
         with self._lock:
@@ -388,6 +424,8 @@ class AgentStore:
                 if x.get("user_id") == uid
             ]
         rows.sort(key=lambda x: (x.get("created_at", ""), x.get("id", "")))
+        for row in rows:
+            row["content"] = normalize_legacy_memory_reply(row.get("role", ""), row.get("content", ""))
         return rows[-limit:]
 
     def save_connection(self, user_id: str, name: str, kind: str, url: str, secret: str = "", metadata: Optional[dict] = None, connection_id: str = "") -> dict:
@@ -547,7 +585,11 @@ class AgentStore:
                     (conversation_id, uid),
                 )
                 result["messages"] = [
-                    {"id": r[0], "role": r[1], "content": r[2], "created_at": r[3].isoformat() if hasattr(r[3], "isoformat") else str(r[3])}
+                    {
+                        "id": r[0], "role": r[1],
+                        "content": normalize_legacy_memory_reply(r[1], r[2]),
+                        "created_at": r[3].isoformat() if hasattr(r[3], "isoformat") else str(r[3]),
+                    }
                     for r in rows
                 ]
             return result
@@ -559,7 +601,11 @@ class AgentStore:
             result = dict(row)
             if include_messages:
                 result["messages"] = [
-                    dict(x) for x in self._read_local()["messages"]
+                    {
+                        **dict(x),
+                        "content": normalize_legacy_memory_reply(x.get("role", ""), x.get("content", "")),
+                    }
+                    for x in self._read_local()["messages"]
                     if x["conversation_id"] == conversation_id and x["user_id"] == uid
                 ]
                 result["messages"].sort(key=lambda x: (x.get("created_at", ""), x.get("id", "")))
@@ -591,7 +637,8 @@ class AgentStore:
                     "id": r[0], "title": r[1], "status": r[2],
                     "created_at": r[3].isoformat() if hasattr(r[3], "isoformat") else str(r[3]),
                     "updated_at": r[4].isoformat() if hasattr(r[4], "isoformat") else str(r[4]),
-                    "message_count": r[5], "preview": r[6] or "",
+                    "message_count": r[5],
+                    "preview": normalize_legacy_memory_reply("assistant", r[6] or ""),
                 }
                 for r in rows
             ]
@@ -608,7 +655,15 @@ class AgentStore:
             out = []
             for x in rows[:limit]:
                 msgs = sorted([m for m in data["messages"] if m["conversation_id"] == x["id"]], key=lambda m:(m.get("created_at",""),m.get("id","")))
-                out.append({**x, "message_count": len(msgs), "preview": msgs[-1]["content"] if msgs else ""})
+                last_message = msgs[-1] if msgs else None
+                out.append({
+                    **x,
+                    "message_count": len(msgs),
+                    "preview": normalize_legacy_memory_reply(
+                        last_message.get("role", "") if last_message else "",
+                        last_message.get("content", "") if last_message else "",
+                    ),
+                })
             return out
 
     def add_message(self, conversation_id: str, user_id: str, role: str, content: str) -> str:
