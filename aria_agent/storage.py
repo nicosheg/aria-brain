@@ -31,11 +31,17 @@ class AgentStore:
                 self._write_local(self._empty_local())
 
     def _empty_local(self) -> dict[str, Any]:
-        return {"memory": [], "connections": [], "runs": [], "jobs": [], "users": [], "feedback": [], "conversations": [], "messages": []}
+        return {"memory": [], "connections": [], "runs": [], "jobs": [], "users": [], "feedback": [], "conversations": [], "messages": [], "skills": [], "improvement_proposals": []}
 
     def _read_local(self) -> dict[str, Any]:
         try:
-            return json.loads(self._path.read_text("utf-8"))
+            data = json.loads(self._path.read_text("utf-8"))
+            if not isinstance(data, dict):
+                return self._empty_local()
+            # Upgrade older local stores without deleting any existing user data.
+            for key, default in self._empty_local().items():
+                data.setdefault(key, default)
+            return data
         except Exception:
             return self._empty_local()
 
@@ -165,6 +171,38 @@ class AgentStore:
                     score INTEGER,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 );
+
+                CREATE TABLE IF NOT EXISTS aria_skills (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    version INTEGER NOT NULL DEFAULT 1,
+                    summary TEXT NOT NULL,
+                    instructions TEXT NOT NULL,
+                    tags JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','active','archived')),
+                    approved_at TIMESTAMPTZ,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE(user_id, name, version)
+                );
+                CREATE INDEX IF NOT EXISTS aria_skills_user_status
+                    ON aria_skills(user_id, status, updated_at DESC);
+
+                CREATE TABLE IF NOT EXISTS aria_improvement_proposals (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    rationale TEXT NOT NULL,
+                    evidence JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    proposed_change TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','approved','rejected')),
+                    reviewed_at TIMESTAMPTZ,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+                CREATE INDEX IF NOT EXISTS aria_improvements_user_status
+                    ON aria_improvement_proposals(user_id, status, created_at DESC);
             """)
         conn.commit()
 
@@ -890,6 +928,252 @@ class AgentStore:
         with self._lock:
             rows=[x for x in self._read_local()["jobs"] if x["user_id"]==uid]
         return sorted(rows,key=lambda x:x.get("created_at",""),reverse=True)[:limit]
+
+    def create_skill_draft(self, user_id: str, name: str, summary: str, instructions: str, tags: Optional[list[str]] = None) -> dict:
+        """Create a versioned skill as a draft; it is never activated automatically."""
+        uid = normalize_identity(user_id)
+        safe_name = " ".join(str(name or "").split())[:80]
+        safe_summary = redact_secrets(str(summary or "").strip())[:500]
+        safe_instructions = redact_secrets(str(instructions or "").strip())[:12000]
+        safe_tags = sorted({
+            " ".join(str(tag).lower().split())[:40]
+            for tag in (tags or [])
+            if str(tag).strip()
+        })[:12]
+        if not safe_name or not safe_summary or not safe_instructions:
+            raise ValueError("A skill needs a name, summary and instructions.")
+        if len(safe_instructions) < 20:
+            raise ValueError("Skill instructions are too short to be useful.")
+
+        sid = str(uuid.uuid4())
+        if self._use_postgres:
+            lock_key = json.dumps([uid, safe_name.casefold()])
+            row = self._query(
+                """WITH lock_guard AS MATERIALIZED (
+                       SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))
+                   ), next_version AS MATERIALIZED (
+                       SELECT COALESCE(MAX(version), 0) + 1 AS version
+                       FROM aria_skills CROSS JOIN lock_guard
+                       WHERE user_id=%s AND lower(name)=lower(%s)
+                   ), inserted AS (
+                       INSERT INTO aria_skills(id,user_id,name,version,summary,instructions,tags,status)
+                       SELECT %s,%s,%s,version,%s,%s,%s::jsonb,'draft' FROM next_version
+                       RETURNING id,user_id,name,version,summary,instructions,tags,status,approved_at,created_at,updated_at
+                   )
+                   SELECT * FROM inserted""",
+                (lock_key, uid, safe_name, sid, uid, safe_name, safe_summary, safe_instructions, json.dumps(safe_tags)),
+                fetch="one",
+            )
+            if not row:
+                raise RuntimeError("The skill draft could not be saved.")
+            return self._skill_row(row)
+
+        with self._lock:
+            data = self._read_local()
+            version = max(
+                [int(row.get("version", 0)) for row in data["skills"]
+                 if row.get("user_id") == uid and str(row.get("name", "")).casefold() == safe_name.casefold()] or [0]
+            ) + 1
+            item = {
+                "id": sid, "user_id": uid, "name": safe_name, "version": version,
+                "summary": safe_summary, "instructions": safe_instructions, "tags": safe_tags,
+                "status": "draft", "approved_at": None, "created_at": now_iso(), "updated_at": now_iso(),
+            }
+            data["skills"].append(item)
+            self._write_local(data)
+            return dict(item)
+
+    @staticmethod
+    def _skill_row(row) -> dict:
+        return {
+            "id": row[0], "user_id": row[1], "name": row[2], "version": row[3],
+            "summary": row[4], "instructions": row[5], "tags": row[6] or [],
+            "status": row[7], "approved_at": row[8].isoformat() if hasattr(row[8], "isoformat") else row[8],
+            "created_at": row[9].isoformat() if hasattr(row[9], "isoformat") else str(row[9]),
+            "updated_at": row[10].isoformat() if hasattr(row[10], "isoformat") else str(row[10]),
+        }
+
+    def list_skills(self, user_id: str, status: str = "", limit: int = 100) -> list[dict]:
+        uid = normalize_identity(user_id)
+        limit = max(1, min(int(limit), 200))
+        safe_status = status if status in {"draft", "active", "archived"} else ""
+        if self._use_postgres:
+            query = """SELECT id,user_id,name,version,summary,instructions,tags,status,approved_at,created_at,updated_at
+                       FROM aria_skills WHERE user_id=%s"""
+            params = [uid]
+            if safe_status:
+                query += " AND status=%s"
+                params.append(safe_status)
+            query += " ORDER BY lower(name),version DESC LIMIT %s"
+            params.append(limit)
+            return [self._skill_row(row) for row in self._query(query, tuple(params))]
+        with self._lock:
+            rows = [dict(x) for x in self._read_local()["skills"] if x.get("user_id") == uid]
+        if safe_status:
+            rows = [x for x in rows if x.get("status") == safe_status]
+        rows.sort(key=lambda x: (str(x.get("name", "")).casefold(), -int(x.get("version", 0))))
+        return rows[:limit]
+
+    def active_skills_for(self, user_id: str, query: str = "", limit: int = 3) -> list[dict]:
+        """Retrieve only relevant, user-approved skills; unapproved drafts are never executable context."""
+        skills = self.list_skills(user_id, status="active", limit=100)
+        words = {
+            token for token in "".join(ch.lower() if ch.isalnum() else " " for ch in query).split()
+            if len(token) > 2
+        }
+        ranked = []
+        for skill in skills:
+            tags = skill.get("tags") or []
+            haystack = set(
+                "".join(ch.lower() if ch.isalnum() else " " for ch in
+                        f"{skill.get('name','')} {skill.get('summary','')} {' '.join(tags)}").split()
+            )
+            overlap = len(words & haystack)
+            if not query or overlap or "general" in {str(x).lower() for x in tags}:
+                ranked.append((overlap, str(skill.get("updated_at", "")), skill))
+        ranked.sort(key=lambda row: (row[0], row[1]), reverse=True)
+        return [row[2] for row in ranked[:max(1, min(int(limit), 5))]]
+
+    def review_skill_draft(self, user_id: str, skill_id: str, approved: bool) -> Optional[dict]:
+        """Human approval activates a draft and retires the previous version atomically."""
+        uid = normalize_identity(user_id)
+        if self._use_postgres:
+            if approved:
+                row = self._query(
+                    """WITH target AS MATERIALIZED (
+                           SELECT id,user_id,lower(name) AS lname
+                           FROM aria_skills WHERE id=%s AND user_id=%s AND status='draft'
+                       ), archived AS (
+                           UPDATE aria_skills AS s SET status='archived',updated_at=NOW()
+                           FROM target AS t
+                           WHERE s.user_id=t.user_id AND lower(s.name)=t.lname AND s.status='active'
+                           RETURNING s.id
+                       ), activated AS (
+                           UPDATE aria_skills AS s
+                           SET status='active',approved_at=NOW(),updated_at=NOW()
+                           FROM target AS t WHERE s.id=t.id AND s.user_id=t.user_id
+                           RETURNING s.id,s.user_id,s.name,s.version,s.summary,s.instructions,s.tags,s.status,s.approved_at,s.created_at,s.updated_at
+                       )
+                       SELECT * FROM activated""",
+                    (skill_id, uid), fetch="one",
+                )
+            else:
+                row = self._query(
+                    """UPDATE aria_skills SET status='archived',updated_at=NOW()
+                       WHERE id=%s AND user_id=%s AND status='draft'
+                       RETURNING id,user_id,name,version,summary,instructions,tags,status,approved_at,created_at,updated_at""",
+                    (skill_id, uid), fetch="one",
+                )
+            return self._skill_row(row) if row else None
+
+        with self._lock:
+            data = self._read_local()
+            target = next((x for x in data["skills"] if x.get("id") == skill_id and x.get("user_id") == uid and x.get("status") == "draft"), None)
+            if not target:
+                return None
+            if approved:
+                for item in data["skills"]:
+                    if item.get("user_id") == uid and item.get("name", "").casefold() == target["name"].casefold() and item.get("status") == "active":
+                        item["status"] = "archived"
+                        item["updated_at"] = now_iso()
+                target["status"] = "active"
+                target["approved_at"] = now_iso()
+            else:
+                target["status"] = "archived"
+            target["updated_at"] = now_iso()
+            self._write_local(data)
+            return dict(target)
+
+    def create_improvement_proposal(self, user_id: str, title: str, rationale: str, evidence: Optional[list[dict]] = None, proposed_change: str = "") -> dict:
+        """Save a review-only improvement; this never writes or deploys application code."""
+        uid = normalize_identity(user_id)
+        safe_title = redact_secrets(" ".join(str(title or "").split()))[:160]
+        safe_rationale = redact_secrets(str(rationale or "").strip())[:4000]
+        safe_change = redact_secrets(str(proposed_change or "").strip())[:16000]
+        safe_evidence = []
+        for item in (evidence or [])[:20]:
+            if not isinstance(item, dict):
+                continue
+            safe_evidence.append({
+                "source": redact_secrets(str(item.get("source", "")))[:500],
+                "claim": redact_secrets(str(item.get("claim", "")))[:1200],
+                "observed_at": redact_secrets(str(item.get("observed_at", "")))[:100],
+            })
+        if not safe_title or not safe_rationale or not safe_change:
+            raise ValueError("An improvement proposal needs a title, rationale and proposed change.")
+        pid = str(uuid.uuid4())
+        item = {
+            "id": pid, "user_id": uid, "title": safe_title, "rationale": safe_rationale,
+            "evidence": safe_evidence, "proposed_change": safe_change, "status": "draft",
+            "reviewed_at": None, "created_at": now_iso(), "updated_at": now_iso(),
+        }
+        if self._use_postgres:
+            row = self._query(
+                """INSERT INTO aria_improvement_proposals(id,user_id,title,rationale,evidence,proposed_change,status)
+                   VALUES(%s,%s,%s,%s,%s::jsonb,%s,'draft')
+                   RETURNING id,user_id,title,rationale,evidence,proposed_change,status,reviewed_at,created_at,updated_at""",
+                (pid, uid, safe_title, safe_rationale, json.dumps(safe_evidence), safe_change), fetch="one",
+            )
+            return self._proposal_row(row)
+        with self._lock:
+            data = self._read_local()
+            data["improvement_proposals"].append(item)
+            self._write_local(data)
+        return dict(item)
+
+    @staticmethod
+    def _proposal_row(row) -> dict:
+        return {
+            "id": row[0], "user_id": row[1], "title": row[2], "rationale": row[3],
+            "evidence": row[4] or [], "proposed_change": row[5], "status": row[6],
+            "reviewed_at": row[7].isoformat() if hasattr(row[7], "isoformat") else row[7],
+            "created_at": row[8].isoformat() if hasattr(row[8], "isoformat") else str(row[8]),
+            "updated_at": row[9].isoformat() if hasattr(row[9], "isoformat") else str(row[9]),
+        }
+
+    def list_improvement_proposals(self, user_id: str, status: str = "", limit: int = 100) -> list[dict]:
+        uid = normalize_identity(user_id)
+        limit = max(1, min(int(limit), 200))
+        safe_status = status if status in {"draft", "approved", "rejected"} else ""
+        if self._use_postgres:
+            query = """SELECT id,user_id,title,rationale,evidence,proposed_change,status,reviewed_at,created_at,updated_at
+                       FROM aria_improvement_proposals WHERE user_id=%s"""
+            params = [uid]
+            if safe_status:
+                query += " AND status=%s"
+                params.append(safe_status)
+            query += " ORDER BY created_at DESC LIMIT %s"
+            params.append(limit)
+            return [self._proposal_row(row) for row in self._query(query, tuple(params))]
+        with self._lock:
+            rows = [dict(x) for x in self._read_local()["improvement_proposals"] if x.get("user_id") == uid]
+        if safe_status:
+            rows = [x for x in rows if x.get("status") == safe_status]
+        rows.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        return rows[:limit]
+
+    def review_improvement_proposal(self, user_id: str, proposal_id: str, approved: bool) -> Optional[dict]:
+        """Record review; approval means 'approved for implementation', never 'auto-deploy'."""
+        uid = normalize_identity(user_id)
+        status = "approved" if approved else "rejected"
+        if self._use_postgres:
+            row = self._query(
+                """UPDATE aria_improvement_proposals SET status=%s,reviewed_at=NOW(),updated_at=NOW()
+                   WHERE id=%s AND user_id=%s AND status='draft'
+                   RETURNING id,user_id,title,rationale,evidence,proposed_change,status,reviewed_at,created_at,updated_at""",
+                (status, proposal_id, uid), fetch="one",
+            )
+            return self._proposal_row(row) if row else None
+        with self._lock:
+            data = self._read_local()
+            item = next((x for x in data["improvement_proposals"] if x.get("id") == proposal_id and x.get("user_id") == uid and x.get("status") == "draft"), None)
+            if not item:
+                return None
+            item["status"] = status
+            item["reviewed_at"] = now_iso()
+            item["updated_at"] = now_iso()
+            self._write_local(data)
+            return dict(item)
 
     def add_feedback(self,user_id:str,score:int)->str:
         fid=str(uuid.uuid4()); uid=normalize_identity(user_id)
