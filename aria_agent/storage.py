@@ -217,20 +217,67 @@ class AgentStore:
             self._write_local(data)
 
     def add_memory(self, user_id: str, kind: str, content: str, metadata: Optional[dict] = None, importance: float = 0.5) -> str:
-        mid = str(uuid.uuid4())
+        """Idempotently store durable facts; conversation turns belong in aria_messages."""
         uid = normalize_identity(user_id)
+        safe_kind = str(kind or "fact").strip().lower()[:80] or "fact"
+        safe_content = redact_secrets(str(content or "")).strip()
+        if not safe_content:
+            raise ValueError("Memory content cannot be empty.")
+        safe_metadata = metadata or {}
+        safe_importance = max(0.0, min(1.0, float(importance)))
+        mid = str(uuid.uuid4())
+
         if self._use_postgres:
-            self._query(
-                "INSERT INTO aria_memory(id,user_id,kind,content,metadata,importance) VALUES(%s,%s,%s,%s,%s,%s)",
-                (mid, uid, kind, content, json.dumps(metadata or {}), max(0.0, min(1.0, importance))),
-                fetch="none",
+            lock_key = f"{uid}\\x1f{safe_kind}\\x1f{' '.join(safe_content.casefold().split())}"
+            row = self._query(
+                """WITH lock_guard AS MATERIALIZED (
+                       SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))
+                   ), existing AS MATERIALIZED (
+                       SELECT m.id
+                       FROM aria_memory AS m CROSS JOIN lock_guard
+                       WHERE m.user_id=%s AND m.kind=%s
+                         AND lower(btrim(m.content))=lower(btrim(%s))
+                       ORDER BY m.created_at DESC, m.id DESC
+                       LIMIT 1
+                   ), inserted AS (
+                       INSERT INTO aria_memory(id,user_id,kind,content,metadata,importance)
+                       SELECT %s,%s,%s,%s,%s::jsonb,%s
+                       WHERE NOT EXISTS (SELECT 1 FROM existing)
+                       RETURNING id
+                   )
+                   SELECT id FROM existing
+                   UNION ALL
+                   SELECT id FROM inserted
+                   LIMIT 1""",
+                (
+                    lock_key, uid, safe_kind, safe_content,
+                    mid, uid, safe_kind, safe_content,
+                    json.dumps(safe_metadata), safe_importance,
+                ),
+                fetch="one",
             )
-            return mid
+            return row[0] if row else mid
+
+        normalized = " ".join(safe_content.casefold().split())
         with self._lock:
             data = self._read_local()
+            existing = next(
+                (
+                    row for row in reversed(data["memory"])
+                    if row.get("user_id") == uid
+                    and row.get("kind") == safe_kind
+                    and " ".join(str(row.get("content", "")).casefold().split()) == normalized
+                ),
+                None,
+            )
+            if existing:
+                existing["importance"] = max(float(existing.get("importance", 0.5)), safe_importance)
+                existing["metadata"] = {**(existing.get("metadata") or {}), **safe_metadata}
+                self._write_local(data)
+                return existing["id"]
             data["memory"].append({
-                "id": mid, "user_id": uid, "kind": kind, "content": content,
-                "metadata": metadata or {}, "importance": importance, "created_at": now_iso()
+                "id": mid, "user_id": uid, "kind": safe_kind, "content": safe_content,
+                "metadata": safe_metadata, "importance": safe_importance, "created_at": now_iso()
             })
             if len(data["memory"]) > 50000:
                 data["memory"] = data["memory"][-50000:]
@@ -245,6 +292,7 @@ class AgentStore:
                 """SELECT id,kind,content,metadata,importance,created_at
                    FROM aria_memory
                    WHERE user_id=%s
+                     AND kind NOT IN ('conversation_user','conversation_assistant')
                      AND (content ILIKE %s OR kind ILIKE %s)
                    ORDER BY importance DESC,created_at DESC
                    LIMIT %s""",
@@ -262,7 +310,10 @@ class AgentStore:
                 for _, r in scored[:limit]
             ]
         with self._lock:
-            rows = [x for x in self._read_local()["memory"] if x["user_id"] == uid]
+            rows = [
+                x for x in self._read_local()["memory"]
+                if x["user_id"] == uid and x.get("kind") not in {"conversation_user", "conversation_assistant"}
+            ]
         scored = []
         for row in rows:
             overlap = len(qwords & set(row["content"].lower().split()))
@@ -272,10 +323,22 @@ class AgentStore:
         return [x[1] for x in scored[:limit]]
 
     def recent_memory(self, user_id: str, limit: int = 20) -> list[dict]:
+        """Return unique durable facts, not the repeated transcript of ordinary chat."""
         uid = normalize_identity(user_id)
+        limit = max(1, min(int(limit), 500))
+        excluded = {"conversation_user", "conversation_assistant"}
         if self._use_postgres:
             rows = self._query(
-                "SELECT id,kind,content,metadata,importance,created_at FROM aria_memory WHERE user_id=%s ORDER BY created_at DESC LIMIT %s",
+                """SELECT id,kind,content,metadata,importance,created_at
+                   FROM (
+                       SELECT DISTINCT ON (kind, lower(btrim(content)))
+                              id,kind,content,metadata,importance,created_at
+                       FROM aria_memory
+                       WHERE user_id=%s AND kind NOT IN ('conversation_user','conversation_assistant')
+                       ORDER BY kind, lower(btrim(content)), importance DESC, created_at DESC, id DESC
+                   ) AS unique_memory
+                   ORDER BY created_at DESC
+                   LIMIT %s""",
                 (uid, limit),
             )
             return [
@@ -284,8 +347,48 @@ class AgentStore:
                 for r in rows
             ]
         with self._lock:
-            rows = [x for x in self._read_local()["memory"] if x["user_id"] == uid]
-        return sorted(rows, key=lambda x: x.get("created_at", ""), reverse=True)[:limit]
+            rows = [
+                x for x in self._read_local()["memory"]
+                if x.get("user_id") == uid and x.get("kind") not in excluded
+            ]
+        unique = {}
+        for row in rows:
+            key = (row.get("kind", ""), " ".join(str(row.get("content", "")).casefold().split()))
+            if not key[1]:
+                continue
+            previous = unique.get(key)
+            if previous is None or (row.get("importance", 0.5), row.get("created_at", "")) > (
+                previous.get("importance", 0.5), previous.get("created_at", "")
+            ):
+                unique[key] = row
+        return sorted(unique.values(), key=lambda x: x.get("created_at", ""), reverse=True)[:limit]
+
+    def recent_messages(self, user_id: str, limit: int = 50) -> list[dict]:
+        """Read chronological conversation messages without treating them as durable facts."""
+        uid = normalize_identity(user_id)
+        limit = max(1, min(int(limit), 500))
+        if self._use_postgres:
+            rows = self._query(
+                """SELECT id,conversation_id,role,content,created_at
+                   FROM aria_messages
+                   WHERE user_id=%s
+                   ORDER BY created_at DESC, id DESC
+                   LIMIT %s""",
+                (uid, limit),
+            )
+            rows = list(reversed(rows))
+            return [
+                {"id": r[0], "conversation_id": r[1], "role": r[2], "content": r[3],
+                 "created_at": r[4].isoformat() if hasattr(r[4], "isoformat") else str(r[4])}
+                for r in rows
+            ]
+        with self._lock:
+            rows = [
+                dict(x) for x in self._read_local().get("messages", [])
+                if x.get("user_id") == uid
+            ]
+        rows.sort(key=lambda x: (x.get("created_at", ""), x.get("id", "")))
+        return rows[-limit:]
 
     def save_connection(self, user_id: str, name: str, kind: str, url: str, secret: str = "", metadata: Optional[dict] = None, connection_id: str = "") -> dict:
         url = assert_public_http_url(url)
