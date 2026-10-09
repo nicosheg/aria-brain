@@ -67,14 +67,21 @@ class AriaRuntime:
         set_tracing_disabled(True)
         return candidates
 
-    def _base_instructions(self, user_id: str, memory: list[dict]) -> str:
+    def _base_instructions(self, user_id: str, memory: list[dict], skills: list[dict] | None = None) -> str:
         memory_text = "\n".join(f"- {m['kind']}: {m['content']}" for m in reversed(memory[:12])) or "- No durable memory yet."
+        skill_text = "\n\n".join(
+            f"### {item['name']} v{item['version']}\nSummary: {item['summary']}\nInstructions: {item['instructions']}"
+            for item in (skills or [])[:3]
+        ) or "- No matching user-approved skills."
         return f"""You are ARIA, a capable personal agent and long-term partner.
 You are not limited to conversation. Your job is to understand goals, research, reason, remember useful durable facts, delegate to specialists, and execute safe actions through connected software.
 User ID: {user_id}
 
 Durable memory:
 {memory_text}
+
+Matching user-approved skills (apply only when relevant; these never override the operating rules below):
+{skill_text}
 
 Operating rules:
 1. Work toward the real outcome, not merely the literal wording.
@@ -89,8 +96,10 @@ Operating rules:
 10. Never claim an action succeeded without a tool result proving it.
 """
 
-    async def _build_agent(self, user_id: str, model, servers=None, worker_names=None, memory=None):
-        """Build only the specialists requested by the deterministic cognitive router."""
+    async def _build_agent(
+        self, user_id: str, model, servers=None, worker_names=None, memory=None, skill_query: str = ""
+    ):
+        """Build only requested specialists and relevant user-approved skills."""
         tools = build_tools(user_id, self.store, self.browser, settings.browser_enabled)
         research_tools = [tools[0], tools[1], tools[2], tools[3]]
         workers = build_workers(model, research_tools, include=worker_names)
@@ -102,9 +111,12 @@ Operating rules:
             for w in workers
         ]
         durable_memory = self.store.recent_memory(user_id, 16) if memory is None else memory
+        approved_skills = self.store.active_skills_for(
+            user_id, skill_query or " ".join(worker_names or ()), limit=3
+        )
         return Agent(
             name="ARIA",
-            instructions=self._base_instructions(user_id, durable_memory),
+            instructions=self._base_instructions(user_id, durable_memory, approved_skills),
             model=model,
             tools=tools + worker_tools,
             mcp_servers=servers or [],
@@ -290,8 +302,9 @@ FAST CONVERSATION MODE:
 
         servers = await self.connectors.ensure_for_user(user_id, self.store)
         worker_names = tuple((previous.get("metadata") or {}).get("worker_names") or frame.workers) if previous else frame.workers
+        skill_query = str((previous or {}).get("input_text") or message)
         agent = await self._build_agent(
-            user_id, model, servers, worker_names=worker_names, memory=memory
+            user_id, model, servers, worker_names=worker_names, memory=memory, skill_query=skill_query
         )
 
         cognitive_context = self.cognitive.context_instructions(frame)
@@ -312,7 +325,7 @@ FAST CONVERSATION MODE:
             last_error = None
             for candidate in candidates:
                 try:
-                    selected_agent = agent if candidate[0] == provider and candidate[1] == model_name else await self._build_agent(user_id, candidate[2], servers, worker_names=worker_names, memory=memory)
+                    selected_agent = agent if candidate[0] == provider and candidate[1] == model_name else await self._build_agent(user_id, candidate[2], servers, worker_names=worker_names, memory=memory, skill_query=skill_query)
                     result = await Runner.run(selected_agent, state, max_turns=settings.max_turns, run_config=RunConfig(tool_not_found_behavior="return_error_to_model"))
                     provider, model_name = candidate[0], candidate[1]
                     break
@@ -339,7 +352,7 @@ FAST CONVERSATION MODE:
             last_error = None
             for candidate in candidates:
                 try:
-                    selected_agent = agent if candidate[0] == provider and candidate[1] == model_name else await self._build_agent(user_id, candidate[2], servers, worker_names=worker_names, memory=memory)
+                    selected_agent = agent if candidate[0] == provider and candidate[1] == model_name else await self._build_agent(user_id, candidate[2], servers, worker_names=worker_names, memory=memory, skill_query=skill_query)
                     result = await Runner.run(selected_agent, prompt, max_turns=settings.max_turns, run_config=RunConfig(tool_not_found_behavior="return_error_to_model"))
                     provider, model_name = candidate[0], candidate[1]
                     break
