@@ -74,6 +74,27 @@ class UploadRequest(BaseModel):
     file_type: str = "file"
     mime_type: str = ""
 
+class SkillDraftRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    summary: str = Field(min_length=1, max_length=500)
+    instructions: str = Field(min_length=20, max_length=12_000)
+    tags: list[str] = Field(default_factory=list, max_length=12)
+
+
+class SkillReviewRequest(BaseModel):
+    approved: bool
+
+
+class ImprovementProposalRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=160)
+    rationale: str = Field(min_length=1, max_length=4_000)
+    proposed_change: str = Field(min_length=1, max_length=16_000)
+    evidence: list[dict[str, Any]] = Field(default_factory=list, max_length=20)
+
+
+class ImprovementReviewRequest(BaseModel):
+    approved: bool
+
 
 _firebase_auth = None
 _firebase_error: Optional[str] = None
@@ -335,6 +356,100 @@ async def feedback(req: FeedbackRequest, authorization: Optional[str] = Header(d
 async def debug_memory(authorization: Optional[str] = Header(default=None)):
     identity = _identity_from_request(authorization)
     return {"memories": store.recent_memory(identity["user_id"], limit=50)}
+
+
+@app.get("/skills")
+async def list_skills(
+    status: str = "",
+    limit: int = 100,
+    authorization: Optional[str] = Header(default=None),
+):
+    identity = _identity_from_request(authorization)
+    return {"skills": store.list_skills(identity["user_id"], status=status, limit=max(1, min(limit, 200)))}
+
+
+@app.post("/skills")
+async def create_skill(req: SkillDraftRequest, authorization: Optional[str] = Header(default=None)):
+    identity = _identity_from_request(authorization)
+    try:
+        item = store.create_skill_draft(
+            identity["user_id"], req.name, req.summary, req.instructions, req.tags
+        )
+    except ValueError as exc:
+        raise HTTPException(400, detail=str(exc)) from exc
+    return {
+        "status": "draft_pending_user_approval",
+        "skill": item,
+        "message": "Saved as a draft. ARIA will not use it until you explicitly approve it.",
+    }
+
+
+@app.post("/skills/{skill_id}/review")
+async def review_skill(
+    skill_id: str,
+    req: SkillReviewRequest,
+    authorization: Optional[str] = Header(default=None),
+):
+    identity = _identity_from_request(authorization)
+    item = store.review_skill_draft(identity["user_id"], skill_id, req.approved)
+    if not item:
+        raise HTTPException(404, detail="Draft skill not found or already reviewed.")
+    return {
+        "status": item["status"],
+        "skill": item,
+        "message": "This approved version is now available for matching tasks." if req.approved else "Draft archived; it will not be used.",
+    }
+
+
+@app.get("/improvement-proposals")
+async def list_improvement_proposals(
+    status: str = "",
+    limit: int = 100,
+    authorization: Optional[str] = Header(default=None),
+):
+    identity = _identity_from_request(authorization)
+    return {
+        "proposals": store.list_improvement_proposals(
+            identity["user_id"], status=status, limit=max(1, min(limit, 200))
+        )
+    }
+
+
+@app.post("/improvement-proposals")
+async def create_improvement_proposal(
+    req: ImprovementProposalRequest,
+    authorization: Optional[str] = Header(default=None),
+):
+    identity = _identity_from_request(authorization)
+    try:
+        item = store.create_improvement_proposal(
+            identity["user_id"], req.title, req.rationale,
+            evidence=req.evidence, proposed_change=req.proposed_change,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, detail=str(exc)) from exc
+    return {
+        "status": "draft_pending_review",
+        "proposal": item,
+        "message": "Saved for review. Approval does not deploy code or modify ARIA automatically.",
+    }
+
+
+@app.post("/improvement-proposals/{proposal_id}/review")
+async def review_improvement_proposal(
+    proposal_id: str,
+    req: ImprovementReviewRequest,
+    authorization: Optional[str] = Header(default=None),
+):
+    identity = _identity_from_request(authorization)
+    item = store.review_improvement_proposal(identity["user_id"], proposal_id, req.approved)
+    if not item:
+        raise HTTPException(404, detail="Draft proposal not found or already reviewed.")
+    return {
+        "status": item["status"],
+        "proposal": item,
+        "message": "Approved for implementation review; no production code was changed." if req.approved else "Proposal rejected.",
+    }
 
 
 @app.post("/connections")
