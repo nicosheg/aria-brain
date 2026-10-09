@@ -300,6 +300,51 @@ def build_tools(user_id: str, store: AgentStore, browser: BrowserController, bro
         return json.dumps(store.search_memory(user_id, query, max(1, min(limit, 20))), ensure_ascii=False)
 
     @function_tool
+    def search_approved_skills(query: str, limit: int = 5) -> str:
+        """Find versioned skills the user has explicitly approved for use on relevant tasks."""
+        skills = store.active_skills_for(user_id, query, max(1, min(int(limit), 5)))
+        return json.dumps([
+            {"name": x["name"], "version": x["version"], "summary": x["summary"], "tags": x["tags"]}
+            for x in skills
+        ], ensure_ascii=False)
+
+    @function_tool
+    def draft_skill(name: str, summary: str, instructions: str, tags_json: str = "[]") -> str:
+        """Draft a reusable, versioned skill from a tested workflow. Drafts require user approval before ARIA may apply them."""
+        try:
+            tags = json.loads(tags_json or "[]")
+        except json.JSONDecodeError as exc:
+            raise ValueError("tags_json must be a JSON list of short tags.") from exc
+        if not isinstance(tags, list) or any(not isinstance(tag, str) for tag in tags):
+            raise ValueError("tags_json must be a JSON list of strings.")
+        skill = store.create_skill_draft(user_id, name, summary, instructions, tags)
+        return json.dumps({
+            "status": "draft_pending_user_approval",
+            "id": skill["id"], "name": skill["name"], "version": skill["version"],
+            "summary": skill["summary"], "tags": skill["tags"],
+        }, ensure_ascii=False)
+
+    @function_tool
+    def propose_improvement(
+        title: str, rationale: str, proposed_change: str, evidence_json: str = "[]"
+    ) -> str:
+        """Create an evidence-backed improvement proposal for review. This tool cannot edit or deploy code."""
+        try:
+            evidence = json.loads(evidence_json or "[]")
+        except json.JSONDecodeError as exc:
+            raise ValueError("evidence_json must be a JSON list of source-backed evidence objects.") from exc
+        if not isinstance(evidence, list) or any(not isinstance(item, dict) for item in evidence):
+            raise ValueError("evidence_json must be a JSON list of objects.")
+        proposal = store.create_improvement_proposal(
+            user_id, title, rationale, evidence=evidence, proposed_change=proposed_change
+        )
+        return json.dumps({
+            "status": "draft_pending_review",
+            "id": proposal["id"], "title": proposal["title"],
+            "evidence_count": len(proposal["evidence"]),
+        }, ensure_ascii=False)
+
+    @function_tool
     def enqueue_background_job(
         kind: str,
         goal: str,
@@ -415,7 +460,8 @@ def build_tools(user_id: str, store: AgentStore, browser: BrowserController, bro
         return await browser.submit(user_id, selector)
 
     return [
-        web_search, job_search, web_fetch, calculator, remember, search_memory, enqueue_background_job, list_uploaded_files, read_uploaded_file,
+        web_search, job_search, web_fetch, calculator, remember, search_memory, search_approved_skills,
+        draft_skill, propose_improvement, enqueue_background_job, list_uploaded_files, read_uploaded_file,
         browser_open, browser_inspect, browser_inspect_elements, browser_screenshot,
         browser_click, browser_click_ref, browser_fill, browser_fill_ref, browser_select_ref,
         browser_press, browser_submit, browser_upload_ref,
