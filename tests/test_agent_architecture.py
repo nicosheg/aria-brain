@@ -236,7 +236,8 @@ def test_frontend_does_not_fetch_aria_uid_before_each_chat_and_refreshes_expired
 
 def test_chat_authentication_error_is_user_safe():
     source = Path("main.py").read_text("utf-8")
-    assert "model connection rejected the configured credentials" in source
+    assert "Groq rejected every configured API key" in source
+    assert "Do not share keys in chat" in source
 
 
 def test_memory_is_idempotent_and_distinct_from_conversation_history(tmp_path):
