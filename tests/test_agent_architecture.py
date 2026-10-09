@@ -214,7 +214,8 @@ def test_frontend_has_persistent_conversation_panel():
 
 def test_runtime_uses_user_scoped_conversation_lookup():
     source = Path("aria_agent/runtime.py").read_text("utf-8")
-    assert "self.store.get_conversation(user_id, conversation_id, include_messages=True)" in source
+    assert "self.store.get_conversation(user_id, conversation_id)" in source
+    assert "transcript_messages=prior_messages" in source
     assert "self.store.get_conversation(conversation_id, include_messages=True)" not in source
 
 
@@ -235,4 +236,49 @@ def test_frontend_does_not_fetch_aria_uid_before_each_chat_and_refreshes_expired
 
 def test_chat_authentication_error_is_user_safe():
     source = Path("main.py").read_text("utf-8")
-    assert "model connection rejected the configured credentials" in source
+    assert "Groq rejected every configured API key" in source
+    assert "Do not share keys in chat" in source
+
+
+def test_memory_is_idempotent_and_distinct_from_conversation_history(tmp_path):
+    from pathlib import Path
+    from aria_agent.storage import AgentStore
+
+    s = AgentStore()
+    s._use_postgres = False
+    s._path = Path(tmp_path) / "memory.json"
+    s._write_local(s._empty_local())
+
+    first = s.add_memory("u", "profile", "The user's preferred name is Egwame Nicholas.", importance=0.85)
+    second = s.add_memory("u", "profile", "The user's preferred name is Egwame Nicholas.", importance=0.85)
+    s.add_memory("u", "conversation_user", "Hi", importance=0.35)
+    s.add_memory("u", "conversation_assistant", "Hello", importance=0.35)
+
+    assert first == second
+    assert len(s.recent_memory("u")) == 1
+    assert s.recent_memory("u")[0]["kind"] == "profile"
+    assert s.search_memory("u", "Hi") == []
+
+
+def test_opportunity_request_routes_to_small_relevant_worker_set():
+    from aria_agent.intelligence import CognitiveCore
+
+    frame = CognitiveCore().classify("Help me find my next opportunity")
+    assert frame.requires_web is True
+    assert "opportunity_scout" in frame.workers
+    assert len(frame.workers) <= 4
+
+
+def test_fast_chat_reads_only_preexisting_transcript_and_never_persists_chat_as_memory():
+    from pathlib import Path
+
+    runtime = Path("aria_agent/runtime.py").read_text("utf-8")
+    assert "transcript_messages: list[dict] | None = None" in runtime
+    assert "transcript_messages=prior_messages" in runtime
+    assert 'self.store.add_memory(user_id, "conversation_user"' not in runtime
+    assert 'self.store.add_memory(user_id, "conversation_assistant"' not in runtime
+
+
+def test_render_does_not_define_removed_reasoning_format():
+    source = Path("render.yaml").read_text("utf-8")
+    assert "ARIA_REASONING_FORMAT" not in source

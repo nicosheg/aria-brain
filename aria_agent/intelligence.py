@@ -26,6 +26,8 @@ class CognitiveCore:
     """
 
     WORKER_RULES = (
+        (("opportunity", "opportunities", "career", "next opportunity", "career path"),
+         ("opportunity_scout", "role_matcher", "resource_optimizer")),
         (("job", "jobs", "employment", "vacancy", "vacancies", "internship", "apprentice", "hiring"),
          ("job_finder", "role_matcher", "application_reviewer")),
         (("freelance", "client", "service", "sell", "selling", "customer", "customers", "proposal"),
@@ -157,10 +159,23 @@ class CognitiveCore:
                 "pause before consequential external actions."
             )
         if frame.intent == "memory":
-            if not memory:
+            seen = set()
+            facts = []
+            for item in memory:
+                content = " ".join(str(item.get("content", "")).split()).strip()
+                if not content or item.get("kind") in {"conversation_user", "conversation_assistant"}:
+                    continue
+                key = content.casefold()
+                if key in seen:
+                    continue
+                seen.add(key)
+                facts.append(content)
+                if len(facts) >= 8:
+                    break
+            if not facts:
                 return "I don't have durable memory for you yet."
-            return "Here is the most recent durable context I have:\n" + "\n".join(
-                f"• {item.get('content', '')}" for item in reversed(memory[:8])
+            return "Here is the durable context I have:\\n" + "\\n".join(
+                f"• {fact}" for fact in facts
             )
         if frame.intent == "remember":
             return None

@@ -66,3 +66,12 @@ The agent uses explicit human approval for side-effectful browser/MCP actions. E
 ## Current scope
 
 ARIA is designed as a general agent runtime rather than a single-purpose NYEOCARE bot. It can research current opportunities, delegate specialist work, remember useful context, run background goals, connect to software through MCP, operate websites through a controlled browser, and pause for human approval before consequential external actions.
+
+
+## Cognitive architecture and safe self-improvement
+
+See **docs/COGNITIVE_ARCHITECTURE.md** for the canonical design. Ordinary conversation uses a lightweight direct-model lane; research, browser control, connected apps and background goals use the tool-using executive lane. Specialists are created selectively from deterministic intent signals instead of loading the entire catalog for every request.
+
+Conversation transcripts are episodic memory. Durable memory is reserved for useful facts, preferences, goals, constraints and decisions; chat turns must never be inserted into the durable-memory table. Duplicate writes are idempotent and retrieval deduplicates legacy rows, so old repeated records cannot drown out better context.
+
+ARIA can learn from new information and feedback by updating user memory, versioned skills, evaluations and improvement proposals. It must not silently rewrite or deploy its own production code: software changes go through a branch, tests, reviewable diff and green CI. This keeps daily upgrades fast without allowing a mistaken observation or prompt injection to alter the system.
