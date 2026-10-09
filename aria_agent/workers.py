@@ -52,9 +52,13 @@ WORKER_SPECS = [
 ]
 
 
-def build_workers(model, research_tools):
+def build_workers(model, research_tools, include=None):
+    """Construct only workers selected for this request; no 45-worker tax per turn."""
+    requested = set(include) if include is not None else None
     workers = []
     for name, specialty in WORKER_SPECS:
+        if requested is not None and name not in requested:
+            continue
         worker = Agent(
             name=f"ARIA {name.replace('_', ' ').title()}",
             handoff_description=specialty,
