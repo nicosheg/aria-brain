@@ -339,7 +339,7 @@ FAST CONVERSATION MODE:
             last_error = None
             for candidate in candidates:
                 try:
-                    selected_agent = agent if candidate[0] == provider and candidate[1] == model_name else await self._build_agent(user_id, candidate[2], servers)
+                    selected_agent = agent if candidate[0] == provider and candidate[1] == model_name else await self._build_agent(user_id, candidate[2], servers, worker_names=worker_names, memory=memory)
                     result = await Runner.run(selected_agent, prompt, max_turns=settings.max_turns, run_config=RunConfig(tool_not_found_behavior="return_error_to_model"))
                     provider, model_name = candidate[0], candidate[1]
                     break
@@ -385,19 +385,8 @@ FAST CONVERSATION MODE:
             },
         )
 
-        self.store.add_memory(
-            user_id,
-            "conversation_user",
-            safe_input,
-            importance=0.35,
-        )
+        # Episodic turns live only in the conversation transcript, never in durable facts.
         if safe_output:
-            self.store.add_memory(
-                user_id,
-                "conversation_assistant",
-                safe_output,
-                importance=0.35,
-            )
             self.store.add_message(conversation_id, user_id, "assistant", safe_output)
 
         return {
