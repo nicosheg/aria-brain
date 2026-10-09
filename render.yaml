@@ -69,8 +69,6 @@ services:
         value: "groq"
       - key: ARIA_REASONING_EFFORT
         value: "default"
-      - key: ARIA_REASONING_FORMAT
-        value: "hidden"
       - key: ARIA_APP_SECRET
         sync: false
       - key: ARIA_ENCRYPTION_KEY
