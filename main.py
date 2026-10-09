@@ -235,7 +235,7 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(default=N
         public_reason = (
             "No model connection is configured."
             if "No LLM provider configured" in message
-            else "ARIA's model connection rejected the configured credentials. I tried the available fallback connections, but none authenticated." if is_auth_error
+            else "Groq rejected every configured API key. Replace GROQ_API_KEY and GROQ_KEY_1 in the Render web service and worker with active keys from Groq Console, then redeploy. Do not share keys in chat." if is_auth_error
             else f"ARIA could not complete the request: {name}."
         )
         raise HTTPException(503 if "No LLM provider configured" in message else 502, detail=public_reason)
@@ -270,13 +270,11 @@ async def get_uid(authorization: Optional[str] = Header(default=None), email: Op
 @app.get("/context")
 async def get_context(authorization: Optional[str] = Header(default=None), email: Optional[str] = None):
     identity = _identity_from_request(authorization, email)
-    rows = store.recent_memory(identity["user_id"], limit=50)
+    rows = store.recent_messages(identity["user_id"], limit=50)
     lines = []
-    for row in reversed(rows):
-        if row["kind"] == "conversation_user":
-            lines.append("User: " + row["content"])
-        elif row["kind"] == "conversation_assistant":
-            lines.append("ARIA: " + row["content"])
+    for row in rows:
+        speaker = "User" if row.get("role") == "user" else "ARIA"
+        lines.append(f"{speaker}: {row.get('content', '')}")
     return {"context": "\n".join(lines)}
 
 
@@ -322,8 +320,8 @@ async def set_user_name(payload: dict, authorization: Optional[str] = Header(def
     name = str(payload.get("name", "")).strip()
     if not name:
         raise HTTPException(400, detail="Name is required.")
+    # The display name is profile state, not a new memory event on every sign-in.
     store.ensure_user(identity["user_id"], identity.get("email", ""), name)
-    store.add_memory(identity["user_id"], "profile", f"The user's preferred name is {name}.", importance=0.85)
     return {"status": "ok", "aria_uid": _public_aria_uid(identity["user_id"])}
 
 
