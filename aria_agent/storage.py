@@ -228,7 +228,7 @@ class AgentStore:
         mid = str(uuid.uuid4())
 
         if self._use_postgres:
-            lock_key = f"{uid}\\x1f{safe_kind}\\x1f{' '.join(safe_content.casefold().split())}"
+            lock_key = json.dumps([uid, safe_kind, " ".join(safe_content.casefold().split())], ensure_ascii=False)
             row = self._query(
                 """WITH lock_guard AS MATERIALIZED (
                        SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))
@@ -236,7 +236,7 @@ class AgentStore:
                        SELECT m.id
                        FROM aria_memory AS m CROSS JOIN lock_guard
                        WHERE m.user_id=%s AND m.kind=%s
-                         AND lower(btrim(m.content))=lower(btrim(%s))
+                         AND lower(regexp_replace(btrim(m.content), '[[:space:]]+', ' ', 'g'))=lower(regexp_replace(btrim(%s), '[[:space:]]+', ' ', 'g'))
                        ORDER BY m.created_at DESC, m.id DESC
                        LIMIT 1
                    ), inserted AS (
