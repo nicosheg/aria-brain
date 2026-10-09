@@ -89,10 +89,11 @@ Operating rules:
 10. Never claim an action succeeded without a tool result proving it.
 """
 
-    async def _build_agent(self, user_id: str, model, servers=None):
+    async def _build_agent(self, user_id: str, model, servers=None, worker_names=None, memory=None):
+        """Build only the specialists requested by the deterministic cognitive router."""
         tools = build_tools(user_id, self.store, self.browser, settings.browser_enabled)
         research_tools = [tools[0], tools[1], tools[2], tools[3]]
-        workers = build_workers(model, research_tools)
+        workers = build_workers(model, research_tools, include=worker_names)
         worker_tools = [
             w.as_tool(
                 tool_name=w.name.lower().replace(" ", "_"),
@@ -100,9 +101,10 @@ Operating rules:
             )
             for w in workers
         ]
+        durable_memory = self.store.recent_memory(user_id, 16) if memory is None else memory
         return Agent(
             name="ARIA",
-            instructions=self._base_instructions(user_id, self.store.recent_memory(user_id, 16)),
+            instructions=self._base_instructions(user_id, durable_memory),
             model=model,
             tools=tools + worker_tools,
             mcp_servers=servers or [],
@@ -135,20 +137,25 @@ Operating rules:
         return candidates[0]
 
     async def _save_fast_turn(self, user_id: str, conversation_id: str, message: str, output: str, provider: str, model_name: str) -> str:
+        """Persist the turn once in its transcript; ordinary dialogue is not durable memory."""
         run_id = str(uuid.uuid4())
         safe_input = redact_secrets(message)
         safe_output = redact_secrets(output or "")
-        self.store.add_memory(user_id, "conversation_user", safe_input, importance=0.35)
         if safe_output:
-            self.store.add_memory(user_id, "conversation_assistant", safe_output, importance=0.35)
             self.store.add_message(conversation_id, user_id, "assistant", safe_output)
-        self.store.save_run(run_id, user_id, provider, model_name, "completed", safe_input, safe_output, "", {"conversation_id": conversation_id, "fast_path": True})
+        self.store.save_run(
+            run_id, user_id, provider, model_name, "completed", safe_input, safe_output, "",
+            {"conversation_id": conversation_id, "fast_path": True},
+        )
         return run_id
 
     def _should_use_fast_lane(self, frame) -> bool:
         return not (frame.requires_web or frame.requires_background or frame.requires_external_action) and frame.intent in {"greeting", "capabilities", "memory", "general"}
 
-    async def _fast_conversation(self, user_id: str, message: str, conversation_id: str, memory: list[dict]) -> dict:
+    async def _fast_conversation(
+        self, user_id: str, message: str, conversation_id: str, memory: list[dict],
+        transcript_messages: list[dict] | None = None,
+    ) -> dict:
         frame = self.cognitive.classify(message)
         native = self.cognitive.native_response(message, memory)
         native_math = self.cognitive.extract_math_expression(message)
@@ -164,10 +171,9 @@ Operating rules:
             run_id = await self._save_fast_turn(user_id, conversation_id, message, reply, "native", "aria-core")
             return {"run_id": run_id, "status": "completed", "reply": reply, "conversation_id": conversation_id, "provider": "native", "model": "aria-core", "approval_required": False, "interruptions": []}
 
-        transcript = self.store.get_conversation(user_id, conversation_id, include_messages=True) or {}
         history = [
             {"role": item["role"], "content": item.get("content", "")}
-            for item in transcript.get("messages", [])[-12:]
+            for item in (transcript_messages or [])[-12:]
             if item.get("role") in {"user", "assistant"}
         ]
         system = self._base_instructions(user_id, memory[:12]) + """
@@ -233,11 +239,14 @@ FAST CONVERSATION MODE:
 
         # Durable transcript is separate from durable memory. Both live in Supabase/Postgres
         # in production, and the transcript gives ARIA precise conversational continuity.
+        prior_messages = list((conversation or {}).get("messages", []))
         if not resume_run_id:
             self.store.add_message(conversation_id, user_id, "user", redact_secrets(message))
 
         if not resume_run_id and self._should_use_fast_lane(frame):
-            return await self._fast_conversation(user_id, message, conversation_id, memory)
+            return await self._fast_conversation(
+                user_id, message, conversation_id, memory, transcript_messages=prior_messages
+            )
 
         candidates = self.provider_candidates()
         if not candidates:
@@ -258,11 +267,11 @@ FAST CONVERSATION MODE:
                     "I can still handle native memory, simple calculations, safety checks and deterministic routing. "
                     "Connect Groq Qwen3.8 27B for full conversational reasoning and agentic work."
                 )
-            safe_input = redact_secrets(message)
-            self.store.add_memory(user_id, "conversation_user", safe_input, importance=0.35)
-            self.store.add_memory(user_id, "conversation_assistant", redact_secrets(native), importance=0.35)
+            run_id = await self._save_fast_turn(
+                user_id, conversation_id, message, redact_secrets(native), "native", "aria-core"
+            )
             return {
-                "run_id": str(uuid.uuid4()),
+                "run_id": run_id,
                 "status": "completed",
                 "reply": native,
                 "conversation_id": conversation_id,
@@ -280,7 +289,10 @@ FAST CONVERSATION MODE:
         run_id = resume_run_id or str(uuid.uuid4())
 
         servers = await self.connectors.ensure_for_user(user_id, self.store)
-        agent = await self._build_agent(user_id, model, servers)
+        worker_names = tuple((previous.get("metadata") or {}).get("worker_names") or frame.workers) if previous else frame.workers
+        agent = await self._build_agent(
+            user_id, model, servers, worker_names=worker_names, memory=memory
+        )
 
         cognitive_context = self.cognitive.context_instructions(frame)
 
@@ -300,7 +312,7 @@ FAST CONVERSATION MODE:
             last_error = None
             for candidate in candidates:
                 try:
-                    selected_agent = agent if candidate[0] == provider and candidate[1] == model_name else await self._build_agent(user_id, candidate[2], servers)
+                    selected_agent = agent if candidate[0] == provider and candidate[1] == model_name else await self._build_agent(user_id, candidate[2], servers, worker_names=worker_names, memory=memory)
                     result = await Runner.run(selected_agent, state, max_turns=settings.max_turns, run_config=RunConfig(tool_not_found_behavior="return_error_to_model"))
                     provider, model_name = candidate[0], candidate[1]
                     break
@@ -311,20 +323,16 @@ FAST CONVERSATION MODE:
             if result is None:
                 raise last_error or RuntimeError("No model connection is configured.")
         else:
-            recent = self.store.recent_memory(user_id, 12)
-            transcript = self.store.get_conversation(user_id, conversation_id, include_messages=True)
-            transcript_lines = []
-            for item in (transcript or {}).get("messages", [])[-24:]:
-                transcript_lines.append(f"{item['role']}: {item['content']}")
-            memory_context = "\n".join(
-                f"{x['kind']}: {x['content']}" for x in reversed(recent)
-            )
+            transcript_lines = [
+                f"{item['role']}: {item['content']}"
+                for item in (conversation or {}).get("messages", [])[-24:]
+                if item.get("role") in {"user", "assistant"}
+            ]
             conversation_context = "\n".join(transcript_lines)
             prompt_parts = []
-            if memory_context:
-                prompt_parts.append(f"Durable memory:\n{memory_context}")
             if conversation_context:
                 prompt_parts.append(f"Current conversation:\n{conversation_context}")
+            prompt_parts.append(cognitive_context)
             prompt_parts.append(f"User request:\n{message}")
             prompt = "\n\n".join(prompt_parts)
             result = None
@@ -370,7 +378,11 @@ FAST CONVERSATION MODE:
             safe_input,
             safe_output,
             state_text,
-            {"interruptions": safe_interruptions, "conversation_id": conversation_id},
+            {
+                "interruptions": safe_interruptions,
+                "conversation_id": conversation_id,
+                "worker_names": list(worker_names),
+            },
         )
 
         self.store.add_memory(
