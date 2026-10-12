@@ -263,7 +263,7 @@ def test_runtime_has_fast_conversation_lane_and_auth_fallback():
     assert "async def _fast_conversation" in source
     assert "def _should_use_fast_lane" in source
     assert "self._is_authentication_error(exc)" in source
-    assert 'reasoning_effort="none"' in source
+    assert 'request_args["reasoning_effort"] = "none"' in source
 
 
 def test_frontend_does_not_fetch_aria_uid_before_each_chat_and_refreshes_expired_auth():
