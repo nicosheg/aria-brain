@@ -157,7 +157,9 @@ def _safe_filename(name: str) -> str:
 
 @app.get("/health")
 async def health():
-    providers = [(p, m) for p, m, _ in runtime.provider_candidates()]
+    providers = list(dict.fromkeys(
+        (candidate[0], candidate[1]) for candidate in runtime.provider_candidates()
+    ))
     database_ready = bool(settings.database_url)
     healthy = bool(providers) and (database_ready or not settings.require_database)
     default_provider = providers[0] if providers else None
@@ -232,13 +234,26 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(default=N
             status_code = 0
         name = type(exc).__name__
         is_auth_error = name == "AuthenticationError" or status_code == 401 or "authentication" in name.lower()
-        public_reason = (
-            "No model connection is configured."
-            if "No LLM provider configured" in message
-            else "Groq rejected every configured API key. Replace GROQ_API_KEY and GROQ_KEY_1 in the Render web service and worker with active keys from Groq Console, then redeploy. Do not share keys in chat." if is_auth_error
-            else f"ARIA could not complete the request: {name}."
+        has_no_provider = (
+            "No LLM provider configured" in message
+            or "No supported AI provider key is configured" in message
         )
-        raise HTTPException(503 if "No LLM provider configured" in message else 502, detail=public_reason)
+        is_key_failure = (
+            is_auth_error
+            or "configured AI provider key was rejected" in message.lower()
+            or "provider key" in message.lower() and "rejected" in message.lower()
+        )
+        if has_no_provider:
+            public_reason = "No supported AI provider key is configured. Add an active provider key in Render."
+        elif is_key_failure:
+            public_reason = (
+                "The AI provider rejected the configured credentials. In Render, use an active key "
+                "under its matching provider variable (for example GROQ_API_KEY for Groq), remove stale "
+                "fallback keys, and redeploy. Never share keys in chat."
+            )
+        else:
+            public_reason = f"ARIA could not complete the request: {name}."
+        raise HTTPException(503 if has_no_provider else 502, detail=public_reason)
 
 
 @app.post("/runs/{run_id}/approve")
