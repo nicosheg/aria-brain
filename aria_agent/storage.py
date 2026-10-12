@@ -43,7 +43,7 @@ def normalize_legacy_memory_reply(role: str, content: str) -> str:
         facts.append(value)
     if not facts:
         return text
-    return heading + "\\n" + "\\n".join(f"• {fact}" for fact in facts)
+    return heading + "\n" + "\n".join(f"• {fact}" for fact in facts)
 
 
 class AgentStore:
