@@ -174,7 +174,7 @@ class CognitiveCore:
                     break
             if not facts:
                 return "I don't have durable memory for you yet."
-            return "Here is the durable context I have:\\n" + "\\n".join(
+            return "Here is the durable context I have:\n" + "\n".join(
                 f"• {fact}" for fact in facts
             )
         if frame.intent == "remember":

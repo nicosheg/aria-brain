@@ -124,16 +124,51 @@ def test_frontend_has_modern_chat_and_history_surface():
 
 
 def test_groq_qwen38_is_primary_reasoning_provider(monkeypatch):
-    monkeypatch.setenv("GROQ_API_KEY", "test-key")
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
     from aria_agent.runtime import AriaRuntime
 
+    for name in (
+        "OPENAI_API_KEY", "DEEPSEEK_API_KEY", "GEMINI_API_KEY",
+        "OPENROUTER_API_KEY", "DASHSCOPE_API_KEY",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    for prefix in ("GROQ_KEY", "OPENAI_KEY", "DEEPSEEK_KEY", "GEMINI_KEY", "OPENROUTER_KEY", "DASHSCOPE_KEY"):
+        for index in range(1, 21):
+            monkeypatch.delenv(f"{prefix}_{index}", raising=False)
+    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setenv("ARIA_PROVIDER", "groq")
     runtime = AriaRuntime.__new__(AriaRuntime)
+    runtime._rejected_provider_keys = set()
     candidates = runtime.provider_candidates()
     assert candidates
     assert candidates[0][0] == "groq"
     assert candidates[0][1] == "qwen/qwen3.8-27b"
+    assert len(candidates[0]) == 4
+
+
+def test_provider_fallback_supports_configured_providers_and_skips_rejected_keys(monkeypatch):
+    from aria_agent.runtime import AriaRuntime
+
+    for name in (
+        "GROQ_API_KEY", "DEEPSEEK_API_KEY", "GEMINI_API_KEY",
+        "OPENROUTER_API_KEY", "DASHSCOPE_API_KEY",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    for prefix in ("GROQ_KEY", "OPENAI_KEY", "DEEPSEEK_KEY", "GEMINI_KEY", "OPENROUTER_KEY", "DASHSCOPE_KEY"):
+        for index in range(1, 21):
+            monkeypatch.delenv(f"{prefix}_{index}", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-test-key")
+    monkeypatch.setenv("GROQ_API_KEY", "groq-test-key")
+    monkeypatch.setenv("ARIA_PROVIDER", "groq")
+
+    runtime = AriaRuntime.__new__(AriaRuntime)
+    runtime._rejected_provider_keys = set()
+    candidates = runtime.provider_candidates()
+    assert [candidate[0] for candidate in candidates[:2]] == ["groq", "openai"]
+    bad_fingerprint = runtime._key_fingerprint("groq", "groq-test-key")
+    runtime._rejected_provider_keys.add(bad_fingerprint)
+    candidates_after_rejection = runtime.provider_candidates()
+    assert not any(candidate[3] == bad_fingerprint for candidate in candidates_after_rejection)
+    assert any(candidate[0] == "openai" for candidate in candidates_after_rejection)
 
 
 def test_cognitive_core_is_model_independent():
@@ -163,9 +198,13 @@ def test_native_memory_and_math_primitives_are_executable(tmp_path):
     assert result["reply"] == "36.0"
 
 
-def test_render_is_groq_only_and_reasoning_enabled_by_default():
+def test_render_declares_fallback_providers_and_keeps_groq_as_default():
     source = Path("render.yaml").read_text("utf-8")
-    assert "OPENROUTER_API_KEY" not in source
+    assert "OPENAI_API_KEY" in source
+    assert "DEEPSEEK_API_KEY" in source
+    assert "GEMINI_API_KEY" in source
+    assert "OPENROUTER_API_KEY" in source
+    assert "DASHSCOPE_API_KEY" in source
     assert 'value: "groq"' in source
     assert 'value: "qwen/qwen3.8-27b"' in source
     assert 'value: "default"' in source
@@ -224,7 +263,7 @@ def test_runtime_has_fast_conversation_lane_and_auth_fallback():
     assert "async def _fast_conversation" in source
     assert "def _should_use_fast_lane" in source
     assert "self._is_authentication_error(exc)" in source
-    assert 'reasoning_effort="none"' in source
+    assert 'request_args["reasoning_effort"] = "none"' in source
 
 
 def test_frontend_does_not_fetch_aria_uid_before_each_chat_and_refreshes_expired_auth():
@@ -234,10 +273,10 @@ def test_frontend_does_not_fetch_aria_uid_before_each_chat_and_refreshes_expired
     assert "Ensure we have ARIA UID" not in source
 
 
-def test_chat_authentication_error_is_user_safe():
+def test_chat_authentication_error_is_provider_agnostic_and_user_safe():
     source = Path("main.py").read_text("utf-8")
-    assert "Groq rejected every configured API key" in source
-    assert "Do not share keys in chat" in source
+    assert "The AI provider rejected the configured credentials" in source
+    assert "Never share keys in chat" in source
 
 
 def test_memory_is_idempotent_and_distinct_from_conversation_history(tmp_path):
@@ -284,6 +323,18 @@ def test_render_does_not_define_removed_reasoning_format():
     assert "ARIA_REASONING_FORMAT" not in source
 
 
+def test_native_memory_reply_uses_real_newlines():
+    from aria_agent.intelligence import CognitiveCore
+
+    reply = CognitiveCore().native_response(
+        "What do you remember about me?",
+        [{"kind": "profile", "content": "Preferred name is Nicholas."}],
+    )
+    assert reply is not None
+    assert "\n" in reply
+    assert "\\n" not in reply
+
+
 def test_legacy_repeated_memory_reply_is_deduplicated_when_loaded_from_history():
     from aria_agent.storage import normalize_legacy_memory_reply
 
@@ -297,6 +348,7 @@ def test_legacy_repeated_memory_reply_is_deduplicated_when_loaded_from_history()
     cleaned = normalize_legacy_memory_reply("assistant", old_reply)
     assert cleaned.count("The user's preferred name is Egwame Nicholas.") == 1
     assert cleaned.startswith("Here is the most recent durable context I have:")
+    assert "\n" in cleaned and "\\n" not in cleaned
 
     # Do not silently rewrite normal dialogue or user-authored content.
     assert normalize_legacy_memory_reply("assistant", "Hi\nHi") == "Hi\nHi"

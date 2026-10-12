@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import uuid
 
@@ -23,17 +24,25 @@ class AriaRuntime:
         self.browser = BrowserController(settings.browser_enabled)
         self.connectors = MCPConnectorManager()
         self.cognitive = CognitiveCore()
+        # Cache only non-secret fingerprints for keys that the provider has rejected.
+        # Render restarts the process after an environment update, clearing this cache.
+        self._rejected_provider_keys: set[str] = set()
 
-    def _groq_keys(self):
-        keys = []
-        primary = os.getenv("GROQ_API_KEY", "").strip()
-        if primary:
-            keys.append(primary)
-        for i in range(1, 21):
-            key = os.getenv(f"GROQ_KEY_{i}", "").strip()
+    @staticmethod
+    def _keys_from_env(primary_name: str, numbered_prefix: str | None = None) -> list[str]:
+        names = [primary_name]
+        if numbered_prefix:
+            names.extend(f"{numbered_prefix}_{i}" for i in range(1, 21))
+        keys: list[str] = []
+        for name in names:
+            key = os.getenv(name, "").strip()
             if key and key not in keys:
                 keys.append(key)
         return keys
+
+    @staticmethod
+    def _key_fingerprint(provider: str, key: str) -> str:
+        return hashlib.sha256(f"{provider}:{key}".encode("utf-8")).hexdigest()
 
     @staticmethod
     def _is_authentication_error(exc: Exception) -> bool:
@@ -45,25 +54,80 @@ class AriaRuntime:
             status = 0
         return "authenticationerror" in name or "authentication" in name or status == 401
 
+    @classmethod
+    def _is_retryable_provider_error(cls, exc: Exception) -> bool:
+        if cls._is_authentication_error(exc):
+            return True
+        name = type(exc).__name__.lower()
+        status = getattr(exc, "status_code", None) or getattr(exc, "status", None)
+        try:
+            status = int(status or 0)
+        except Exception:
+            status = 0
+        return (
+            status in {400, 403, 404, 408, 409, 422, 429}
+            or status >= 500
+            or name in {"apiconnectionerror", "apitimeouterror", "ratelimiterror", "internalservererror", "serviceunavailableerror"}
+        )
+
+    def _provider_configs(self, *, include_rejected: bool = False) -> list[dict]:
+        openrouter_headers = {}
+        if settings.openrouter_site_url:
+            openrouter_headers["HTTP-Referer"] = settings.openrouter_site_url
+        if settings.openrouter_site_name:
+            openrouter_headers["X-Title"] = settings.openrouter_site_name
+
+        definitions = [
+            ("groq", "GROQ_API_KEY", "GROQ_KEY", settings.groq_model, "https://api.groq.com/openai/v1", None),
+            ("openai", "OPENAI_API_KEY", "OPENAI_KEY", os.getenv("OPENAI_MODEL", "gpt-4o-mini"), None, None),
+            ("deepseek", "DEEPSEEK_API_KEY", "DEEPSEEK_KEY", settings.deepseek_model, "https://api.deepseek.com", None),
+            ("gemini", "GEMINI_API_KEY", "GEMINI_KEY", settings.gemini_model, "https://generativelanguage.googleapis.com/v1beta/openai/", None),
+            ("openrouter", "OPENROUTER_API_KEY", "OPENROUTER_KEY", os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini"), "https://openrouter.ai/api/v1", openrouter_headers or None),
+            ("dashscope", "DASHSCOPE_API_KEY", "DASHSCOPE_KEY", settings.qwencloud_model, "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", None),
+        ]
+        configs: list[dict] = []
+        for provider, primary, prefix, model, base_url, headers in definitions:
+            for key in self._keys_from_env(primary, prefix):
+                fingerprint = self._key_fingerprint(provider, key)
+                if not include_rejected and fingerprint in self._rejected_provider_keys:
+                    continue
+                configs.append({
+                    "provider": provider,
+                    "model": model,
+                    "key": key,
+                    "fingerprint": fingerprint,
+                    "base_url": base_url,
+                    "headers": headers,
+                })
+
+        preferred = os.getenv("ARIA_PROVIDER", "").strip().lower()
+        if preferred:
+            preferred_configs = [item for item in configs if item["provider"] == preferred]
+            configs = preferred_configs + [item for item in configs if item["provider"] != preferred]
+        return configs
+
+    @staticmethod
+    def _client_for_config(config: dict):
+        kwargs = {"api_key": config["key"]}
+        if config.get("base_url"):
+            kwargs["base_url"] = config["base_url"]
+        if config.get("headers"):
+            kwargs["default_headers"] = config["headers"]
+        return AsyncOpenAI(**kwargs)
+
     def provider_candidates(self):
         candidates = []
-
-        keys = self._groq_keys()
-
-        for key in keys:
-            client = AsyncOpenAI(
-                api_key=key,
-                base_url="https://api.groq.com/openai/v1",
-            )
+        for config in self._provider_configs():
+            client = self._client_for_config(config)
             candidates.append((
-                "groq",
-                settings.groq_model,
+                config["provider"],
+                config["model"],
                 OpenAIChatCompletionsModel(
-                    model=settings.groq_model,
+                    model=config["model"],
                     openai_client=client,
                 ),
+                config["fingerprint"],
             ))
-
         set_tracing_disabled(True)
         return candidates
 
@@ -89,7 +153,7 @@ Operating rules:
 10. Never claim an action succeeded without a tool result proving it.
 """
 
-    async def _build_agent(self, user_id: str, model, servers=None, worker_names=None, memory=None):
+    async def _build_agent(self, user_id: str, model, servers=None, worker_names=None, memory=None, provider: str | None = None):
         """Build only the specialists requested by the deterministic cognitive router."""
         tools = build_tools(user_id, self.store, self.browser, settings.browser_enabled)
         research_tools = [tools[0], tools[1], tools[2], tools[3]]
@@ -102,6 +166,10 @@ Operating rules:
             for w in workers
         ]
         durable_memory = self.store.recent_memory(user_id, 16) if memory is None else memory
+        model_settings = {}
+        provider_name = (provider or os.getenv("ARIA_PROVIDER", "groq")).strip().lower()
+        if provider_name == "groq":
+            model_settings["extra_args"] = {"reasoning_effort": settings.reasoning_effort}
         return Agent(
             name="ARIA",
             instructions=self._base_instructions(user_id, durable_memory),
@@ -109,11 +177,7 @@ Operating rules:
             tools=tools + worker_tools,
             mcp_servers=servers or [],
             mcp_config={"include_server_in_tool_names": True},
-            model_settings={
-                "extra_args": {
-                    "reasoning_effort": settings.reasoning_effort,
-                }
-            },
+            model_settings=model_settings or None,
         )
 
     def _select_provider(self, candidates, previous=None):
@@ -128,13 +192,12 @@ Operating rules:
         preferred = os.getenv("ARIA_PROVIDER", "").strip().lower()
         if preferred:
             matches = [c for c in candidates if c[0] == preferred]
-            if not matches:
-                raise RuntimeError(f"ARIA_PROVIDER={preferred!r} is not configured.")
-            return matches[0]
+            if matches:
+                return matches[0]
+        if not candidates:
+            raise RuntimeError("No supported AI provider key is configured.")
         match = next((candidate for candidate in candidates if candidate[0] == "groq"), None)
-        if match:
-            return match
-        return candidates[0]
+        return match or candidates[0]
 
     async def _save_fast_turn(self, user_id: str, conversation_id: str, message: str, output: str, provider: str, model_name: str) -> str:
         """Persist the turn once in its transcript; ordinary dialogue is not durable memory."""
@@ -184,28 +247,51 @@ FAST CONVERSATION MODE:
 - Do not claim web research, connected-app use, or external actions in this mode.
 - Keep simple answers concise; expand when the user asks for depth.
 """
+        configs = self._provider_configs()
+        if not configs:
+            if self._rejected_provider_keys:
+                raise RuntimeError("Every configured AI provider key was rejected by its provider. Replace or remove rejected keys in Render and redeploy.")
+            raise RuntimeError("No supported AI provider key is configured. Add an active provider key in Render and redeploy.")
+
         last_error = None
-        for key in self._groq_keys():
-            client = AsyncOpenAI(api_key=key, base_url="https://api.groq.com/openai/v1")
+        for config in configs:
+            client = self._client_for_config(config)
+            request_args = {
+                "model": config["model"],
+                "messages": [{"role": "system", "content": system}, *history, {"role": "user", "content": message}],
+                "temperature": 0.25,
+            }
+            if config["provider"] in {"groq", "openai"}:
+                request_args["max_completion_tokens"] = 700
+            else:
+                request_args["max_tokens"] = 700
+            if config["provider"] == "groq":
+                request_args["reasoning_effort"] = "none"
             try:
-                response = await client.chat.completions.create(
-                    model=settings.groq_model,
-                    messages=[{"role": "system", "content": system}, *history, {"role": "user", "content": message}],
-                    temperature=0.25,
-                    max_completion_tokens=700,
-                    reasoning_effort="none",
-                )
+                response = await client.chat.completions.create(**request_args)
                 reply = (response.choices[0].message.content or "").strip()
                 if not reply:
                     raise RuntimeError("The model returned an empty response.")
-                run_id = await self._save_fast_turn(user_id, conversation_id, message, reply, "groq", settings.groq_model)
-                return {"run_id": run_id, "status": "completed", "reply": reply, "conversation_id": conversation_id, "provider": "groq", "model": settings.groq_model, "approval_required": False, "interruptions": []}
+                run_id = await self._save_fast_turn(
+                    user_id, conversation_id, message, reply, config["provider"], config["model"]
+                )
+                return {
+                    "run_id": run_id,
+                    "status": "completed",
+                    "reply": reply,
+                    "conversation_id": conversation_id,
+                    "provider": config["provider"],
+                    "model": config["model"],
+                    "approval_required": False,
+                    "interruptions": [],
+                }
             except Exception as exc:
                 last_error = exc
                 if self._is_authentication_error(exc):
-                    continue
-                raise
-        raise last_error or RuntimeError("No Groq model connection is configured.")
+                    self._rejected_provider_keys.add(config["fingerprint"])
+                if not self._is_retryable_provider_error(exc):
+                    raise
+        raise last_error or RuntimeError("Every configured AI provider key was rejected by its provider.")
 
     async def run(
         self,
@@ -250,6 +336,8 @@ FAST CONVERSATION MODE:
 
         candidates = self.provider_candidates()
         if not candidates:
+            if self._rejected_provider_keys:
+                raise RuntimeError("Every configured AI provider key was rejected by its provider. Replace or remove rejected keys in Render and redeploy.")
             native_fact = self.cognitive.extract_memory_fact(message)
             native_math = self.cognitive.extract_math_expression(message)
             if native_fact:
@@ -281,7 +369,18 @@ FAST CONVERSATION MODE:
                 "interruptions": [],
             }
 
-        provider, model_name, model = self._select_provider(candidates, previous)
+        if previous:
+            # Approval resumes stay pinned to their original provider/model.
+            candidates = [
+                candidate for candidate in candidates
+                if candidate[0] == previous.get("provider") and candidate[1] == previous.get("model")
+            ]
+        selected_candidate = self._select_provider(candidates, previous)
+        provider, model_name, model = selected_candidate[:3]
+        selected_fingerprint = selected_candidate[3]
+        candidate_order = [selected_candidate] + [
+            candidate for candidate in candidates if candidate[3] != selected_fingerprint
+        ]
         if resume_run_id:
             if not self.store.claim_run_resume(user_id, resume_run_id):
                 raise RuntimeError("This approval is already being processed or is no longer pending.")
@@ -291,7 +390,7 @@ FAST CONVERSATION MODE:
         servers = await self.connectors.ensure_for_user(user_id, self.store)
         worker_names = tuple((previous.get("metadata") or {}).get("worker_names") or frame.workers) if previous else frame.workers
         agent = await self._build_agent(
-            user_id, model, servers, worker_names=worker_names, memory=memory
+            user_id, model, servers, worker_names=worker_names, memory=memory, provider=provider
         )
 
         cognitive_context = self.cognitive.context_instructions(frame)
@@ -310,15 +409,19 @@ FAST CONVERSATION MODE:
                     raise ValueError("Approval decision is required.")
             result = None
             last_error = None
-            for candidate in candidates:
+            for candidate in candidate_order:
                 try:
-                    selected_agent = agent if candidate[0] == provider and candidate[1] == model_name else await self._build_agent(user_id, candidate[2], servers, worker_names=worker_names, memory=memory)
+                    selected_agent = agent if candidate[3] == selected_fingerprint else await self._build_agent(
+                        user_id, candidate[2], servers, worker_names=worker_names, memory=memory, provider=candidate[0]
+                    )
                     result = await Runner.run(selected_agent, state, max_turns=settings.max_turns, run_config=RunConfig(tool_not_found_behavior="return_error_to_model"))
-                    provider, model_name = candidate[0], candidate[1]
+                    provider, model_name, selected_fingerprint = candidate[0], candidate[1], candidate[3]
                     break
                 except Exception as exc:
                     last_error = exc
-                    if not self._is_authentication_error(exc):
+                    if self._is_authentication_error(exc):
+                        self._rejected_provider_keys.add(candidate[3])
+                    if not self._is_retryable_provider_error(exc):
                         raise
             if result is None:
                 raise last_error or RuntimeError("No model connection is configured.")
@@ -337,15 +440,19 @@ FAST CONVERSATION MODE:
             prompt = "\n\n".join(prompt_parts)
             result = None
             last_error = None
-            for candidate in candidates:
+            for candidate in candidate_order:
                 try:
-                    selected_agent = agent if candidate[0] == provider and candidate[1] == model_name else await self._build_agent(user_id, candidate[2], servers, worker_names=worker_names, memory=memory)
+                    selected_agent = agent if candidate[3] == selected_fingerprint else await self._build_agent(
+                        user_id, candidate[2], servers, worker_names=worker_names, memory=memory, provider=candidate[0]
+                    )
                     result = await Runner.run(selected_agent, prompt, max_turns=settings.max_turns, run_config=RunConfig(tool_not_found_behavior="return_error_to_model"))
-                    provider, model_name = candidate[0], candidate[1]
+                    provider, model_name, selected_fingerprint = candidate[0], candidate[1], candidate[3]
                     break
                 except Exception as exc:
                     last_error = exc
-                    if not self._is_authentication_error(exc):
+                    if self._is_authentication_error(exc):
+                        self._rejected_provider_keys.add(candidate[3])
+                    if not self._is_retryable_provider_error(exc):
                         raise
             if result is None:
                 raise last_error or RuntimeError("No model connection is configured.")

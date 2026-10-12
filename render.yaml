@@ -22,6 +22,16 @@ services:
         sync: false
       - key: GROQ_KEY_1
         sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: DASHSCOPE_API_KEY
+        sync: false
       - key: GROQ_MODEL
         value: "qwen/qwen3.8-27b"
       - key: ARIA_PROVIDER
@@ -62,6 +72,16 @@ services:
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_KEY_1
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: DASHSCOPE_API_KEY
         sync: false
       - key: GROQ_MODEL
         value: "qwen/qwen3.8-27b"

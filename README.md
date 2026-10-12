@@ -41,13 +41,21 @@ External content is treated as untrusted data. Tool actions that can change exte
 
 Render deploys one web service and one background worker. The web service handles interactive requests. The worker executes queued long-running work independently of web request timeouts.
 
-Set:
-OPENAI_API_KEY or GROQ_KEY_1+, DEEPSEEK_KEY_1+ or GEMINI_KEY_1+
-ARIA_APP_SECRET
-ARIA_ENCRYPTION_KEY (recommended)
-SUPABASE_DB_URL
-FIREBASE_CREDENTIALS
+Set at least one active model credential in Render. Supported provider variables are:
+- Groq: `GROQ_API_KEY` and optional `GROQ_KEY_1` through `GROQ_KEY_20`
+- OpenAI: `OPENAI_API_KEY` (optional `OPENAI_MODEL`)
+- DeepSeek: `DEEPSEEK_API_KEY` and optional `DEEPSEEK_KEY_1` through `DEEPSEEK_KEY_20`
+- Gemini: `GEMINI_API_KEY` and optional `GEMINI_KEY_1` through `GEMINI_KEY_20`
+- OpenRouter: `OPENROUTER_API_KEY` (optional `OPENROUTER_MODEL`)
+- DashScope: `DASHSCOPE_API_KEY` and optional `DASHSCOPE_KEY_1` through `DASHSCOPE_KEY_20`
 
+ARIA tries the preferred provider first, then other configured providers. A key rejected with an authentication error is skipped for the lifetime of that process; replacing a key in Render and redeploying clears that cache. Keep secrets in Render, never in chat or source control.
+
+Also set:
+`ARIA_APP_SECRET`
+`ARIA_ENCRYPTION_KEY` (recommended)
+`SUPABASE_DB_URL`
+`FIREBASE_CREDENTIALS`
 Run locally with:
 pip install -r requirements.txt
 playwright install chromium
