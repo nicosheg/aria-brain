@@ -323,6 +323,18 @@ def test_render_does_not_define_removed_reasoning_format():
     assert "ARIA_REASONING_FORMAT" not in source
 
 
+def test_native_memory_reply_uses_real_newlines():
+    from aria_agent.intelligence import CognitiveCore
+
+    reply = CognitiveCore().native_response(
+        "What do you remember about me?",
+        [{"kind": "profile", "content": "Preferred name is Nicholas."}],
+    )
+    assert reply is not None
+    assert "\n" in reply
+    assert "\\n" not in reply
+
+
 def test_legacy_repeated_memory_reply_is_deduplicated_when_loaded_from_history():
     from aria_agent.storage import normalize_legacy_memory_reply
 
@@ -336,6 +348,7 @@ def test_legacy_repeated_memory_reply_is_deduplicated_when_loaded_from_history()
     cleaned = normalize_legacy_memory_reply("assistant", old_reply)
     assert cleaned.count("The user's preferred name is Egwame Nicholas.") == 1
     assert cleaned.startswith("Here is the most recent durable context I have:")
+    assert "\n" in cleaned and "\\n" not in cleaned
 
     # Do not silently rewrite normal dialogue or user-authored content.
     assert normalize_legacy_memory_reply("assistant", "Hi\nHi") == "Hi\nHi"
