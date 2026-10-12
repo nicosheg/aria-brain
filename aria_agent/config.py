@@ -45,9 +45,14 @@ class Settings:
 
     @property
     def has_any_model(self) -> bool:
-        if os.getenv("GROQ_API_KEY", "").strip():
+        primary_names = (
+            "GROQ_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY",
+            "GEMINI_API_KEY", "OPENROUTER_API_KEY", "DASHSCOPE_API_KEY",
+        )
+        if any(os.getenv(name, "").strip() for name in primary_names):
             return True
-        return any(os.getenv(f"GROQ_KEY_{i}", "").strip() for i in range(1, 21))
+        prefixes = ("GROQ_KEY", "OPENAI_KEY", "DEEPSEEK_KEY", "GEMINI_KEY", "OPENROUTER_KEY", "DASHSCOPE_KEY")
+        return any(os.getenv(f"{prefix}_{i}", "").strip() for prefix in prefixes for i in range(1, 21))
 
 
 settings = Settings()
