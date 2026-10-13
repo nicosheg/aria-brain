@@ -259,8 +259,8 @@ def test_frontend_keeps_history_out_of_the_chat_and_uses_fullscreen_archive():
     assert 'aria-label="Open conversation history"' in source
     assert "🕘" not in source
     assert 'class="recent-panel"' not in source
-    assert 'class="history-thread"' in source
-    assert 'class="history-message-label"' in source
+    assert "thread.className = 'history-thread'" in source
+    assert "label.className = 'history-message-label'" in source
     assert "function fetchHistory()" in source
     assert "/conversations?limit=200" in source
     assert "conversation_id: conversationId" in source
