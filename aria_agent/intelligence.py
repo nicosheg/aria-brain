@@ -60,7 +60,7 @@ class CognitiveCore:
         requires_web = any(
             marker in text
             for marker in (
-                "latest", "today", "now", "current", "recent", "find", "search",
+                "latest", "today", "current", "recent", "find", "search",
                 "job", "jobs", "vacancy", "vacancies", "price", "market", "research",
             )
         )
