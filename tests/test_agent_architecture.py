@@ -252,13 +252,17 @@ def test_conversation_storage_contract(tmp_path):
     assert listed[0]["id"] == convo["id"]
 
 
-def test_frontend_has_persistent_conversation_panel():
+def test_frontend_keeps_history_out_of_the_chat_and_uses_fullscreen_archive():
     source = Path("public/index.html").read_text("utf-8")
-    assert 'id="recentList"' in source
-    assert 'id="recentSearch"' in source
-    assert 'id="newConversationBtn"' in source
-    assert "function loadConversations()" in source
-    assert "function openConversation(id)" in source
+    assert 'id="historyBtn"' in source
+    assert 'id="historyNewConversationBtn"' in source
+    assert 'aria-label="Open conversation history"' in source
+    assert "🕘" not in source
+    assert 'class="recent-panel"' not in source
+    assert 'class="history-thread"' in source
+    assert 'class="history-message-label"' in source
+    assert "function fetchHistory()" in source
+    assert "/conversations?limit=200" in source
     assert "conversation_id: conversationId" in source
 
 
