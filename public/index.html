@@ -494,7 +494,7 @@
     }
 
     async function loadConversations() {
-      if (!currentUser) return;
+      if (!currentUser || !recentList) return;
       if (recentList) recentList.innerHTML = '<div class="recent-loading">Loading your conversations…</div>';
       try {
         const query = recentSearchTerm ? '&search=' + encodeURIComponent(recentSearchTerm) : '';
@@ -867,14 +867,18 @@
       });
     }
 
+    let historyRequestId = 0;
     async function fetchHistory() {
       if (!currentUser) return;
+      const requestId = ++historyRequestId;
       historyContent.innerHTML = '<div class="history-loading">Loading your conversations…</div>';
       try {
         const query = historySearchTerm ? '&search=' + encodeURIComponent(historySearchTerm) : '';
         const res = await fetch('/conversations?limit=200' + query, { headers: await apiHeaders(), cache: 'no-store' });
+        if (requestId !== historyRequestId) return;
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
+        if (requestId !== historyRequestId) return;
         const items = Array.isArray(data.conversations) ? data.conversations : [];
         historyItems = items.map(item => ({
           conversation_id: item.id,
@@ -885,6 +889,7 @@
         }));
         renderHistory(historyItems);
       } catch (e) {
+        if (requestId !== historyRequestId) return;
         console.warn('History could not be loaded:', e);
         historyContent.innerHTML = '<div class="history-error">History could not be loaded right now. Please refresh to try again.</div>';
       }
@@ -901,12 +906,12 @@
 
     const historySearch = document.getElementById('historySearch');
     if (historySearch) {
-      let historySearchRequest = 0;
-      historySearch.addEventListener('input', async (e) => {
+      let historySearchTimer = null;
+      historySearch.addEventListener('input', (e) => {
         historySearchTerm = e.target.value.trim();
-        const requestId = ++historySearchRequest;
-        await fetchHistory();
-        if (requestId !== historySearchRequest) return;
+        historyRequestId += 1;
+        if (historySearchTimer) clearTimeout(historySearchTimer);
+        historySearchTimer = setTimeout(() => fetchHistory(), 220);
       });
     }
 
