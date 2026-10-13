@@ -108,6 +108,17 @@ def test_cognitive_core_routes_without_an_llm():
     assert "job_finder" in frame.workers
 
 
+def test_immediate_business_advice_does_not_force_slow_research_route():
+    from aria_agent.intelligence import CognitiveCore
+    from aria_agent.runtime import AriaRuntime
+
+    core = CognitiveCore()
+    frame = core.classify("If I wanted to start a business now what are your top 3 best advice for me")
+    assert frame.requires_web is False
+    runtime = AriaRuntime.__new__(AriaRuntime)
+    assert runtime._should_use_fast_lane(frame) is True
+
+
 def test_native_core_handles_basic_requests():
     from aria_agent.intelligence import CognitiveCore
     core = CognitiveCore()
