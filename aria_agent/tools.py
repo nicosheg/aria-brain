@@ -57,7 +57,7 @@ _ESTABLISHED_NEWS_PUBLISHERS = {
     "reuters.com", "apnews.com", "bbc.com", "bbc.co.uk", "ft.com",
     "nytimes.com", "wsj.com", "economist.com", "npr.org", "theguardian.com",
     "axios.com", "aljazeera.com", "premiumtimesng.com", "punchng.com",
-    "channels.tv", "techcrunch.com", "hbr.org", "investopedia.com",
+    "channelstv.com", "techcrunch.com", "hbr.org", "investopedia.com",
     "ourworldindata.org", "statista.com",
 }
 _PRIMARY_TECHNICAL_DOCUMENTATION = {
