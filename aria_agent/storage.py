@@ -196,8 +196,16 @@ class AgentStore:
                     id TEXT PRIMARY KEY,
                     user_id TEXT NOT NULL,
                     score INTEGER,
+                    run_id TEXT,
+                    comment TEXT,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 );
+                ALTER TABLE aria_feedback ADD COLUMN IF NOT EXISTS run_id TEXT;
+                ALTER TABLE aria_feedback ADD COLUMN IF NOT EXISTS comment TEXT;
+                CREATE INDEX IF NOT EXISTS aria_feedback_user_recent
+                    ON aria_feedback(user_id, created_at DESC);
+                CREATE INDEX IF NOT EXISTS aria_feedback_run
+                    ON aria_feedback(run_id);
             """)
         conn.commit()
 
@@ -946,14 +954,86 @@ class AgentStore:
             rows=[x for x in self._read_local()["jobs"] if x["user_id"]==uid]
         return sorted(rows,key=lambda x:x.get("created_at",""),reverse=True)[:limit]
 
-    def add_feedback(self,user_id:str,score:int)->str:
-        fid=str(uuid.uuid4()); uid=normalize_identity(user_id)
+    def add_feedback(self, user_id: str, score: int, run_id: str | None = None, comment: str = "") -> str:
+        """Persist a user rating, optionally linked to the run it evaluates."""
+        fid = str(uuid.uuid4())
+        uid = normalize_identity(user_id)
+        safe_score = max(1, min(5, int(score)))
+        safe_comment = redact_secrets(str(comment or "")).strip()[:600]
+        safe_run_id = str(run_id or "").strip()[:120] or None
         if self._use_postgres:
-            self._query("INSERT INTO aria_feedback(id,user_id,score) VALUES(%s,%s,%s)",(fid,uid,score),fetch="none")
+            self._query(
+                "INSERT INTO aria_feedback(id,user_id,score,run_id,comment) VALUES(%s,%s,%s,%s,%s)",
+                (fid, uid, safe_score, safe_run_id, safe_comment or None),
+                fetch="none",
+            )
         else:
             with self._lock:
-                data=self._read_local(); data["feedback"].append({"id":fid,"user_id":uid,"score":score,"created_at":now_iso()}); self._write_local(data)
+                data = self._read_local()
+                data["feedback"].append({
+                    "id": fid, "user_id": uid, "score": safe_score, "run_id": safe_run_id,
+                    "comment": safe_comment or None, "created_at": now_iso(),
+                })
+                self._write_local(data)
         return fid
+
+    def worker_feedback_profile(self, user_id: str, limit: int = 500) -> dict[str, dict[str, float | int]]:
+        """Return worker-set rating averages only after enough user feedback exists."""
+        uid = normalize_identity(user_id)
+        limit = max(1, min(int(limit), 1000))
+        scores_by_worker: dict[str, list[int]] = {}
+        if self._use_postgres:
+            rows = self._query(
+                """SELECT f.score, r.metadata
+                   FROM aria_feedback AS f
+                   JOIN aria_runs AS r ON r.id=f.run_id AND r.user_id=f.user_id
+                   WHERE f.user_id=%s AND f.run_id IS NOT NULL AND f.score BETWEEN 1 AND 5
+                   ORDER BY f.created_at DESC
+                   LIMIT %s""",
+                (uid, limit),
+            )
+            entries = [(row[0], row[1] or {}) for row in rows]
+        else:
+            with self._lock:
+                data = self._read_local()
+                runs_by_id = {
+                    row.get("id"): row for row in data.get("runs", [])
+                    if row.get("user_id") == uid
+                }
+                feedback_rows = [
+                    row for row in data.get("feedback", [])
+                    if row.get("user_id") == uid and row.get("run_id")
+                ]
+            feedback_rows.sort(key=lambda row: row.get("created_at", ""), reverse=True)
+            entries = [
+                (row.get("score"), runs_by_id.get(row.get("run_id"), {}).get("metadata") or {})
+                for row in feedback_rows[:limit]
+                if row.get("run_id") in runs_by_id
+            ]
+
+        for score, metadata in entries:
+            try:
+                value = int(score)
+            except (TypeError, ValueError):
+                continue
+            names = (metadata or {}).get("worker_names") or []
+            if isinstance(names, str):
+                try:
+                    names = json.loads(names)
+                except Exception:
+                    names = []
+            for worker_name in set(str(name) for name in names if name):
+                scores_by_worker.setdefault(worker_name, []).append(value)
+
+        profile = {}
+        for worker_name, values in scores_by_worker.items():
+            # Three ratings reduce the chance that one reaction changes future routing.
+            if len(values) >= 3:
+                profile[worker_name] = {
+                    "samples": len(values),
+                    "average_score": round(sum(values) / len(values), 3),
+                }
+        return profile
 
 
 store = AgentStore()
