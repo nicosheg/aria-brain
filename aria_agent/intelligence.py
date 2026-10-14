@@ -18,68 +18,118 @@ class CognitiveFrame:
     workers: tuple[str, ...]
 
 
+WORKER_KEYWORDS = {
+    "opportunity_scout": ("opportunity", "opportunities", "career path", "funding opportunity", "fellowship", "grant opportunity", "scholarship", "business opportunity"),
+    "job_finder": ("job", "jobs", "job opening", "vacancy", "vacancies", "employment", "find work", "find a job"),
+    "job_alert_monitor": ("job alert", "job alerts", "alert me about jobs", "notify me about jobs", "monitor job listings", "track job openings", "new job notification"),
+    "remote_work_scout": ("remote job", "remote jobs", "remote work", "work from home", "remote role", "distributed team"),
+    "local_opportunity_scout": ("local opportunity", "local opportunities", "local business", "nearby jobs", "local tenders", "businesses in", "opportunities in my area"),
+    "role_matcher": ("match my skills", "job fit", "career fit", "role fit", "what role suits me", "suitable roles", "based on my skills", "match me to a role"),
+    "application_builder": ("cv", "resume", "résumé", "cover letter", "application letter", "tailor my application", "write my application", "job application answers"),
+    "application_reviewer": ("review my application", "review my cv", "review my resume", "critique my cv", "audit my application", "check my application", "application review", "improve my cv"),
+    "interview_coach": ("interview preparation", "interview prep", "prepare for an interview", "interview questions", "interview answers"),
+    "freelance_hunter": ("freelance", "freelancing", "freelance client", "find clients", "upwork", "gigs", "gig work"),
+    "service_builder": ("service offer", "package my skills", "service business", "design a service", "what service can i sell", "offer for my skills", "productize my service"),
+    "offer_pricer": ("pricing", "price my service", "set my prices", "what should i charge", "rate card", "pricing strategy", "competitor pricing", "price this offer"),
+    "market_researcher": ("market research", "competitors", "competitor analysis", "market demand", "market size", "market trends", "analyze the market", "analyse the market"),
+    "customer_discovery": ("customer interview", "customer interviews", "validate my idea", "validate demand", "test my idea", "customer discovery", "talk to customers", "product market fit"),
+    "sales_prospector": ("prospecting", "sales prospect", "sales prospects", "customers to pitch", "find buyers", "who should i sell to", "customer acquisition", "sales leads"),
+    "lead_list_builder": ("lead list", "list of leads", "prospect list", "list of companies", "business directory", "compile prospects", "build a lead list"),
+    "outreach_operator": ("outreach", "cold email", "cold message", "follow-up sequence", "follow up sequence", "dm potential customers", "email prospects", "contact potential customers"),
+    "proposal_writer": ("proposal", "client proposal", "quotation", "statement of work", "scope of work", "write a proposal"),
+    "communication_coach": ("rewrite", "improve this message", "write an email", "communication", "make this sound", "how should i reply", "make this more persuasive", "word this better"),
+    "negotiation_coach": ("negotiate", "negotiation", "salary negotiation", "bargaining", "negotiate price", "counteroffer", "handle objections", "close a deal"),
+    "personal_brand": ("personal brand", "personal branding", "linkedin profile", "professional bio", "personal positioning", "public profile"),
+    "content_strategist": ("content strategy", "content calendar", "social media plan", "content ideas", "youtube content", "publishing schedule"),
+    "portfolio_builder": ("portfolio", "case study", "proof project", "project portfolio", "build my portfolio"),
+    "skill_builder": ("learn", "study", "skill", "course", "practice", "exam", "teach me", "learn python", "learning plan"),
+    "learning_assessor": ("assess my skills", "test my level", "diagnose my skills", "knowledge gaps", "skill assessment", "assess what i know", "test what i know"),
+    "resource_optimizer": ("use my resources", "available resources", "what can i do with", "limited data", "phone only", "no laptop", "low capital", "available equipment", "optimize my resources", "optimise my resources"),
+    "income_architect": ("make money", "earn money", "income", "revenue", "income plan", "income stream", "income streams", "earn online", "income strategy"),
+    "microbusiness_architect": ("start a business", "business idea", "business ideas", "small business", "low capital business", "business model", "business plan", "microbusiness", "start a company"),
+    "digital_product_builder": ("digital product", "sell an ebook", "ebook to sell", "template product", "online course to sell", "downloadable product", "software product idea"),
+    "profit_tracker": ("profit", "profit margin", "margins", "break-even", "break even", "unit economics", "revenue vs costs", "track expenses", "profitability"),
+    "automation_designer": ("automation", "automate", "api integration", "integrate apps", "integrate this app", "repetitive task", "automate this workflow"),
+    "workflow_operator": ("workflow", "workflows", "sop", "standard operating procedure", "handoff", "workflow design", "operations workflow", "streamline this process"),
+    "scam_risk_checker": ("scam", "fraud", "suspicious offer", "is this legit", "is this legitimate", "legit job offer", "fake job", "avoid scams", "red flags", "verify this employer"),
+    "fact_verifier": ("fact check", "fact-check", "verify this claim", "is this true", "source this claim", "confirm this fact", "fact verification"),
+    "research_operator": ("research", "investigate", "research report", "source-backed research", "deep search", "compare sources", "gather evidence", "find out"),
+    "execution_coach": ("next steps", "action plan", "execution plan", "how do i proceed", "break this down", "accountability", "take action", "make a plan"),
+    "job_creator": ("create a job description", "write a job description", "job posting", "job advert", "hiring rubric", "role requirements", "define a job role"),
+    "recruiter": ("recruit candidates", "shortlist candidates", "source candidates", "find applicants", "compare candidates", "candidate pipeline", "recruitment"),
+    "hiring_ops": ("hiring process", "onboarding process", "schedule interviews", "applicant tracking", "hiring operations", "candidate follow-up", "recruiting operations"),
+    "interview_drill": ("mock interview", "simulate an interview", "interview drill", "practice interview", "score my answers", "run an interview simulation"),
+    "data_operator": ("clean data", "deduplicate data", "spreadsheet", "csv file", "data entry", "transform data", "organize dataset", "organise dataset"),
+    "developer": ("code", "software", "app", "bug", "github", "deploy", "website", "debug", "programming", "fix this code"),
+    "security_reviewer": ("security audit", "security review", "permission risk", "vulnerability", "vulnerabilities", "prompt injection", "audit permissions", "privacy risk"),
+    "daily_improvement": ("daily improvement", "1% better", "improve every day", "get better daily", "self-improvement", "personal growth", "build better habits"),
+    "personal_ops": ("organize my week", "organise my week", "weekly schedule", "plan my day", "priorities", "manage my routine", "personal productivity", "organize my life", "organise my life", "commitments", "my routine"),
+}
+
+
+def _contains_phrase(text: str, phrase: str) -> bool:
+    parts = [re.escape(part) for part in phrase.lower().split()]
+    if not parts:
+        return False
+    return bool(re.search(r"(?<!\w)" + r"\s+".join(parts) + r"(?!\w)", text))
+
+
 class CognitiveCore:
     """ARIA's model-independent control plane.
 
-    The LLM is an inference engine. This layer owns deterministic routing,
-    memory policy, capability classification, safety flags, and fallback behavior.
+    The LLM is an inference engine. This layer owns deterministic routing, memory
+    policy, capability classification, safety flags, and feedback-adaptive selection.
     """
 
-    WORKER_RULES = (
-        (("opportunity", "opportunities", "career", "next opportunity", "career path"),
-         ("opportunity_scout", "role_matcher", "resource_optimizer")),
-        (("job", "jobs", "employment", "vacancy", "vacancies", "internship", "apprentice", "hiring"),
-         ("job_finder", "role_matcher", "application_reviewer")),
-        (("freelance", "client", "service", "sell", "selling", "customer", "customers", "proposal"),
-         ("freelance_hunter", "service_builder", "sales_prospector")),
-        (("business", "startup", "company", "market", "product"),
-         ("market_researcher", "customer_discovery", "microbusiness_architect")),
-        (("learn", "study", "skill", "course", "practice", "exam"),
-         ("skill_builder", "learning_assessor")),
-        (("money", "income", "earn", "profit", "make money", "revenue"),
-         ("income_architect", "resource_optimizer", "profit_tracker")),
-        (("write", "message", "email", "communicate", "communication", "negotiate"),
-         ("communication_coach", "negotiation_coach")),
-        (("code", "software", "app", "bug", "github", "deploy", "website"),
-         ("developer", "security_reviewer", "automation_designer")),
-        (("research", "compare", "investigate", "find out", "latest", "current"),
-         ("research_operator", "fact_verifier")),
-        (("automation", "automate", "workflow", "routine"),
-         ("automation_designer", "workflow_operator")),
-    )
+    def classify(self, message: str, worker_weights: dict[str, dict] | None = None) -> CognitiveFrame:
+        text = " ".join((message or "").strip().lower().split())
+        scored_workers = []
+        weights = worker_weights or {}
+        for order, (worker, phrases) in enumerate(WORKER_KEYWORDS.items()):
+            matched = [phrase for phrase in phrases if _contains_phrase(text, phrase)]
+            if not matched:
+                continue
+            score = sum(2.0 + min(0.55 * len(phrase.split()), 2.2) for phrase in set(matched))
+            score += min(0.3 * max(0, len(set(matched)) - 1), 0.6)
+            feedback = weights.get(worker) or {}
+            try:
+                samples = int(feedback.get("samples", 0))
+                average = float(feedback.get("average_score", 3.0))
+            except (TypeError, ValueError):
+                samples, average = 0, 3.0
+            # A few ratings are not enough to change routing. Once there is a small
+            # evidence base, feedback nudges ties without overriding task relevance.
+            if samples >= 3:
+                score += max(-0.45, min(0.45, (average - 3.0) * 0.225))
+            scored_workers.append((score, -order, worker))
 
-    def classify(self, message: str) -> CognitiveFrame:
-        text = (message or "").strip().lower()
-        workers: list[str] = []
-        for words, candidates in self.WORKER_RULES:
-            if any(word in text for word in words):
-                for worker in candidates:
-                    if worker not in workers:
-                        workers.append(worker)
+        scored_workers.sort(reverse=True)
+        workers = [item[2] for item in scored_workers[:4]]
+        if not workers:
+            workers = ["execution_coach"]
 
-        requires_web = any(
-            marker in text
-            for marker in (
-                "latest", "today", "current", "recent", "find", "search",
-                "job", "jobs", "vacancy", "vacancies", "price", "market", "research",
-            )
+        web_markers = (
+            "latest", "today", "current", "recent", "find", "search", "job", "jobs",
+            "vacancy", "vacancies", "price", "market research", "research", "fact check",
+            "fact-check", "verify", "is this true", "is this legit", "scam", "fraud",
+            "official source", "source this", "regulation", "eligibility", "deadline",
+            "exchange rate", "compare sources", "gather evidence",
         )
+        requires_web = any(_contains_phrase(text, marker) for marker in web_markers)
 
-        requires_background = any(
-            marker in text
-            for marker in (
-                "every day", "daily", "weekly", "every week", "monitor", "alert me",
-                "keep checking", "in the background", "remind me",
-            )
+        background_markers = (
+            "every day", "daily", "weekly", "every week", "monitor", "alert me",
+            "keep checking", "in the background", "remind me", "job alert",
+            "job alerts", "notify me about jobs", "track job openings",
         )
+        requires_background = any(_contains_phrase(text, marker) for marker in background_markers)
 
-        requires_external_action = any(
-            marker in text
-            for marker in (
-                "send", "submit", "apply", "post", "publish", "buy", "pay", "delete",
-                "invite", "update", "create", "edit", "message them", "contact them",
-            )
+        action_markers = (
+            "send", "submit", "apply", "post", "publish", "buy", "pay", "delete",
+            "invite", "update", "create", "edit", "message them", "contact them",
+            "dm them", "book", "schedule", "upload", "change settings",
         )
+        requires_external_action = any(_contains_phrase(text, marker) for marker in action_markers)
 
         intent = "general"
         if re.search(r"\b(hi|hello|hey|good morning|good evening|good afternoon)\b", text):
@@ -90,26 +140,22 @@ class CognitiveCore:
             intent = "memory"
         elif any(x in text for x in ("what can you do", "your abilities", "your capabilities")):
             intent = "capabilities"
-        elif "job" in text or "jobs" in text or "vacancy" in text or "employment" in text:
+        elif any(_contains_phrase(text, x) for x in ("job", "jobs", "vacancy", "employment")):
             intent = "jobs"
-        elif any(x in text for x in ("make money", "earn money", "income", "profit")):
+        elif any(_contains_phrase(text, x) for x in ("make money", "earn money", "income", "profit")):
             intent = "income"
-        elif "research" in text or "find out" in text or "investigate" in text:
+        elif any(_contains_phrase(text, x) for x in ("research", "fact check", "verify", "investigate", "find out", "scam", "fraud")):
             intent = "research"
         elif requires_external_action:
             intent = "action"
 
-        if not workers:
-            workers = ["execution_coach"]
-
-        memory_query = text
         return CognitiveFrame(
             intent=intent,
             goal=(message or "").strip(),
             requires_web=requires_web,
             requires_background=requires_background,
             requires_external_action=requires_external_action,
-            memory_query=memory_query,
+            memory_query=text,
             workers=tuple(workers[:4]),
         )
 
