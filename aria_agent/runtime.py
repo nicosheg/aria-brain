@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import os
+import re
 import uuid
 
 from agents import Agent, Runner, RunConfig, RunState, AsyncOpenAI, OpenAIChatCompletionsModel, function_tool, set_tracing_disabled
