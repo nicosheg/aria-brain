@@ -320,7 +320,19 @@ Instructions for this independent specialist:
         return run_id
 
     def _should_use_fast_lane(self, frame) -> bool:
-        return not (frame.requires_web or frame.requires_background or frame.requires_external_action) and frame.intent in {"greeting", "capabilities", "memory", "general"}
+        if frame.requires_web or frame.requires_background or frame.requires_external_action:
+            return False
+        if frame.intent not in {"greeting", "capabilities", "memory", "general"}:
+            return False
+
+        # Generic advice should remain quick; explicit specialist tasks should use
+        # the specialist lane even if they don't need web research.
+        goal = str(getattr(frame, "goal", "") or "").lower()
+        if frame.intent == "general" and re.search(
+            r"\b(advice|advise|tips|what do you think|your opinion)\b", goal
+        ):
+            return True
+        return tuple(frame.workers) == ("execution_coach",)
 
     async def _fast_conversation(
         self, user_id: str, message: str, conversation_id: str, memory: list[dict],
