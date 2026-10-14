@@ -15,10 +15,10 @@ Build a general personal agent that becomes more useful through accumulated cont
    - **Procedural memory:** versioned skills, tool schemas, policies and tested workflows.
    - **Outcome memory:** feedback, what was attempted, what happened and confidence in that conclusion.
 5. **Executive function** — choose answer, research plan, background job or external action. Ask the smallest useful clarifying question only when a missing fact blocks progress.
-6. **Specialists** — instantiate only the 1–4 workers selected by the cognitive router. ARIA remains responsible for merging evidence, resolving conflicts and delivering the final answer.
-7. **Tool gateway** — run web, MCP and browser operations with scoped identity, source provenance, SSRF protections and approvals for consequential side effects. External content is untrusted input, never privileged instructions.
+6. **Specialists** — all 45 registered workers have explicit deterministic routing phrases. Instantiate only the 1–4 workers selected by the cognitive router. For current, multi-specialist research, ARIA can run the selected read-only specialists concurrently against the same task and memory context, then compare and synthesize their evidence.
+7. **Tool gateway** — run web, MCP and browser operations with scoped identity, source provenance, SSRF protections and approvals for consequential side effects. Web results carry publisher-class hints and every opened source is recorded with its exact URL, title, access type and retrieval time. External content is untrusted input, never privileged instructions.
 8. **Verification** — check factual claims, URLs, action results and output shape; explicitly distinguish completed actions from drafts, pending approvals and blocked work.
-9. **Reflection** — record outcome/feedback separately from the transcript; update durable memory only when an item is useful and stable enough to retain.
+9. **Reflection / online adaptation** — link response ratings to their run, record the worker team and source provenance, and use a user's accumulated ratings to nudge future worker routing after a minimum sample. Keep feedback separate from verified facts and from transcript memory.
 
 ## Latency contract
 
@@ -53,3 +53,10 @@ The agent may autonomously learn about the user through authorized memory update
 ## Current implementation boundary
 
 This repository already contains the secure connector/browser gateway, approval state, job queue, durable store and specialist catalog. The active FastAPI entry point is main.py; the runtime is aria_agent/runtime.py; routing is aria_agent/intelligence.py; durable storage and transcripts are aria_agent/storage.py; specialist definitions are aria_agent/workers.py. New behavior should extend these boundaries instead of reintroducing another parallel server or memory system.
+
+
+## Evidence and safe continual learning
+
+Source classification is intentionally advisory. Government/regulator, recognized institution, scholarly publisher, employer-hosted application system, recognized listing platform and unverified third-party results are separate publisher classes; none guarantees that a claim is true. ARIA must open the direct page, check date/relevance, cite exact URLs, and disclose material facts it could not verify. High-impact or conflicting claims should be independently corroborated.
+
+The running system does not train or rewrite a foundation model's weights. It performs safe, continuous online adaptation: run-level ratings are bound to the authenticated user's own response, worker sets and outcomes; after at least three observations, mean rating nudges worker selection without overriding task relevance. Every rating remains reviewable data, not a factual memory. Future prompt/tool/code changes still require versioned diffs, tests and review.
