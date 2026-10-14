@@ -53,6 +53,22 @@ _RECOGNIZED_LISTING_PLATFORMS = {
     "glassdoor.com",
 }
 
+_ESTABLISHED_NEWS_PUBLISHERS = {
+    "reuters.com", "apnews.com", "bbc.com", "bbc.co.uk", "ft.com",
+    "nytimes.com", "wsj.com", "economist.com", "npr.org", "theguardian.com",
+    "axios.com", "aljazeera.com", "premiumtimesng.com", "punchng.com",
+    "channels.tv", "techcrunch.com", "hbr.org", "investopedia.com",
+    "ourworldindata.org", "statista.com",
+}
+_PRIMARY_TECHNICAL_DOCUMENTATION = {
+    "docs.github.com", "developer.mozilla.org", "docs.python.org",
+    "fastapi.tiangolo.com", "supabase.com", "vercel.com", "render.com",
+    "nextjs.org", "postgresql.org", "platform.openai.com", "openai.com",
+    "developers.google.com", "cloud.google.com", "docs.aws.amazon.com",
+    "learn.microsoft.com", "developer.apple.com", "pytorch.org", "tensorflow.org",
+    "docs.docker.com", "kubernetes.io",
+}
+
 
 def _source_profile(url: str) -> dict[str, Any]:
     """Describe likely publisher class from a URL; never treat the class as proof of truth."""
@@ -97,6 +113,20 @@ def _source_profile(url: str) -> dict[str, Any]:
             "publisher_domain": host,
             "publisher_class": "employer_hosted_job_system",
             "publisher_assessment": "Employer application platform; verify the employer identity and that the posting is still live",
+            "source_priority": 2,
+        }
+    if any(matches(domain) for domain in _PRIMARY_TECHNICAL_DOCUMENTATION):
+        return {
+            "publisher_domain": host,
+            "publisher_class": "primary_technical_documentation",
+            "publisher_assessment": "First-party technical or company documentation; authoritative for its own product, not automatically for unrelated claims",
+            "source_priority": 1,
+        }
+    if any(matches(domain) for domain in _ESTABLISHED_NEWS_PUBLISHERS):
+        return {
+            "publisher_domain": host,
+            "publisher_class": "established_news_or_research_publisher",
+            "publisher_assessment": "Recognized publisher; verify byline, publication date, direct evidence and corroboration for consequential claims",
             "source_priority": 2,
         }
     if host.endswith(".edu") or host.endswith(".ac.uk") or host.endswith(".edu.ng") or host.endswith(".ac.ng"):
@@ -144,6 +174,7 @@ def _record_source(evidence_log: list[dict[str, Any]] | None, item: dict[str, An
         "url": url[:1600],
         "publisher_domain": str(item.get("publisher_domain") or ""),
         "publisher_class": str(item.get("publisher_class") or "third_party_unverified"),
+        "source_priority": item.get("source_priority", 9),
         "access": access,
         "tool": tool,
         "retrieved_at": str(item.get("retrieved_at") or datetime.now(timezone.utc).isoformat()),
