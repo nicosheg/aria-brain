@@ -52,6 +52,10 @@ def _attach_opened_source_evidence(
         "academic_institution_domain",
         "recognized_listing_platform",
     }
+    opened.sort(key=lambda item: (
+        item.get("publisher_class") not in trusted_classes,
+        item.get("source_priority", 9),
+    ))
     trusted = [item for item in opened if item.get("publisher_class") in trusted_classes]
     if requires_web and not trusted:
         lines = [
