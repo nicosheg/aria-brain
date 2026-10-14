@@ -549,3 +549,22 @@ def test_non_web_specialist_tasks_use_specialist_lane_but_generic_advice_stays_f
     assert "application_builder" in cover_letter.workers
     assert cover_letter.requires_web is False
     assert runtime._should_use_fast_lane(cover_letter) is False
+
+
+def test_job_application_writing_does_not_trigger_job_discovery_research():
+    from aria_agent.intelligence import CognitiveCore
+    from aria_agent.runtime import AriaRuntime
+
+    core = CognitiveCore()
+    runtime = AriaRuntime.__new__(AriaRuntime)
+
+    writing = core.classify("Write a tailored cover letter for this job application")
+    assert writing.requires_web is False
+    assert "application_builder" in writing.workers
+    assert "job_finder" not in writing.workers
+    assert runtime._should_use_fast_lane(writing) is False
+
+    discovery = core.classify("Find current remote jobs I can apply for")
+    assert discovery.requires_web is True
+    assert "job_finder" in discovery.workers
+    assert "remote_work_scout" in discovery.workers
