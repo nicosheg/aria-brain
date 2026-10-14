@@ -14,6 +14,8 @@ services:
         value: "/data/aria"
       - key: ARIA_REQUIRE_DATABASE
         value: "true"
+      - key: ARIA_EMBEDDED_WORKER
+        value: "true"
       - key: ARIA_MAX_TURNS
         value: "32"
       - key: ARIA_ALLOW_EMAIL_IDENTITY

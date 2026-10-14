@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import json
@@ -33,10 +34,41 @@ app.add_middleware(
 
 runtime = AriaRuntime(store)
 PUBLIC_ROOT = Path("public").resolve()
+_background_worker_task: asyncio.Task | None = None
+_background_worker_runtime: AriaRuntime | None = None
+
+
+def _embedded_worker_enabled() -> bool:
+    value = os.getenv("ARIA_EMBEDDED_WORKER", "true").strip().lower()
+    return value not in {"0", "false", "no", "off"}
+
+
+@app.on_event("startup")
+async def startup():
+    """Start a queue consumer when the app has shared, durable Postgres storage."""
+    global _background_worker_task, _background_worker_runtime
+    if not settings.database_url or not _embedded_worker_enabled():
+        logger.info("Embedded background consumer disabled; shared Postgres or ARIA_EMBEDDED_WORKER is not configured.")
+        return
+    from aria_agent.worker import worker_loop
+    _background_worker_runtime = AriaRuntime(store)
+    _background_worker_task = asyncio.create_task(
+        worker_loop(_background_worker_runtime, 0),
+        name="aria-embedded-background-worker",
+    )
+    logger.info("Embedded background queue consumer started.")
 
 
 @app.on_event("shutdown")
 async def shutdown():
+    global _background_worker_task, _background_worker_runtime
+    if _background_worker_task is not None:
+        _background_worker_task.cancel()
+        await asyncio.gather(_background_worker_task, return_exceptions=True)
+        _background_worker_task = None
+    if _background_worker_runtime is not None:
+        await _background_worker_runtime.close()
+        _background_worker_runtime = None
     await runtime.close()
 
 
@@ -66,6 +98,8 @@ class JobRequest(BaseModel):
 
 class FeedbackRequest(BaseModel):
     score: int = Field(ge=1, le=5)
+    run_id: Optional[str] = Field(default=None, max_length=120)
+    comment: Optional[str] = Field(default=None, max_length=600)
 
 
 class UploadRequest(BaseModel):
@@ -180,6 +214,14 @@ async def health():
         "native_capabilities": ["routing", "memory", "planning", "safe_math", "safety_policy"],
         "firebase_configured": bool(os.getenv("FIREBASE_CREDENTIALS")),
         "encryption_configured": bool(settings.encryption_key or os.getenv("ARIA_APP_SECRET")),
+        "source_evidence": "primary-source-first with publisher-class hints and opened-page provenance",
+        "online_learning": "user-feedback-driven specialist routing; no silent foundation-model retraining",
+        "background_worker": (
+            "running" if _background_worker_task is not None and not _background_worker_task.done()
+            else "disabled" if not _embedded_worker_enabled()
+            else "not_configured" if not settings.database_url
+            else "starting_or_stopped"
+        ),
     }
 
 
@@ -192,12 +234,17 @@ async def capabilities(authorization: Optional[str] = Header(default=None)):
         workers = [name for name, _ in WORKER_SPECS]
     except Exception:
         pass
+    from aria_agent.intelligence import WORKER_KEYWORDS
     return {
-        "core": ["routing", "memory", "planning", "safe_math", "safety_policy"],
+        "core": ["routing", "memory", "planning", "safe_math", "safety_policy", "source_provenance", "feedback_learning"],
         "browser": settings.browser_enabled,
         "connected_apps": True,
-        "background_jobs": True,
+        "background_jobs": bool(settings.database_url and _embedded_worker_enabled()),
         "workers": workers,
+        "worker_count": len(workers),
+        "worker_routing_coverage": len(set(workers) & set(WORKER_KEYWORDS)),
+        "source_tools": ["web_search", "job_search", "web_fetch"],
+        "learning_mode": "feedback-adaptive worker routing; model weights are not retrained by this service",
     }
 
 
@@ -343,7 +390,19 @@ async def set_user_name(payload: dict, authorization: Optional[str] = Header(def
 @app.post("/feedback")
 async def feedback(req: FeedbackRequest, authorization: Optional[str] = Header(default=None)):
     identity = _identity_from_request(authorization)
-    return {"status": "ok", "id": store.add_feedback(identity["user_id"], req.score)}
+    if req.run_id:
+        run = store.get_run(identity["user_id"], req.run_id)
+        if not run:
+            raise HTTPException(404, detail="The rated ARIA response was not found for this user.")
+    feedback_id = store.add_feedback(
+        identity["user_id"], req.score, run_id=req.run_id, comment=req.comment or ""
+    )
+    return {
+        "status": "ok",
+        "id": feedback_id,
+        "learning_signal_recorded": True,
+        "run_linked": bool(req.run_id),
+    }
 
 
 @app.get("/debug-memory")

@@ -368,3 +368,184 @@ def test_legacy_repeated_memory_reply_is_deduplicated_when_loaded_from_history()
     # Do not silently rewrite normal dialogue or user-authored content.
     assert normalize_legacy_memory_reply("assistant", "Hi\nHi") == "Hi\nHi"
     assert normalize_legacy_memory_reply("user", old_reply) == old_reply
+
+
+def test_all_45_specialists_are_addressable_by_the_cognitive_router():
+    from aria_agent.intelligence import WORKER_KEYWORDS, CognitiveCore
+    from aria_agent.workers import WORKER_SPECS
+
+    registered = {name for name, _ in WORKER_SPECS}
+    assert len(registered) == 45
+    assert set(WORKER_KEYWORDS) == registered
+    assert len(WORKER_KEYWORDS) == len(registered)
+
+    examples = {
+        "job_alert_monitor": "Set up a job alert and notify me about new jobs",
+        "remote_work_scout": "Find remote work from home opportunities",
+        "local_opportunity_scout": "Find local opportunities in Lagos",
+        "application_builder": "Write a tailored cover letter for this job application",
+        "interview_drill": "Run a mock interview and score my answers",
+        "offer_pricer": "What should I charge for this service? Help with pricing",
+        "lead_list_builder": "Build a lead list of companies to contact",
+        "outreach_operator": "Write a cold email outreach sequence",
+        "personal_brand": "Improve my personal brand and LinkedIn profile",
+        "scam_risk_checker": "Is this job offer a scam?",
+        "job_creator": "Write a job description for a new hire",
+        "recruiter": "Help me shortlist candidates for recruitment",
+        "hiring_ops": "Design our hiring process and onboarding process",
+        "data_operator": "Clean this spreadsheet and deduplicate the data",
+        "daily_improvement": "Help me become 1% better every day",
+        "personal_ops": "Organize my week and manage my routine",
+    }
+    core = CognitiveCore()
+    for worker, prompt in examples.items():
+        frame = core.classify(prompt)
+        assert worker in frame.workers, (worker, frame.workers)
+
+
+def test_publisher_profiles_are_hints_not_claims_of_truth():
+    from aria_agent.tools import _source_profile
+
+    official = _source_profile("https://www.cbn.gov.ng/monetary-policy/")
+    uk_government = _source_profile("https://www.gov.uk/government/statistics")
+    australia_government = _source_profile("https://www.gov.au/")
+    listing = _source_profile("https://www.jobberman.com/jobs/software-engineer")
+    unknown = _source_profile("https://example-unverified.test/article")
+    assert official["publisher_class"] == "government_or_regulator_domain"
+    assert uk_government["publisher_class"] == "government_or_regulator_domain"
+    assert australia_government["publisher_class"] == "government_or_regulator_domain"
+    assert listing["publisher_class"] == "recognized_listing_platform"
+    assert unknown["publisher_class"] == "third_party_unverified"
+    assert "heuristic" in official["publisher_assessment"].lower()
+
+    technical_docs = _source_profile("https://platform.openai.com/docs/api-reference")
+    news = _source_profile("https://www.reuters.com/world/")
+    assert technical_docs["publisher_class"] == "primary_technical_documentation"
+    assert news["publisher_class"] == "established_news_or_research_publisher"
+
+
+def test_feedback_changes_routing_only_after_three_linked_ratings(tmp_path):
+    from pathlib import Path
+    from aria_agent.storage import AgentStore
+    from aria_agent.intelligence import CognitiveCore
+
+    s = AgentStore()
+    s._use_postgres = False
+    s._path = Path(tmp_path) / "online-learning.json"
+    s._write_local(s._empty_local())
+
+    for index, score in enumerate((5, 5, 4), start=1):
+        run_id = f"learning-run-{index}"
+        s.save_run(
+            run_id, "user-1", "test", "test-model", "completed",
+            "find me current jobs", "Source-backed result",
+            metadata={"worker_names": ["job_finder"], "intent": "jobs"},
+        )
+        s.add_feedback("user-1", score, run_id=run_id)
+
+    # A single-specialist rating is attributable to that specialist.
+    profile = s.worker_feedback_profile("user-1")
+    assert profile["job_finder"]["samples"] == 3
+    assert profile["job_finder"]["average_score"] == 4.667
+    frame = CognitiveCore().classify("Find current jobs", worker_weights=profile)
+    assert "job_finder" in frame.workers
+
+    # A team rating is stored but must not be credited to each team member.
+    s.save_run(
+        "team-run", "user-1", "test", "test-model", "completed",
+        "find me current jobs", "Team result",
+        metadata={"worker_names": ["job_finder", "role_matcher"], "intent": "jobs"},
+    )
+    s.add_feedback("user-1", 1, run_id="team-run")
+    after_team_rating = s.worker_feedback_profile("user-1")
+    assert after_team_rating["job_finder"]["samples"] == 3
+    assert "role_matcher" not in after_team_rating
+    assert s.worker_feedback_profile("another-user") == {}
+
+
+def test_worker_building_exposes_shared_read_only_research_tools_and_parallel_consultation():
+    runtime = Path("aria_agent/runtime.py").read_text("utf-8")
+    workers = Path("aria_agent/workers.py").read_text("utf-8")
+    tools = Path("aria_agent/tools.py").read_text("utf-8")
+    assert '("web_search", "job_search", "web_fetch", "calculator", "search_memory")' in runtime
+    assert "consult_specialists_in_parallel" in runtime
+    assert "asyncio.gather" in runtime
+    assert "Multiple specialists have been selected for this goal." in runtime
+    assert "SOURCE AND EVIDENCE CONTRACT" in workers
+    assert "publisher_class" in tools
+    assert '"opened_page"' in tools
+
+
+def test_response_feedback_is_run_linked_and_no_silent_model_retraining_claim():
+    main_source = Path("main.py").read_text("utf-8")
+    ui = Path("public/index.html").read_text("utf-8")
+    assert "run_id: runId || null" in ui
+    assert "store.worker_feedback_profile(user_id)" in Path("aria_agent/runtime.py").read_text("utf-8")
+    assert "foundation-model retraining" in main_source
+    assert "The rated ARIA response was not found for this user." in main_source
+
+
+def test_every_worker_has_a_route_phrase_that_selects_it():
+    from aria_agent.intelligence import WORKER_KEYWORDS, CognitiveCore
+
+    core = CognitiveCore()
+    for worker, phrases in WORKER_KEYWORDS.items():
+        phrase = max(phrases, key=len)
+        frame = core.classify(phrase)
+        assert worker in frame.workers, (worker, phrase, frame.workers)
+
+
+def test_research_output_requires_opened_direct_source_and_appends_links():
+    from aria_agent.runtime import _attach_opened_source_evidence
+
+    blocked = _attach_opened_source_evidence("Generic answer", [], requires_web=True)
+    assert "I couldn't verify" in blocked
+    assert "Generic answer" not in blocked
+
+    only_search_result = [{
+        "access": "search_result",
+        "url": "https://example.org/result",
+        "title": "Search result",
+    }]
+    blocked_search = _attach_opened_source_evidence("Unverified", only_search_result, requires_web=True)
+    assert "I couldn't verify" in blocked_search
+
+    untrusted_page = [{
+        "access": "opened_page",
+        "url": "https://example-unverified.test/article",
+        "title": "Unverified blog",
+        "publisher_class": "third_party_unverified",
+    }]
+    blocked_untrusted = _attach_opened_source_evidence("Unsupported claim", untrusted_page, requires_web=True)
+    assert "could not establish" in blocked_untrusted
+    assert "Unsupported claim" not in blocked_untrusted
+    assert "https://example-unverified.test/article" in blocked_untrusted
+
+    opened = [{
+        "access": "opened_page",
+        "url": "https://www.cbn.gov.ng/example",
+        "title": "Official page",
+        "publisher_class": "government_or_regulator_domain",
+        "retrieved_at": "2026-10-14T06:00:00+00:00",
+    }]
+    result = _attach_opened_source_evidence("Verified research summary", opened, requires_web=True)
+    assert result.startswith("Verified research summary")
+    assert "Direct source pages opened" in result
+    assert "https://www.cbn.gov.ng/example" in result
+    assert "government or regulator domain" in result
+
+
+def test_non_web_specialist_tasks_use_specialist_lane_but_generic_advice_stays_fast():
+    from aria_agent.intelligence import CognitiveCore
+    from aria_agent.runtime import AriaRuntime
+
+    core = CognitiveCore()
+    runtime = AriaRuntime.__new__(AriaRuntime)
+
+    advice = core.classify("If I wanted to start a business now what are your top 3 best advice for me")
+    assert runtime._should_use_fast_lane(advice) is True
+
+    cover_letter = core.classify("Write a tailored cover letter for this role")
+    assert "application_builder" in cover_letter.workers
+    assert cover_letter.requires_web is False
+    assert runtime._should_use_fast_lane(cover_letter) is False

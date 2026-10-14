@@ -83,3 +83,14 @@ See **docs/COGNITIVE_ARCHITECTURE.md** for the canonical design. Ordinary conver
 Conversation transcripts are episodic memory. Durable memory is reserved for useful facts, preferences, goals, constraints and decisions; chat turns must never be inserted into the durable-memory table. Duplicate writes are idempotent and retrieval deduplicates legacy rows, so old repeated records cannot drown out better context.
 
 ARIA can learn from new information and feedback by updating user memory, versioned skills, evaluations and improvement proposals. It must not silently rewrite or deploy its own production code: software changes go through a branch, tests, reviewable diff and green CI. This keeps daily upgrades fast without allowing a mistaken observation or prompt injection to alter the system.
+
+
+## Evidence-first teamwork and continual improvement
+
+Every specialist is explicitly routable through a worker keyword catalog checked against the 45-worker registry. All specialists receive the same read-only web search, job search, direct-page fetch, calculator and scoped memory search tools. Current multi-specialist requests can invoke a parallel specialist panel; the main ARIA agent owns evidence comparison and the final answer.
+
+Search results include publisher-class hints (government/regulator, recognized institutional publisher, scholarly publisher/repository, employer-hosted job system, recognized listing platform or unverified third party). These are not truth scores. ARIA must open material direct pages, check recency and relevance, cite exact URLs, and state when it cannot verify a claim. Job-board results must be checked against the employer or an employer-hosted application page when available.
+
+User ratings can be linked to the exact run. ARIA uses repeated single-specialist ratings (at least three) to nudge future specialist selection for that user; it does not attribute a team's aggregate rating to each worker or silently retrain foundation-model weights from arbitrary chat text. Code/prompt updates still require tests and review.
+
+When shared Postgres is configured, the API process also starts a small embedded queue consumer by default (disable it with ARIA_EMBEDDED_WORKER=false). It cooperates with the separately declared worker using atomic queue claims. A Render free service can sleep, so embedded queue processing is not a 24/7 service-level guarantee.
