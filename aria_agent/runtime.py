@@ -18,6 +18,45 @@ from .intelligence import CognitiveCore
 from .workers import build_workers
 
 
+
+def _attach_opened_source_evidence(
+    output: str,
+    evidence_log: list[dict],
+    requires_web: bool,
+) -> str:
+    """Ensure research-labelled answers cannot pass without a direct page and disclose opened sources."""
+    opened: list[dict] = []
+    seen_urls = set()
+    for item in evidence_log:
+        if item.get("access") != "opened_page":
+            continue
+        url = redact_secrets(str(item.get("url") or "").strip())
+        if not url or url in seen_urls:
+            continue
+        seen_urls.add(url)
+        opened.append({**item, "url": url})
+    if requires_web and not opened:
+        return (
+            "I couldn't verify this request against a directly opened source page in this run, "
+            "so I won't present an unverified answer as fact. Please try again, or narrow the "
+            "request to a specific country, date, employer, product or official source."
+        )
+    if not opened:
+        return str(output or "")
+    lines = []
+    for item in opened[:8]:
+        title = " ".join(str(item.get("title") or "Source page").split()).replace("[", "(").replace("]", ")")
+        url = str(item["url"]).replace("\n", "").replace("\r", "")
+        publisher = str(item.get("publisher_class") or "third_party_unverified").replace("_", " ")
+        retrieved = str(item.get("retrieved_at") or "")[:10]
+        suffix = f" — {publisher}" + (f", accessed {retrieved}" if retrieved else "")
+        lines.append(f"- {title}: {url}{suffix}")
+    more = len(opened) - len(lines)
+    if more > 0:
+        lines.append(f"- {more} additional direct source page(s) were opened and recorded.")
+    return str(output or "").rstrip() + "\n\n**Direct source pages opened**\n" + "\n".join(lines)
+
+
 class AriaRuntime:
     """Production agent runtime replacing the legacy monolithic ask() path."""
 
@@ -556,6 +595,11 @@ FAST CONVERSATION MODE:
             if not interruptions
             else "I prepared the next action and need your approval before I continue."
         )
+        direct_source_count = sum(1 for item in source_log if item.get("access") == "opened_page")
+        if not interruptions:
+            output = _attach_opened_source_evidence(
+                str(output or ""), source_log, requires_web=frame.requires_web
+            )
 
         safe_input = redact_secrets(message)
         safe_output = redact_secrets(output or "")
@@ -584,6 +628,8 @@ FAST CONVERSATION MODE:
                 "worker_names": list(worker_names),
                 "sources_used": source_log[:60],
                 "source_count": len(source_log),
+                "direct_source_count": direct_source_count,
+                "evidence_gate_passed": (not frame.requires_web) or direct_source_count > 0,
                 "team_mode": "parallel_panel_available" if len(worker_names) > 1 else "single_specialist",
             },
         )
