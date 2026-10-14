@@ -512,7 +512,7 @@ def test_non_web_specialist_tasks_use_specialist_lane_but_generic_advice_stays_f
     advice = core.classify("If I wanted to start a business now what are your top 3 best advice for me")
     assert runtime._should_use_fast_lane(advice) is True
 
-    cover_letter = core.classify("Write a tailored cover letter for this job application")
+    cover_letter = core.classify("Write a tailored cover letter for this role")
     assert "application_builder" in cover_letter.workers
     assert cover_letter.requires_web is False
     assert runtime._should_use_fast_lane(cover_letter) is False
