@@ -407,9 +407,13 @@ def test_publisher_profiles_are_hints_not_claims_of_truth():
     from aria_agent.tools import _source_profile
 
     official = _source_profile("https://www.cbn.gov.ng/monetary-policy/")
+    uk_government = _source_profile("https://www.gov.uk/government/statistics")
+    australia_government = _source_profile("https://www.gov.au/")
     listing = _source_profile("https://www.jobberman.com/jobs/software-engineer")
     unknown = _source_profile("https://example-unverified.test/article")
     assert official["publisher_class"] == "government_or_regulator_domain"
+    assert uk_government["publisher_class"] == "government_or_regulator_domain"
+    assert australia_government["publisher_class"] == "government_or_regulator_domain"
     assert listing["publisher_class"] == "recognized_listing_platform"
     assert unknown["publisher_class"] == "third_party_unverified"
     assert "heuristic" in official["publisher_assessment"].lower()
