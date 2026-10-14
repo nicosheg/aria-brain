@@ -596,13 +596,15 @@ FAST CONVERSATION MODE:
                     "cite precise source titles and URLs, check dates and publisher relevance, and distinguish facts from inference. "
                     "If direct evidence is unavailable, say exactly what remains unverified rather than filling the gap with a generic answer."
                 )
-                if len(worker_names) > 1:
-                    prompt_parts.append(
-                        "TEAM EXECUTION: Before drafting the answer, call consult_specialists_in_parallel once with the user's full goal. "
-                        "It runs the selected specialists simultaneously. Compare their evidence, resolve conflicts, verify material claims "
-                        "using direct sources, and produce one coherent response rather than pasting disconnected worker answers. "
-                        "Do not repeat their searches unless a specific evidence gap remains."
-                    )
+            if len(worker_names) > 1:
+                prompt_parts.append(
+                    "TEAM EXECUTION: Multiple specialists have been selected for this goal. Before drafting the answer, call "
+                    "consult_specialists_in_parallel once with the user's full goal. It runs the selected specialists simultaneously "
+                    "against the same brief and relevant user context. Compare their findings, resolve conflicts, and return one coherent "
+                    "answer—not disconnected reports. Any external factual claim must follow the source-evidence contract; when this task "
+                    "does not need external facts, label recommendations as analysis and do not invent facts. Avoid repeating searches "
+                    "unless a concrete evidence gap remains."
+                )
             prompt = "\n\n".join(prompt_parts)
             result = None
             last_error = None
