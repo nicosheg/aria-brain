@@ -42,6 +42,30 @@ def _attach_opened_source_evidence(
             "so I won't present an unverified answer as fact. Please try again, or narrow the "
             "request to a specific country, date, employer, product or official source."
         )
+    trusted_classes = {
+        "government_or_regulator_domain",
+        "recognized_official_institution",
+        "scholarly_publisher_or_repository",
+        "employer_hosted_job_system",
+        "primary_technical_documentation",
+        "established_news_or_research_publisher",
+        "academic_institution_domain",
+        "recognized_listing_platform",
+    }
+    trusted = [item for item in opened if item.get("publisher_class") in trusted_classes]
+    if requires_web and not trusted:
+        lines = [
+            "- " + " ".join(str(item.get("title") or "Source page").split()).replace("[", "(").replace("]", ")")
+            + ": " + str(item["url"])
+            for item in opened[:5]
+        ]
+        reviewed = "\n\nDirect pages opened but not verified as authoritative:\n" + "\n".join(lines) if lines else ""
+        return (
+            "I opened direct pages, but ARIA could not establish that any of them came from a recognized authoritative "
+            "or primary-source publisher for this request. I won't treat their claims as verified or fill the gap with "
+            "a generic answer. Please retry or narrow the request to an official publisher, regulator, employer or "
+            "primary product/research source."
+        ) + reviewed
     if not opened:
         return str(output or "")
     lines = []
