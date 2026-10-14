@@ -87,7 +87,8 @@ def _source_profile(url: str) -> dict[str, Any]:
             "publisher_assessment": "URL does not identify a public HTTP(S) publisher",
             "source_priority": 9,
         }
-    if host.endswith(".gov") or host.endswith(".gov.ng") or host.endswith(".gov.uk") or host.endswith(".gov.au") or host.endswith(".gov.ca"):
+    government_suffixes = (".gov", ".gov.ng", ".gov.uk", ".gov.au", ".gov.ca")
+    if any(host == suffix[1:] or host.endswith(suffix) for suffix in government_suffixes):
         return {
             "publisher_domain": host,
             "publisher_class": "government_or_regulator_domain",
