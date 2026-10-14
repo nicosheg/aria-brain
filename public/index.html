@@ -595,45 +595,58 @@
           speechSynthesis.speak(utterance);
         };
         div.appendChild(actions);
-        const ratingDiv = document.createElement('div');
-        ratingDiv.className = 'rating-row';
-        for (let i = 1; i <= 5; i++) {
-          const star = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-          star.setAttribute("class", "rating-star");
-          star.setAttribute("viewBox", "0 0 24 24");
-          star.innerHTML = '<path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>';
-          star.dataset.score = i;
-          star.onclick = (e) => {
-            e.stopPropagation();
-            const score = parseInt(star.dataset.score);
-            sendRating(score, ratingDiv);
-            const allStars = ratingDiv.querySelectorAll('.rating-star');
-            allStars.forEach((s, idx) => {
-              if (idx < score) s.classList.add('active');
-              else s.classList.remove('active');
-            });
-          };
-          ratingDiv.appendChild(star);
+        if (showRating) {
+          const ratingDiv = document.createElement('div');
+          ratingDiv.className = 'rating-row';
+          ratingDiv.setAttribute('aria-label', 'Rate this ARIA response');
+          for (let i = 1; i <= 5; i++) {
+            const star = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            star.setAttribute("class", "rating-star");
+            star.setAttribute("viewBox", "0 0 24 24");
+            star.setAttribute("role", "button");
+            star.setAttribute("tabindex", "0");
+            star.setAttribute("aria-label", 'Rate ' + i + ' out of 5');
+            star.innerHTML = '<path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>';
+            star.dataset.score = i;
+            const submitRating = (e) => {
+              e.stopPropagation();
+              const score = parseInt(star.dataset.score, 10);
+              sendRating(score, ratingDiv, msgId);
+              const allStars = ratingDiv.querySelectorAll('.rating-star');
+              allStars.forEach((item, idx) => {
+                if (idx < score) item.classList.add('active');
+                else item.classList.remove('active');
+              });
+            };
+            star.onclick = submitRating;
+            star.onkeydown = (e) => {
+              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); submitRating(e); }
+            };
+            ratingDiv.appendChild(star);
+          }
+          div.appendChild(ratingDiv);
         }
-        div.appendChild(ratingDiv);
       }
       messagesArea.appendChild(div);
       messagesArea.scrollTop = messagesArea.scrollHeight;
       return div;
     }
 
-    async function sendRating(score, ratingDiv) {
+    async function sendRating(score, ratingDiv, runId = null) {
       if (!currentUser) return;
+      ratingDiv.textContent = 'Saving feedback…';
       try {
-        await fetch('/feedback', {
+        const response = await fetch('/feedback', {
           method: 'POST',
           headers: await apiHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ score: score })
+          body: JSON.stringify({ score: score, run_id: runId || null })
         });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        ratingDiv.textContent = '✓ Feedback saved';
       } catch (e) {
         console.warn('Feedback could not be sent:', e);
+        ratingDiv.textContent = 'Feedback could not be saved';
       }
-      ratingDiv.textContent = `✓ Rated ${score}/5`;
     }
 
     function showTyping() {
@@ -682,7 +695,7 @@
         hideTyping();
         if (data.conversation_id) conversationId = data.conversation_id;
         if (data.error) addMessage(`Error: ${data.error}`, 'aria');
-        else { addMessage(data.reply || '...', 'aria'); if (data.approval_required) showApproval(data.run_id, data.interruptions || []); }
+        else { addMessage(data.reply || '...', 'aria', true, data.run_id); if (data.approval_required) showApproval(data.run_id, data.interruptions || []); }
         renderRecentConversations();
         loadConversations();
       } catch(e) {
