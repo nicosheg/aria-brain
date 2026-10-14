@@ -414,6 +414,11 @@ def test_publisher_profiles_are_hints_not_claims_of_truth():
     assert unknown["publisher_class"] == "third_party_unverified"
     assert "heuristic" in official["publisher_assessment"].lower()
 
+    technical_docs = _source_profile("https://platform.openai.com/docs/api-reference")
+    news = _source_profile("https://www.reuters.com/world/")
+    assert technical_docs["publisher_class"] == "primary_technical_documentation"
+    assert news["publisher_class"] == "established_news_or_research_publisher"
+
 
 def test_feedback_changes_routing_only_after_three_linked_ratings(tmp_path):
     from pathlib import Path
@@ -487,6 +492,17 @@ def test_research_output_requires_opened_direct_source_and_appends_links():
     }]
     blocked_search = _attach_opened_source_evidence("Unverified", only_search_result, requires_web=True)
     assert "I couldn't verify" in blocked_search
+
+    untrusted_page = [{
+        "access": "opened_page",
+        "url": "https://example-unverified.test/article",
+        "title": "Unverified blog",
+        "publisher_class": "third_party_unverified",
+    }]
+    blocked_untrusted = _attach_opened_source_evidence("Unsupported claim", untrusted_page, requires_web=True)
+    assert "could not establish" in blocked_untrusted
+    assert "Unsupported claim" not in blocked_untrusted
+    assert "https://example-unverified.test/article" in blocked_untrusted
 
     opened = [{
         "access": "opened_page",
