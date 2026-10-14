@@ -461,3 +461,42 @@ def test_response_feedback_is_run_linked_and_no_silent_model_retraining_claim():
     assert "store.worker_feedback_profile(user_id)" in Path("aria_agent/runtime.py").read_text("utf-8")
     assert "foundation-model retraining" in main_source
     assert "The rated ARIA response was not found for this user." in main_source
+
+
+def test_every_worker_has_a_route_phrase_that_selects_it():
+    from aria_agent.intelligence import WORKER_KEYWORDS, CognitiveCore
+
+    core = CognitiveCore()
+    for worker, phrases in WORKER_KEYWORDS.items():
+        phrase = max(phrases, key=len)
+        frame = core.classify(phrase)
+        assert worker in frame.workers, (worker, phrase, frame.workers)
+
+
+def test_research_output_requires_opened_direct_source_and_appends_links():
+    from aria_agent.runtime import _attach_opened_source_evidence
+
+    blocked = _attach_opened_source_evidence("Generic answer", [], requires_web=True)
+    assert "I couldn't verify" in blocked
+    assert "Generic answer" not in blocked
+
+    only_search_result = [{
+        "access": "search_result",
+        "url": "https://example.org/result",
+        "title": "Search result",
+    }]
+    blocked_search = _attach_opened_source_evidence("Unverified", only_search_result, requires_web=True)
+    assert "I couldn't verify" in blocked_search
+
+    opened = [{
+        "access": "opened_page",
+        "url": "https://www.cbn.gov.ng/example",
+        "title": "Official page",
+        "publisher_class": "government_or_regulator_domain",
+        "retrieved_at": "2026-10-14T06:00:00+00:00",
+    }]
+    result = _attach_opened_source_evidence("Verified research summary", opened, requires_web=True)
+    assert result.startswith("Verified research summary")
+    assert "Direct source pages opened" in result
+    assert "https://www.cbn.gov.ng/example" in result
+    assert "government or regulator domain" in result
