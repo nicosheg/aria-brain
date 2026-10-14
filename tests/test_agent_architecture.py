@@ -439,15 +439,27 @@ def test_feedback_changes_routing_only_after_three_linked_ratings(tmp_path):
         s.save_run(
             run_id, "user-1", "test", "test-model", "completed",
             "find me current jobs", "Source-backed result",
-            metadata={"worker_names": ["job_finder", "role_matcher"], "intent": "jobs"},
+            metadata={"worker_names": ["job_finder"], "intent": "jobs"},
         )
         s.add_feedback("user-1", score, run_id=run_id)
 
+    # A single-specialist rating is attributable to that specialist.
     profile = s.worker_feedback_profile("user-1")
     assert profile["job_finder"]["samples"] == 3
     assert profile["job_finder"]["average_score"] == 4.667
     frame = CognitiveCore().classify("Find current jobs", worker_weights=profile)
     assert "job_finder" in frame.workers
+
+    # A team rating is stored but must not be credited to each team member.
+    s.save_run(
+        "team-run", "user-1", "test", "test-model", "completed",
+        "find me current jobs", "Team result",
+        metadata={"worker_names": ["job_finder", "role_matcher"], "intent": "jobs"},
+    )
+    s.add_feedback("user-1", 1, run_id="team-run")
+    after_team_rating = s.worker_feedback_profile("user-1")
+    assert after_team_rating["job_finder"]["samples"] == 3
+    assert "role_matcher" not in after_team_rating
     assert s.worker_feedback_profile("another-user") == {}
 
 
