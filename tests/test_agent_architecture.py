@@ -500,3 +500,19 @@ def test_research_output_requires_opened_direct_source_and_appends_links():
     assert "Direct source pages opened" in result
     assert "https://www.cbn.gov.ng/example" in result
     assert "government or regulator domain" in result
+
+
+def test_non_web_specialist_tasks_use_specialist_lane_but_generic_advice_stays_fast():
+    from aria_agent.intelligence import CognitiveCore
+    from aria_agent.runtime import AriaRuntime
+
+    core = CognitiveCore()
+    runtime = AriaRuntime.__new__(AriaRuntime)
+
+    advice = core.classify("If I wanted to start a business now what are your top 3 best advice for me")
+    assert runtime._should_use_fast_lane(advice) is True
+
+    cover_letter = core.classify("Write a tailored cover letter for this job application")
+    assert "application_builder" in cover_letter.workers
+    assert cover_letter.requires_web is False
+    assert runtime._should_use_fast_lane(cover_letter) is False
