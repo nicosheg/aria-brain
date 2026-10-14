@@ -454,6 +454,7 @@ def test_worker_building_exposes_shared_read_only_research_tools_and_parallel_co
     assert '("web_search", "job_search", "web_fetch", "calculator", "search_memory")' in runtime
     assert "consult_specialists_in_parallel" in runtime
     assert "asyncio.gather" in runtime
+    assert "Multiple specialists have been selected for this goal." in runtime
     assert "SOURCE AND EVIDENCE CONTRACT" in workers
     assert "publisher_class" in tools
     assert '"opened_page"' in tools
