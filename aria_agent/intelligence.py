@@ -20,7 +20,7 @@ class CognitiveFrame:
 
 WORKER_KEYWORDS = {
     "opportunity_scout": ("opportunity", "opportunities", "career path", "funding opportunity", "fellowship", "grant opportunity", "scholarship", "business opportunity"),
-    "job_finder": ("job", "jobs", "job opening", "vacancy", "vacancies", "employment", "find work", "find a job"),
+    "job_finder": ("job search", "job searches", "job opening", "job openings", "job listing", "job listings", "job opportunity", "job opportunities", "current jobs", "remote jobs", "vacancy", "vacancies", "employment opportunities", "find work", "find a job", "find jobs", "apply for jobs"),
     "job_alert_monitor": ("job alert", "job alerts", "alert me about jobs", "notify me about jobs", "monitor job listings", "track job openings", "new job notification"),
     "remote_work_scout": ("remote job", "remote jobs", "remote work", "work from home", "remote role", "distributed team"),
     "local_opportunity_scout": ("local opportunity", "local opportunities", "local business", "nearby jobs", "local tenders", "businesses in", "opportunities in my area"),
@@ -109,11 +109,14 @@ class CognitiveCore:
             workers = ["execution_coach"]
 
         web_markers = (
-            "latest", "today", "current", "recent", "find", "search", "job", "jobs",
-            "vacancy", "vacancies", "price", "market research", "research", "fact check",
-            "fact-check", "verify", "is this true", "is this legit", "scam", "fraud",
-            "official source", "source this", "regulation", "eligibility", "deadline",
-            "exchange rate", "compare sources", "gather evidence",
+            "latest", "today", "current", "recent", "find", "search", "look up",
+            "job search", "job searches", "job opening", "job openings", "job listing",
+            "job listings", "job opportunity", "job opportunities", "current jobs",
+            "remote jobs", "find work", "find a job", "find jobs", "vacancy", "vacancies",
+            "price", "market research", "research", "fact check", "fact-check", "verify",
+            "is this true", "is this legit", "scam", "fraud", "official source", "source this",
+            "regulation", "eligibility", "deadline", "exchange rate", "compare sources",
+            "gather evidence",
         )
         requires_web = any(_contains_phrase(text, marker) for marker in web_markers)
 
@@ -140,7 +143,12 @@ class CognitiveCore:
             intent = "memory"
         elif any(x in text for x in ("what can you do", "your abilities", "your capabilities")):
             intent = "capabilities"
-        elif any(_contains_phrase(text, x) for x in ("job", "jobs", "vacancy", "employment")):
+        elif any(_contains_phrase(text, x) for x in (
+            "job search", "job searches", "job opening", "job openings", "job listing",
+            "job listings", "job opportunity", "job opportunities", "current jobs",
+            "remote jobs", "find work", "find a job", "find jobs", "vacancy", "vacancies",
+            "employment opportunities",
+        )):
             intent = "jobs"
         elif any(_contains_phrase(text, x) for x in ("make money", "earn money", "income", "profit")):
             intent = "income"
