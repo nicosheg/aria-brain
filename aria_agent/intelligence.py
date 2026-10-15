@@ -110,7 +110,8 @@ def _is_factual_question(text: str) -> bool:
     if re.search(
         r"\b(?:for me|advice for me|i should|what i should|i can do|what i can do|what i need to|"
         r"what should i|what should we|what could i|what would i|how do i|how can i|"
-        r"how should i|how would i|help me decide|best way to|is it okay if|is it normal for me)\b",
+        r"how should i|how would i|help me decide|best way to|best thing to do|best thing to focus on|"
+        r"is it okay if|is it normal for me)\b",
         normalized,
     ):
         return False
