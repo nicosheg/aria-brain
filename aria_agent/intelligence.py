@@ -74,6 +74,69 @@ def _contains_phrase(text: str, phrase: str) -> bool:
     return bool(re.search(r"(?<!\w)" + r"\s+".join(parts) + r"(?!\w)", text))
 
 
+def _is_factual_question(text: str) -> bool:
+    """Conservatively route objective, externally checkable questions to research."""
+    normalized = " ".join((text or "").strip().lower().split())
+    normalized = re.sub(r"\b(what|who|when|where|why|how|which)'s\b", r"\1 is", normalized)
+    if not normalized:
+        return False
+
+    # Writing and memory requests are tasks in their own right, not requests to
+    # research every factual-looking phrase that happens to appear in the prompt.
+    if re.match(
+        r"^(?:please\s+)?(?:write|draft|rewrite|polish|edit|translate|summarize|summarise|compose|create|generate|brainstorm|remember)\b",
+        normalized,
+    ):
+        return False
+    if any(
+        _contains_phrase(normalized, phrase)
+        for phrase in (
+            "what do you remember",
+            "what do you think",
+            "your opinion",
+            "what can you do",
+            "what are your capabilities",
+            "how are you",
+            "who are you",
+            "who am i",
+            "what is my name",
+            "what is your name",
+        )
+    ):
+        return False
+
+    # Keep advice and first-/second-person questions out of the research lane
+    # unless another explicit freshness/research marker already requests it.
+    if re.search(
+        r"\b(?:for me|advice for me|what should i|what should we|what could i|what would i|"
+        r"how do i|how can i|how should i|how would i|help me decide|best way to|"
+        r"is it okay if|is it normal for me)\b",
+        normalized,
+    ):
+        return False
+    if re.match(
+        r"^(?:what|who|when|where|why|how|which)\s+"
+        r"(?:is|are|was|were|does|do|did|has|have|had|can)\s+"
+        r"(?:i|me|my|mine|you|your|we|us|our|ours)\b",
+        normalized,
+    ):
+        return False
+
+    # Use question grammar rather than a question mark alone. This catches
+    # direct questions such as "What is a derivative?" while avoiding a broad
+    # rule that would send every conversational question to external research.
+    return bool(
+        re.search(
+            r"^(?:what|who|when|where|which)\s+(?:is|are|was|were|does|do|did|has|have|had|can)\b"
+            r"|^why\s+(?:is|are|was|were|does|do|did|has|have|had)\b"
+            r"|^how\s+(?:does|do|did|is|are|was|were|has|have|had)\b"
+            r"|^(?:is|are|was|were|does|do|did|has|have|can)\s+(?:a|an|the|[a-z][a-z0-9'-]*\b)"
+            r"|^(?:define|definition of|meaning of)\b",
+            normalized,
+        )
+    )
+
+
 class CognitiveCore:
     """ARIA's model-independent control plane.
 
@@ -118,7 +181,10 @@ class CognitiveCore:
             "regulation", "eligibility", "deadline", "exchange rate", "compare sources",
             "gather evidence",
         )
-        requires_web = any(_contains_phrase(text, marker) for marker in web_markers)
+        factual_question = _is_factual_question(text)
+        requires_web = factual_question or any(_contains_phrase(text, marker) for marker in web_markers)
+        if factual_question and "research_operator" not in workers:
+            workers = ["research_operator", *workers][:4]
 
         background_markers = (
             "every day", "daily", "weekly", "every week", "monitor", "alert me",
