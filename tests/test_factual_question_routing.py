@@ -41,6 +41,13 @@ def test_memory_greetings_writing_and_ordinary_advice_do_not_auto_research():
     assert "research_operator" not in advice.workers
     assert runtime._should_use_fast_lane(advice) is True
 
+    personalized_recommendation = core.classify(
+        "Based on what you know about me, what is the one thing I should focus on for the future?"
+    )
+    assert personalized_recommendation.requires_web is False
+    assert "research_operator" not in personalized_recommendation.workers
+    assert runtime._should_use_fast_lane(personalized_recommendation) is True
+
     business_advice = core.classify(
         "If I wanted to start a business now what are your top 3 best advice for me"
     )
