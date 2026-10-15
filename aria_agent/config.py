@@ -20,8 +20,6 @@ class Settings:
     model: str = os.getenv("ARIA_MODEL", "qwen/qwen3.8-27b")
     qwen_model: str = os.getenv("QWEN_MODEL", "qwen/qwen3.8-27b")
     qwencloud_model: str = os.getenv("QWENCLOUD_MODEL", "qwen3.8-flash")
-    zai_model: str = os.getenv("ZAI_MODEL", "glm-5.3").strip() or "glm-5.3"
-    zai_reasoning_effort: str = os.getenv("ZAI_REASONING_EFFORT", "low").strip().lower()
     deepseek_model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     openrouter_site_url: str = os.getenv("OPENROUTER_SITE_URL", "")
@@ -49,11 +47,11 @@ class Settings:
     def has_any_model(self) -> bool:
         primary_names = (
             "GROQ_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY",
-            "GEMINI_API_KEY", "OPENROUTER_API_KEY", "DASHSCOPE_API_KEY", "ZAI_API_KEY",
+            "GEMINI_API_KEY", "OPENROUTER_API_KEY", "DASHSCOPE_API_KEY",
         )
         if any(os.getenv(name, "").strip() for name in primary_names):
             return True
-        prefixes = ("GROQ_KEY", "OPENAI_KEY", "DEEPSEEK_KEY", "GEMINI_KEY", "OPENROUTER_KEY", "DASHSCOPE_KEY", "ZAI_KEY")
+        prefixes = ("GROQ_KEY", "OPENAI_KEY", "DEEPSEEK_KEY", "GEMINI_KEY", "OPENROUTER_KEY", "DASHSCOPE_KEY")
         return any(os.getenv(f"{prefix}_{i}", "").strip() for prefix in prefixes for i in range(1, 21))
 
 
