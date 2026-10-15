@@ -154,7 +154,6 @@ class AriaRuntime:
             ("gemini", "GEMINI_API_KEY", "GEMINI_KEY", settings.gemini_model, "https://generativelanguage.googleapis.com/v1beta/openai/", None),
             ("openrouter", "OPENROUTER_API_KEY", "OPENROUTER_KEY", os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini"), "https://openrouter.ai/api/v1", openrouter_headers or None),
             ("dashscope", "DASHSCOPE_API_KEY", "DASHSCOPE_KEY", settings.qwencloud_model, "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", None),
-            ("zai", "ZAI_API_KEY", "ZAI_KEY", settings.zai_model, (os.getenv("ZAI_BASE_URL") or "https://api.z.ai/api/paas/v4").strip().rstrip("/"), None),
         ]
         configs: list[dict] = []
         for provider, primary, prefix, model, base_url, headers in definitions:
@@ -185,12 +184,6 @@ class AriaRuntime:
         if config.get("headers"):
             kwargs["default_headers"] = config["headers"]
         return AsyncOpenAI(**kwargs)
-
-    @staticmethod
-    def _zai_reasoning_effort() -> str:
-        """Only pass reasoning levels supported by GLM-5.3; default to cost-conscious low effort."""
-        effort = settings.zai_reasoning_effort
-        return effort if effort in {"low", "high", "max"} else "low"
 
     def provider_candidates(self):
         candidates = []
@@ -313,11 +306,6 @@ Instructions for this independent specialist:
         provider_name = (provider or os.getenv("ARIA_PROVIDER", "groq")).strip().lower()
         if provider_name == "groq":
             model_settings["extra_args"] = {"reasoning_effort": settings.reasoning_effort}
-        elif provider_name == "zai":
-            model_settings["extra_args"] = {
-                "thinking": {"type": "enabled"},
-                "reasoning_effort": self._zai_reasoning_effort(),
-            }
         return Agent(
             name="ARIA",
             instructions=self._base_instructions(user_id, durable_memory),
@@ -429,11 +417,6 @@ FAST CONVERSATION MODE:
                 request_args["max_tokens"] = 700
             if config["provider"] == "groq":
                 request_args["reasoning_effort"] = "none"
-            elif config["provider"] == "zai":
-                # GLM-5.3 requires reasoning to be enabled; do not send the Groq-only "none" setting.
-                request_args["thinking"] = {"type": "enabled"}
-                request_args["reasoning_effort"] = self._zai_reasoning_effort()
-                request_args["temperature"] = 1.0
             try:
                 response = await client.chat.completions.create(**request_args)
                 reply = (response.choices[0].message.content or "").strip()

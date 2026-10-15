@@ -34,18 +34,12 @@ services:
         sync: false
       - key: DASHSCOPE_API_KEY
         sync: false
-      - key: ZAI_API_KEY
-        sync: false
       - key: GROQ_MODEL
         value: "qwen/qwen3.8-27b"
       - key: ARIA_PROVIDER
         value: "groq"
       - key: ARIA_REASONING_EFFORT
         value: "default"
-      - key: ZAI_MODEL
-        value: "glm-5.3"
-      - key: ZAI_REASONING_EFFORT
-        value: "low"
       - key: ARIA_APP_SECRET
         sync: false
       - key: ARIA_ENCRYPTION_KEY
@@ -91,18 +85,12 @@ services:
         sync: false
       - key: DASHSCOPE_API_KEY
         sync: false
-      - key: ZAI_API_KEY
-        sync: false
       - key: GROQ_MODEL
         value: "qwen/qwen3.8-27b"
       - key: ARIA_PROVIDER
         value: "groq"
       - key: ARIA_REASONING_EFFORT
         value: "default"
-      - key: ZAI_MODEL
-        value: "glm-5.3"
-      - key: ZAI_REASONING_EFFORT
-        value: "low"
       - key: ARIA_APP_SECRET
         sync: false
       - key: ARIA_ENCRYPTION_KEY

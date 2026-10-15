@@ -48,9 +48,8 @@ Set at least one active model credential in Render. Supported provider variables
 - Gemini: `GEMINI_API_KEY` and optional `GEMINI_KEY_1` through `GEMINI_KEY_20`
 - OpenRouter: `OPENROUTER_API_KEY` (optional `OPENROUTER_MODEL`)
 - DashScope: `DASHSCOPE_API_KEY` and optional `DASHSCOPE_KEY_1` through `DASHSCOPE_KEY_20`
-- Z.ai GLM-5.3: `ZAI_API_KEY` and optional `ZAI_KEY_1` through `ZAI_KEY_20` (`ZAI_MODEL`, `ZAI_BASE_URL` and `ZAI_REASONING_EFFORT` are configurable)
 
-ARIA tries the preferred provider first, then other configured providers. To explicitly prefer GLM-5.3, set `ARIA_PROVIDER=zai` and add `ZAI_API_KEY` in both the Render web service and background worker. The optional provider does not change the existing default (`groq`). A key rejected with an authentication error is skipped for the lifetime of that process; replacing a key in Render and redeploying clears that cache. Keep secrets in Render, never in chat or source control.
+ARIA tries the preferred provider first, then other configured providers. A key rejected with an authentication error is skipped for the lifetime of that process; replacing a key in Render and redeploying clears that cache. Keep secrets in Render, never in chat or source control.
 
 Also set:
 `ARIA_APP_SECRET`
@@ -96,6 +95,7 @@ User ratings can be linked to the exact run. ARIA uses repeated single-specialis
 
 When shared Postgres is configured, the API process also starts a small embedded queue consumer by default (disable it with ARIA_EMBEDDED_WORKER=false). It cooperates with the separately declared worker using atomic queue claims. A Render free service can sleep, so embedded queue processing is not a 24/7 service-level guarantee.
 
-## Z.ai / GLM integration
 
-The optional GLM-5.3 provider uses ARIA's existing OpenAI-compatible provider runtime; it does not add a second agent loop or bypass ARIA's research/evidence and approval controls. See [Z.AI Spec](Z.AI-SPEC.md) for provider settings, endpoints, model and license distinctions, safe rollout, and future capability backlog. GLM-5.3 is open-weight under a custom license; do not treat it as license-free. GLM-5.3-Flash is a separate model with different modality and license terms.
+## Z.ai source-code review
+
+This repo does **not** configure GLM-5.3 as a runtime provider. See [Z.AI Spec](Z.AI-SPEC.md) for the source-code audit, licensing notes, and reusable engineering ideas evaluated for ARIA.
