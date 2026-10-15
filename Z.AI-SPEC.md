@@ -1,213 +1,162 @@
-# Z.AI Spec for ARIA Brain
+# Z.AI Source-Code Audit and Reuse Spec for ARIA Brain
 
-**Purpose:** a durable implementation guide for future AI coding assistants working on ARIA Brain. Read this before adding or changing a Z.ai model, API route, MCP integration, or self-hosted GLM deployment.
+**Purpose:** help a future AI coding assistant understand what is actually available in Z.ai's GLM-5.3 source ecosystem, what is reusable, what fits ARIA today, and what would be wasteful or unsafe to copy.
 
-**Research checked:** 15 October 2026  
-**Repository:** https://github.com/nicosheg/aria-brain  
-**Current integration:** optional GLM-5.3 provider using ARIA's existing OpenAI-compatible provider runtime.
+**Audit date:** 15 October 2026  
+**ARIA repository:** https://github.com/nicosheg/aria-brain  
+**Scope:** source-code research and integration decisions. **This document does not configure GLM-5.3 as an ARIA provider.**
 
-## 1. Executive decision
+## Executive decision
 
-Z.ai's GLM models are useful candidates for ARIA's coding, multi-step reasoning, research synthesis and (with a separate model) multimodal document workflows. Adopt capabilities selectively; do not replace ARIA's architecture with a Z.ai-specific agent loop.
+The official source is accessible, but GLM-5.3 is not a compact, ready-to-merge autonomous-agent framework. Z.ai publishes a model repository, model configuration and chat template; the model architecture implementation is available through Hugging Face Transformers and the inference runtimes it supports. The Z.ai GitHub repository also has deployment examples and a documentation-only skill catalogue.
 
-### Implemented in this change
+The strongest transferable engineering idea found is GLM-5.3's careful handling of tool-call/result IDs before reordering results for model input. It validates that IDs exist, are unique, and match the assistant's tool calls, and only reorders results when that can be done safely. That pattern is worth preserving as an invariant for any future custom ARIA model-serialization layer.
 
-- Registers **zai** as an optional provider in ARIA's existing provider list.
-- Uses the existing AsyncOpenAI / OpenAI-compatible client; no new SDK or heavy runtime dependency is required.
-- Defaults to model **glm-5.3** and general API base URL **https://api.z.ai/api/paas/v4**; both model and base URL are configurable.
-- Enables reasoning explicitly and permits only Z.ai's documented **low**, **high**, and **max** reasoning-effort values. The default is **low** to avoid opting into the highest reasoning budget on every request.
-- Adds environment-variable declarations to the Render Blueprint for both the web service and background worker.
-- Adds provider configuration regression tests.
-- Leaves the current default provider (**groq**) unchanged. GLM-5.3 is not activated in production until a Z.ai API key is supplied and ARIA is explicitly configured to prefer it.
+**Do not duplicate that chat-template logic in the current ARIA runtime.** ARIA delegates tool execution and run-state serialization to the OpenAI Agents SDK and has server-side resumable runs, approval handling, and tests for exactly-once approval resumption. A second custom tool-call serializer would create a competing authority and a new failure surface without clear current benefit.
 
-This is provider plumbing and configuration-level test coverage—not proof of a successful live Z.ai API call. A real API key and controlled smoke test are required before making GLM-5.3 the production default.
+No GLM-5.3 model provider, inference endpoint, new API credential, heavyweight inference dependency, model weights or GPU runtime is added by the intended source-code integration work.
 
-## 2. Critical naming and licensing distinction
+## 1. Upstream source map
 
-Do not casually describe GLM-5.3 as unrestricted “open source”.
+### A. Z.ai's official GLM repository
 
-- **GLM-5.3** is an open-weight, text-only model hosted at https://huggingface.co/zai-org/GLM-5.3. Its Hugging Face model page identifies the license as **glm-5.3**, a custom license. Before commercial self-hosting, redistribution, fine-tuning, or building a model-as-a-service product, inspect the canonical license and all conditions: https://huggingface.co/zai-org/GLM-5.3/blob/main/LICENSE
-- **GLM-5.3-Flash** is a separate model, not just an alias for GLM-5.3. Its model page identifies an **MIT** license and describes native multimodal input: https://huggingface.co/zai-org/GLM-5.3-Flash
-- Hosted API use is still subject to Z.ai's API terms, quotas, prices and data handling—not just the weights license. Confirm current terms and pricing in the Z.ai console before sending sensitive data or incurring meaningful spend.
+Repository: https://github.com/zai-org/GLM-5
 
-GLM-5.3 is text-only per Z.ai's model guide; do not assume choosing it enables image/video understanding. Flash is the model to investigate for visual and document use cases. Sources: https://docs.z.ai/guides/llm/glm-5.3 and https://huggingface.co/zai-org/GLM-5.3-Flash
+Audited files:
+- `README.md`: model-family overview, model download links, and pointers to supported inference frameworks.
+- `requirements.txt`: minimal development/model-use dependencies listed by the repo (`transformers`, `pre-commit`, `accelerate`).
+- `example/ascend.md`: Ascend/NPU deployment guidance, with inference-optimization topics such as fused expert operations, communication/computation overlap, multi-token prediction, scheduling, index caching, prefill/decode separation and quantization.
+- `skills/glm-master-skill/SKILL.md`: documentation-only catalogue of official skills from the GLM-OCR, GLM-Image and GLM-V projects. The file intentionally does not execute subprocesses or local scripts.
 
-## 3. Exact provider configuration
+The repository is **Apache-2.0** licensed. Official license: https://github.com/zai-org/GLM-5/blob/main/LICENSE
 
-### Environment variables
+It is useful for source navigation, model deployment examples and the skills ecosystem. It does not itself contain a replacement for ARIA's executive agent runtime.
 
-| Variable | Meaning | Default / recommendation |
-|---|---|---|
-| **ZAI_API_KEY** | Primary API credential | Required to use hosted Z.ai |
-| **ZAI_KEY_1 … ZAI_KEY_20** | Optional additional keys following ARIA's provider-key pattern | Leave unset unless needed |
-| **ZAI_MODEL** | Model identifier sent in chat-completions requests | **glm-5.3** |
-| **ZAI_BASE_URL** | OpenAI-compatible API base URL | **https://api.z.ai/api/paas/v4** |
-| **ZAI_REASONING_EFFORT** | GLM reasoning budget | **low**; allowed values **low**, **high**, **max** |
-| **ARIA_PROVIDER** | Preferred provider across ARIA's configured providers | Keep current **groq** until Z.ai smoke tests pass; set to **zai** only if intentionally switching |
+### B. Official GLM-5.3 model files
 
-### Which endpoint should be used?
+Model: https://huggingface.co/zai-org/GLM-5.3
 
-Use the general endpoint by default:
+The current model repository contains the model card, `LICENSE`, `config.json`, `generation_config.json`, `chat_template.jinja`, and model weights. The current repository page reports about **756 GB** of weights across **141 safetensors shards**. This is not viable on ARIA's current Render web/worker service.
 
-~~~text
-https://api.z.ai/api/paas/v4
-~~~
+The model's chat template is here:
+https://huggingface.co/zai-org/GLM-5.3/blob/main/chat_template.jinja
 
-Z.ai also documents this endpoint for the **GLM Coding Plan**:
+Its license is the separate custom **GLM-5.3 License**, not the Apache-2.0 license in the Z.ai GitHub source repository:
+https://huggingface.co/zai-org/GLM-5.3/blob/main/LICENSE
 
-~~~text
-https://api.z.ai/api/coding/paas/v4
-~~~
+That model license grants broad rights to use, copy, modify, merge, publish, distribute, sublicense, sell copies, deploy, fine-tune and create derivative works, subject to its conditions. It requires retaining the copyright and permission notice. It also has a special security-review condition for a Model-as-a-Service business above the stated **US$10 billion aggregate revenue over a consecutive 12-month period** threshold. Review the exact license text before redistributing model assets or launching a product affected by those conditions.
 
-The Coding Plan endpoint can be selected with **ZAI_BASE_URL**. Do not switch endpoints based only on the model name; use the endpoint that matches the account's Z.ai subscription/API product. Source: https://docs.z.ai/guides/llm/glm-5.3
+**“No license fee” is not “no license”.** Apache-2.0 requires compliance with its notices and terms. The custom GLM-5.3 license also has conditions. Preserve upstream notices if any covered code/assets are copied.
 
-### Render setup
+### C. Model architecture implementation
 
-The repository's **render.yaml** now declares **ZAI_API_KEY**, **ZAI_MODEL**, and **ZAI_REASONING_EFFORT** for both **aria-brain** (web) and **aria-agent-worker** (background worker). An existing dashboard-managed Render service may still require adding these variables in Render's Environment UI; changing a Blueprint file does not prove values are present in the live service.
+Hugging Face Transformers has model implementation files under:
+https://github.com/huggingface/transformers/tree/main/src/transformers/models/glm5_next
 
-1. Add **ZAI_API_KEY** to both web and worker services in Render. Never put the key in GitHub, this spec, chat, client JavaScript, or logs.
-2. Set **ZAI_MODEL=glm-5.3** and **ZAI_REASONING_EFFORT=low**.
-3. Leave **ZAI_BASE_URL** unset for the general endpoint unless the account uses the Coding Plan endpoint or an OpenAI-compatible self-host.
-4. Keep **ARIA_PROVIDER=groq** while validating the credential and endpoint. After a successful smoke test, set **ARIA_PROVIDER=zai** in both services if GLM-5.3 should be preferred. Web and worker must use compatible provider/model settings so background runs and resumed work are not stranded.
-5. Deploy and inspect startup, provider errors, one normal chat, one factual/research task, and one tool-using task before switching real users over. Do not claim these tests passed without observing actual results.
+Relevant files include `modular_glm5_next.py`, `modeling_glm5_next.py`, configuration files and multimodal processing files. These implement neural-network architecture, tokenization/processing and inference integration. Transformers is an Apache-2.0 project.
 
-The runtime already uses configured provider order and can try other configured providers when a call fails in a retryable way. Do not add silent fallbacks that hide errors or erase provider/model identity from saved runs.
+These files can be studied for model-runtime work but are **not** ARIA's agent-orchestration layer. Pulling the model implementation into ARIA would not provide GLM intelligence by itself; it would still require the actual weights, compatible inference software, extreme memory/GPU resources, and considerable deployment engineering.
 
-## 4. GLM-5.3 request behavior
+## 2. What the GLM-5.3 chat template actually does
 
-Z.ai's current GLM-5.3 guide states that the model:
-- Accepts text input (not native image/video input).
-- Has a documented 1-million-token context window and maximum output of 128K tokens.
-- Always has reasoning enabled; disabling reasoning is unsupported.
-- Supports **reasoning_effort** values **low**, **high** and **max**.
-- Supports streaming, function calling, structured output and context caching.
+The chat template is model-input serialization code, not a general-purpose agent runtime. Relevant implementation blocks include:
+- Tool schema serialization while filtering internal metadata fields such as `defer_loading` and `strict`.
+- Matching tool references to declared tool schemas by name.
+- Normalizing tool results into the expected model-specific observation format.
+- Resolving IDs from `tool_call_id` or `id`.
+- Detecting duplicate result IDs, missing IDs, IDs that do not correspond to an assistant tool call, and duplicate assistant tool-call IDs.
+- Reordering tool results to the matching assistant-call order **only if validation shows that reordering is unambiguous**.
+- Stopping validation loops early once an invalid condition has already been detected.
 
-These are vendor-documented capabilities. Evaluate them against ARIA's actual prompts, tool schemas and budget rather than assuming vendor benchmark claims guarantee ARIA results.
+Source locations: https://huggingface.co/zai-org/GLM-5.3/blame/main/chat_template.jinja (see the helper macros and tool-message handling near lines 826–1065).
 
-OpenAI-compatible chat-completions request shape (illustrative—never include a real key in source control):
+Why this matters: tool calls and results must remain paired. Sorting tool outputs by arrival order or assuming IDs are always valid can produce a misleading context. GLM's template explicitly validates before it changes ordering.
 
-~~~json
-{
-  "model": "glm-5.3",
-  "messages": [
-    {"role": "system", "content": "ARIA's server-side instructions"},
-    {"role": "user", "content": "Explain your task"}
-  ],
-  "thinking": {"type": "enabled"},
-  "reasoning_effort": "low",
-  "temperature": 1.0,
-  "max_tokens": 700
-}
-~~~
+Why this should **not** be pasted into ARIA right now:
+1. It emits GLM-specific token markers such as `<|assistant|>`, `<|observation|>` and `<tool_call>`; those are not OpenAI Agents SDK's internal state format.
+2. ARIA invokes tools through the Agents SDK, which owns the model/tool protocol and resumable `RunState`.
+3. ARIA stores approved run state server-side, encrypts it, and tests that a run cannot be resumed twice. Adding a second serializer would risk changing protocol semantics.
+4. A copied Jinja template is subject to the GLM-5.3 model license and attribution conditions, not automatically the Apache license of the separate GitHub repo.
 
-For complex coding/reasoning, compare **high** and **max** in a controlled evaluation; do not raise the default until latency, quality and actual spend have been measured. Do not send Groq's **reasoning_effort=none** value to GLM-5.3. ARIA's fast conversation path sets GLM reasoning explicitly because GLM-5.3 does not support disabling reasoning.
+## 3. Reusable ideas ranked by ARIA benefit
 
-Official model guide and request examples: https://docs.z.ai/guides/llm/glm-5.3  
-API introduction: https://docs.z.ai/api-reference/introduction
+### Priority 1 — preserve tool-call/result integrity (principle, not copied template)
 
-## 5. Where GLM can help ARIA
+**Candidate use:** only if ARIA later adds a custom provider-specific transcript serializer, an offline agent replay format, or a local GLM-serving adapter.
 
-### Use now: optional model provider, not a new architecture
+Required invariant for that future layer:
+- Every tool result must have a non-empty invocation ID.
+- Each result ID must match one real invocation in the immediately relevant tool-call batch.
+- An invocation/result ID must not appear twice.
+- Do not reorder results if any ID is missing, repeated or unmatched.
+- When every ID is valid and unique, order results by the original invocation list, not network completion order.
+- Keep a conservative fallback that preserves original order when validation is ambiguous.
+- Test interleaved calls, batched output records, missing/duplicate IDs, unknown IDs, result-order permutations, and empty batches.
 
-ARIA already has a model-independent control plane, provider candidate list, specialist selection, common research tools, memory, controlled browser automation, MCP connections and approval gates. The Z.ai provider should plug into these paths rather than replicate them.
+**Current status:** not implemented as a duplicate ARIA layer, because the SDK already owns tool-message serialization. Do not add this adapter unless a measured bug or a custom serialization requirement justifies it.
 
-Best near-term evaluation tasks:
-- Long, multi-step code changes and test/debug loops using the existing **developer** specialist.
-- Review of ARIA architecture, API contracts, and deployment plans.
-- Research synthesis where existing tools gather sources and open direct pages, while ARIA still verifies and cites the opened evidence.
-- Structured extraction/planning in a future validated-schema path after compatibility tests.
+### Priority 2 — explicit capability/skill discovery
 
-Current implementation uses one selected provider/model for the ARIA run and the specialists it creates. **Per-worker multi-model routing is not implemented by this provider change.** Add it later only if measured benefits justify the extra reliability and debugging complexity.
+Z.ai's `skills/glm-master-skill/SKILL.md` uses a simple pattern: classify user intent, point to the specific official skill, open that skill's instructions before using it, and keep installation/key handling explicit. The master skill is intentionally documentation-only, not an executable installer.
 
-### Next: benchmark before assigning production workload
+ARIA already has 45 routed specialists and existing tool discovery, so duplicating the GLM catalogue inside the runtime is not useful. If ARIA later supports genuinely installable capability packs, reuse the *concept* of a small, documented registry with capability metadata, source links, prerequisites, license, safety level and verification tests—not a second static list of workers.
 
-Create a small evaluation set from real ARIA tasks, not model demos. Include:
-1. factual question → direct source opening and accurate citations;
-2. code bug → minimal diff, regression tests and no unrelated rewrite;
-3. connected-app query → correct tool discovery and read-only access;
-4. external side effect → pause for approval when required;
-5. provider timeout/401/429 → safe fallback without duplicate external actions;
-6. long conversation → relevant memory without dumping the full transcript;
-7. Nigerian user context → useful, natural answer, with external claims properly sourced.
+Adjacent official skill sources include:
+- GLM-OCR (text, table, formula and handwriting extraction): https://github.com/zai-org/GLM-OCR
+- GLM-V (visual/document workflows): https://github.com/zai-org/GLM-V
+- GLM-Image (image generation): https://github.com/zai-org/GLM-Image
 
-Record pass/fail, latency, tokens or spend when available, tool calls, source quality, regressions, and human rating. Compare against the current default provider on the same prompts. Never compare only cherry-picked examples.
+These are separate projects and may have separate models, dependencies, API keys and licenses. They are **not** GLM-5.3 code by default. Investigate each project independently before adapting anything.
 
-### Later: GLM-5.3-Flash for multimodal workflows
+### Priority 3 — long-horizon engineering evaluation
 
-Potential candidates include:
-- image/document interpretation and extracting information from screenshots;
-- scanned receipts, forms or image-based documents;
-- visual browser assistance where a page screenshot adds information that the DOM does not expose;
-- video/file inputs when an official API/runtime path is verified.
+Z.ai's GLM-5 README reports that its models are aimed at longer coding/system-engineering tasks. That is a product/evaluation claim, not a standalone implementation we can import. The ARIA-ready improvement is to measure whether a proposed orchestration change genuinely helps:
+- Break goals into bounded subtasks with explicit acceptance conditions.
+- Store durable task progress and the last verified state separately from chat transcript.
+- Run tests/checks after each code change and use evidence rather than a model's self-assessment to declare completion.
+- Stop or request approval when a task requires destructive external action, new spending, secrets, or a material change in scope.
+- Avoid unbounded loops and cap turns, time, concurrent specialists and spend.
 
-Do not switch current text requests to Flash blindly. ARIA's request schema, file transport, safe size limits, retention/privacy expectations, prompt-injection handling and output validation must be tested. Make this a separate model capability with explicit modality support and an evaluation suite. Model card: https://huggingface.co/zai-org/GLM-5.3-Flash
+ARIA already implements worker routing, scheduled/background jobs, run state, tool approvals, source evidence and user feedback. Audit these existing paths before creating another planner or agent loop.
 
-### Later: structured output and cache efficiency
+### Priority 4 — model-specific inference optimization (not for current Render)
 
-- **Structured outputs:** use for internal plans, normalized research findings, and extraction schemas only where the model/API supports the requested schema. Validate every response locally and preserve a plain-text fallback for user-facing turns.
-- **Context caching:** evaluate on repeated large stable prefixes (for example, shared instructions or an authorized codebase summary). Confirm the provider's actual cache controls, cache pricing and retention rules first. Do not add cache complexity before observing a cost/latency benefit.
-- **Streaming:** add only if the frontend and API contract can propagate tokens safely without breaking saved runs, cancellation, or approval pauses. Existing non-streaming requests should continue to work.
-- **Long context:** use for bounded codebase/research work when it helps. A large advertised context window is not a reason to send all memory and every conversation turn on every request. Continue selecting relevant durable memory and compacting long tasks.
+The Ascend deployment example discusses fused expert kernels, communication/computation overlap, multi-token prediction, load scheduling, index/prefix caching, prefill/decode separation and quantization. These are inference-server and accelerator optimizations—not improvements to ARIA's Python orchestration loop. They belong in a separate GPU-serving project if ARIA ever self-hosts a GLM model on suitable infrastructure.
 
-### Later: controlled MCP integration
+Do not install Ascend, CUDA, vLLM, SGLang, or other GPU/model-serving stacks into the existing small Render processes. The official flagship model's weight size makes this particularly inappropriate for the current service.
 
-Z.ai describes server-side MCP calling in its API: https://docs.z.ai/guides/capabilities/mcp-call
+## 4. Concrete ARIA implementation decision
 
-**Do not enable model-provider-managed MCP calls for ARIA by default.** ARIA already has an MCP connector and approval/security policy. Direct model-to-MCP integration could create a second tool-execution path and weaken ARIA's unified approval, auditing, and external-content protections if connected carelessly.
+Keep the existing production architecture unchanged:
+- `CognitiveCore` determines intent and selects the relevant specialist set.
+- `AriaRuntime` builds the Agents SDK agent and tools.
+- `MCPConnectorManager` exposes the user's connected systems.
+- `AgentStore` keeps memory, messages, jobs and encrypted resumable run state.
+- Existing approval gates remain the only authority for consequential external actions.
+- The direct-source evidence requirement continues to govern factual/research tasks.
 
-If there is a concrete use case:
-1. expose only allowlisted tools and servers;
-2. start read-only;
-3. route any consequential action through ARIA's existing approval mechanism;
-4. log the selected tool, server, arguments, result and approval decision;
-5. treat all remote responses as untrusted evidence and test prompt-injection cases;
-6. prove the vendor-managed tool path cannot bypass authorization, SSRF controls, or audit records before enabling it.
+The provider-only change proposed during the initial interpretation was not what the user asked for; it is being removed. Do not reintroduce `ZAI_API_KEY`, `ZAI_MODEL`, `ZAI_BASE_URL`, `ZAI_REASONING_EFFORT`, or an `ARIA_PROVIDER=zai` setting as part of this source-code audit.
 
-## 6. Self-hosting: not on the current Render service
+At the end of this review, no GLM model weights or model-specific Jinja template should be copied into the active ARIA runtime. No provider integration is necessary to retain the findings here.
 
-GLM open weights may offer deployment control and predictable marginal inference costs when suitable GPU infrastructure is available. That is a future infrastructure decision, not a reason to install model-serving software into ARIA's current small Render web/worker processes.
+## 5. Reuse and license checklist for future AI coding assistants
 
-Potential later path:
-- provision a dedicated GPU host;
-- evaluate the exact upstream model, hardware memory, quantization and supported inference engine;
-- serve a private OpenAI-compatible endpoint with vLLM/SGLang or another supported runtime;
-- set **ZAI_BASE_URL** to the private endpoint and **ZAI_MODEL** to the server's actual model ID;
-- secure the endpoint with authentication and network controls; test capacity, warmup, timeouts and model updates;
-- review the specific model license (GLM-5.3 and Flash have different terms).
+Before importing any code from this ecosystem:
+1. Confirm the exact repository, file and revision; do not assume a license applies across all projects.
+2. Read that file's governing license. Distinguish the Apache-2.0 GitHub repo, the custom GLM-5.3 model license, GLM-5.3-Flash's separate license, and any third-party inference library license.
+3. If copying Apache-2.0 code, include its license and retain relevant copyright/attribution/NOTICE materials; clearly mark modified files.
+4. If copying from the GLM-5.3 model repo, preserve the GLM-5.3 copyright and permission notice and check its additional terms.
+5. Prefer implementing the same general invariant in ARIA's own idiom when copying is unnecessary.
+6. Don't copy architecture code just to say it was merged. Confirm that the code operates on the same data format and fixes a documented ARIA limitation.
+7. Add regression tests for malformed, duplicate, missing and out-of-order tool results before modifying any orchestration/serialization path.
+8. Run the full tests suite, then verify the same merged commit is live on Render and test the actual affected behavior.
 
-Official GLM-5.3 model card includes Transformers and serving entry points: https://huggingface.co/zai-org/GLM-5.3  
-Flash model card includes multimodal Transformers usage and serving links: https://huggingface.co/zai-org/GLM-5.3-Flash
+## 6. Canonical source links
 
-Do not download hundreds of gigabytes of weights or add vLLM, SGLang, GPU dependencies, or a new paid host without a separate capacity/cost decision.
-
-## 7. Guardrails future agents must preserve
-
-- Keep the existing ARIA runtime as orchestrator; do not replace the app with a bare GLM chatbot.
-- Keep ARIA's tool authorization, approval state, encrypted credentials, SSRF restrictions, and audit trail.
-- Keep factual work on ARIA's source-backed research path. A model's internal knowledge, provider search snippets, or reasoning trace is not a source citation.
-- Never trust model output as validated JSON, code, URLs, recipient addresses or action arguments without local validation.
-- Do not expose API keys in client code, errors, telemetry, memory, tests, or this document. Use synthetic test credentials only.
-- Preserve provider and model identity in run records; do not silently relabel results from fallbacks.
-- Preserve deterministic routing and fast paths for ordinary conversation. Do not send every greeting, personal question or writing request through costly web research.
-- Do not allow a provider-specific endpoint or tool path to bypass the common ARIA security policy.
-- Measure before increasing reasoning effort, context size, specialist count, background concurrency or spend.
-- Tests can validate provider configuration without real credentials; a live provider call needs a real Z.ai key and must be reported as untested until actually exercised.
-
-## 8. Files changed for this integration
-
-- **aria_agent/config.py** — model, reasoning effort and provider detection settings.
-- **aria_agent/runtime.py** — provider registration, configurable OpenAI-compatible endpoint, GLM reasoning parameters in both agent and fast-chat paths.
-- **render.yaml** — optional Z.ai environment declarations for web and worker services.
-- **tests/test_zai_provider.py** — regression coverage for optional configuration, custom endpoints and configured-model detection.
-- **README.md** — points future maintainers to this specification.
-
-## 9. Rollout checklist for future implementation work
-
-- [ ] Merge only after GitHub Actions tests/compilation pass and the PR diff contains no unrelated changes.
-- [ ] Verify the latest Render deploy is tied to the exact merged commit and is live.
-- [ ] Add the Z.ai key through Render's secret/environment interface for both web and worker; never through Git.
-- [ ] Keep the current provider as default until a real GLM-5.3 smoke test succeeds.
-- [ ] Test fast chat, factual research with opened-source citations, tool use, retry/fallback, a background run and approval resume where applicable.
-- [ ] Compare the same evaluation prompts against the existing provider at low/high/max effort and record cost/latency.
-- [ ] Deploy the preferred-provider change only after tests pass; check service logs and rollback path.
-- [ ] Re-check official model docs, licensing and API pricing on the day of deployment; these can change.
+- Official GLM-5 source repository and Apache-2.0 license: https://github.com/zai-org/GLM-5
+- Official GLM-5.3 model files: https://huggingface.co/zai-org/GLM-5.3/tree/main
+- GLM-5.3 license: https://huggingface.co/zai-org/GLM-5.3/blob/main/LICENSE
+- GLM-5.3 chat template and history: https://huggingface.co/zai-org/GLM-5.3/blob/main/chat_template.jinja
+- Hugging Face Transformers GLM-5 Next model implementation: https://github.com/huggingface/transformers/tree/main/src/transformers/models/glm5_next
+- Official skill catalogue: https://github.com/zai-org/GLM-5/tree/main/skills/glm-master-skill
+- Official deployment example: https://github.com/zai-org/GLM-5/blob/main/example/ascend.md
